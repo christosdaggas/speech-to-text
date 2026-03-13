@@ -1,0 +1,422 @@
+# Spanish translation for Speech to Text
+# Copyright (C) 2026 Christos A. Daggas
+# SPDX-License-Identifier: MIT
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: speech-to-text 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-01 00:00+0000\n"
+"PO-Revision-Date: 2026-01-01 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Speech to Text"
+msgstr "Voz a Texto"
+
+msgid "Transcription"
+msgstr "Transcripción"
+
+msgid "History"
+msgstr "Historial"
+
+msgid "Microphone"
+msgstr "Micrófono"
+
+msgid "Model"
+msgstr "Modelo"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Performance"
+msgstr "Rendimiento"
+
+msgid "Settings"
+msgstr "Configuración"
+
+msgid "Collapse sidebar"
+msgstr "Contraer barra lateral"
+
+msgid "Expand sidebar"
+msgstr "Expandir barra lateral"
+
+msgid "New version available"
+msgstr "Nueva versión disponible"
+
+msgid "Record"
+msgstr "Grabar"
+
+msgid "Start recording (Ctrl+R)"
+msgstr "Iniciar grabación (Ctrl+R)"
+
+msgid "Pause recording"
+msgstr "Pausar grabación"
+
+msgid "Resume recording"
+msgstr "Reanudar grabación"
+
+msgid "Stop recording and transcribe"
+msgstr "Detener y transcribir"
+
+msgid "Copy transcript to clipboard"
+msgstr "Copiar transcripción al portapapeles"
+
+msgid "Clear transcript"
+msgstr "Borrar transcripción"
+
+msgid "Save"
+msgstr "Guardar"
+
+msgid "Save transcript to file"
+msgstr "Guardar transcripción en archivo"
+
+msgid "Microphone:"
+msgstr "Micrófono:"
+
+msgid "Select microphone"
+msgstr "Seleccionar micrófono"
+
+msgid "Model:"
+msgstr "Modelo:"
+
+msgid "Select Whisper model"
+msgstr "Seleccionar modelo Whisper"
+
+msgid "No Model"
+msgstr "Sin modelo"
+
+msgid "Model Loaded"
+msgstr "Modelo cargado"
+
+msgid "Main menu"
+msgstr "Menú principal"
+
+msgid "Idle"
+msgstr "Inactivo"
+
+msgid "No model loaded"
+msgstr "Ningún modelo cargado"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "Offline"
+msgstr "Sin conexión"
+
+msgid "Recording"
+msgstr "Grabando"
+
+msgid "Paused"
+msgstr "Pausado"
+
+msgid "Auto-detect"
+msgstr "Detección automática"
+
+msgid "Press Record to start transcribing…"
+msgstr "Presione Grabar para comenzar…"
+
+msgid "Confidence:"
+msgstr "Confianza:"
+
+msgid "Recording…"
+msgstr "Grabando…"
+
+msgid "Transcribing…"
+msgstr "Transcribiendo…"
+
+msgid "Loading model…"
+msgstr "Cargando modelo…"
+
+msgid "Ready"
+msgstr "Listo"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Copied to clipboard"
+msgstr "Copiado al portapapeles"
+
+msgid "Nothing to save"
+msgstr "Nada que guardar"
+
+msgid "Transcript saved"
+msgstr "Transcripción guardada"
+
+msgid "No audio recorded"
+msgstr "No se grabó audio"
+
+msgid "Save Transcript"
+msgstr "Guardar transcripción"
+
+msgid "Transcription History"
+msgstr "Historial de transcripciones"
+
+msgid "Search transcriptions…"
+msgstr "Buscar transcripciones…"
+
+msgid "Clear all history"
+msgstr "Borrar todo el historial"
+
+msgid "No Transcriptions Yet"
+msgstr "Sin transcripciones"
+
+msgid "Your transcription history will appear here"
+msgstr "Su historial de transcripciones aparecerá aquí"
+
+msgid "Copy to clipboard"
+msgstr "Copiar al portapapeles"
+
+msgid "Delete"
+msgstr "Eliminar"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "What's New"
+msgstr "Novedades"
+
+msgid "About Speech to Text"
+msgstr "Acerca de Voz a Texto"
+
+msgid "Quit"
+msgstr "Salir"
+
+msgid "Welcome to Speech to Text"
+msgstr "Bienvenido a Voz a Texto"
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "Get Started"
+msgstr "Comenzar"
+
+msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
+msgstr "Convierta voz a texto localmente.\nNo se requiere conexión a Internet después de la configuración."
+
+msgid "100% offline — your audio never leaves your device"
+msgstr "100% sin conexión — su audio nunca sale de su dispositivo"
+
+msgid "Supports 99 languages with auto-detection"
+msgstr "Compatible con 99 idiomas con detección automática"
+
+msgid "Download a Whisper Model"
+msgstr "Descargar un modelo Whisper"
+
+msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
+msgstr "Se necesita un modelo para la transcripción.\nRecomendamos el modelo Tiny (~75 MB)."
+
+msgid "Download Model"
+msgstr "Descargar modelo"
+
+msgid "Downloading…"
+msgstr "Descargando…"
+
+msgid "Retry"
+msgstr "Reintentar"
+
+msgid "You're All Set!"
+msgstr "¡Todo listo!"
+
+msgid "Download complete!"
+msgstr "¡Descarga completada!"
+
+msgid "Language Detection"
+msgstr "Detección de idioma"
+
+msgid "Whisper can automatically detect the spoken language"
+msgstr "Whisper puede detectar automáticamente el idioma hablado"
+
+msgid "Auto-detect Language"
+msgstr "Detectar idioma automáticamente"
+
+msgid "Let Whisper determine the language automatically"
+msgstr "Dejar que Whisper determine el idioma automáticamente"
+
+msgid "Manual Selection"
+msgstr "Selección manual"
+
+msgid "Force a specific language for transcription"
+msgstr "Forzar un idioma específico para la transcripción"
+
+msgid "Used when auto-detect is disabled"
+msgstr "Se usa cuando la detección automática está desactivada"
+
+msgid "Supported Languages"
+msgstr "Idiomas compatibles"
+
+msgid "Translation"
+msgstr "Traducción"
+
+msgid "Whisper can also translate speech to English"
+msgstr "Whisper también puede traducir voz al inglés"
+
+msgid "Input Device"
+msgstr "Dispositivo de entrada"
+
+msgid "Select the microphone to use for recording"
+msgstr "Seleccione el micrófono a utilizar"
+
+msgid "Refresh device list"
+msgstr "Actualizar lista de dispositivos"
+
+msgid "Audio Settings"
+msgstr "Configuración de audio"
+
+msgid "Sample Rate"
+msgstr "Frecuencia de muestreo"
+
+msgid "Audio will be resampled to 16kHz for Whisper"
+msgstr "El audio se remuestreará a 16 kHz para Whisper"
+
+msgid "Channels"
+msgstr "Canales"
+
+msgid "Stereo input is automatically converted to mono"
+msgstr "La entrada estéreo se convierte automáticamente a mono"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Microphone Test"
+msgstr "Prueba de micrófono"
+
+msgid "Test Microphone"
+msgstr "Probar micrófono"
+
+msgid "Record a short sample to verify your microphone works"
+msgstr "Grabe una muestra corta para verificar su micrófono"
+
+msgid "Test"
+msgstr "Probar"
+
+msgid "No audio input devices found"
+msgstr "No se encontraron dispositivos de audio"
+
+msgid "Check that a microphone is connected"
+msgstr "Verifique que un micrófono esté conectado"
+
+msgid "Whisper Models"
+msgstr "Modelos Whisper"
+
+msgid "Select a model. Larger models are more accurate but slower."
+msgstr "Seleccione un modelo. Los más grandes son más precisos pero más lentos."
+
+msgid "Downloaded"
+msgstr "Descargado"
+
+msgid "Download"
+msgstr "Descargar"
+
+msgid "Download Progress"
+msgstr "Progreso de descarga"
+
+msgid "No download in progress"
+msgstr "Sin descarga en curso"
+
+msgid "Storage"
+msgstr "Almacenamiento"
+
+msgid "Choose where Whisper models are stored."
+msgstr "Elija dónde almacenar los modelos Whisper."
+
+msgid "Models Directory"
+msgstr "Directorio de modelos"
+
+msgid "Open in file manager"
+msgstr "Abrir en gestor de archivos"
+
+msgid "Change models directory"
+msgstr "Cambiar directorio de modelos"
+
+msgid "Select Models Directory"
+msgstr "Seleccionar directorio de modelos"
+
+msgid "Reset to default location"
+msgstr "Restablecer ubicación predeterminada"
+
+msgid "GPU Acceleration"
+msgstr "Aceleración GPU"
+
+msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+msgstr "Usar GPU para transcripción más rápida. Requiere CUDA o OpenCL."
+
+msgid "Use GPU"
+msgstr "Usar GPU"
+
+msgid "Accelerate transcription with your graphics card"
+msgstr "Acelerar la transcripción con su tarjeta gráfica"
+
+msgid "CPU Fallback"
+msgstr "Respaldo CPU"
+
+msgid "Automatically fall back to CPU if GPU is unavailable"
+msgstr "Cambiar automáticamente a CPU si la GPU no está disponible"
+
+msgid "GPU Status"
+msgstr "Estado de GPU"
+
+msgid "CPU Settings"
+msgstr "Configuración de CPU"
+
+msgid "Worker Threads"
+msgstr "Hilos de trabajo"
+
+msgid "Number of CPU threads for transcription"
+msgstr "Número de hilos de CPU para la transcripción"
+
+msgid "Memory"
+msgstr "Memoria"
+
+msgid "Estimated Memory Usage"
+msgstr "Uso de memoria estimado"
+
+msgid "Depends on the selected model size"
+msgstr "Depende del tamaño del modelo seleccionado"
+
+msgid "Beam Size"
+msgstr "Tamaño del haz"
+
+msgid "Higher values improve accuracy but use more memory"
+msgstr "Valores más altos mejoran la precisión pero usan más memoria"
+
+msgid "GPU"
+msgstr "GPU"
+
+msgid "VRAM"
+msgstr "VRAM"
+
+msgid "Detecting GPU…"
+msgstr "Detectando GPU…"
+
+msgid "No GPU detected"
+msgstr "No se detectó GPU"
+
+msgid "CPU only"
+msgstr "Solo CPU"
+
+msgid "Available"
+msgstr "Disponible"
+
+msgid "Select"
+msgstr "Seleccionar"
+
+msgid "Selected"
+msgstr "Seleccionado"
+
+msgid "Offline speech-to-text transcription using Whisper"
+msgstr "Transcripción de voz sin conexión con Whisper"
+
+msgid "Local offline speech-to-text transcription using Whisper"
+msgstr "Transcripción de voz local y sin conexión con Whisper"

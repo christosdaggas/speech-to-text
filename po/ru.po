@@ -1,0 +1,422 @@
+# Russian translation for Speech to Text
+# Copyright (C) 2026 Christos A. Daggas
+# SPDX-License-Identifier: MIT
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: speech-to-text 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-01 00:00+0000\n"
+"PO-Revision-Date: 2026-01-01 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Speech to Text"
+msgstr "Речь в текст"
+
+msgid "Transcription"
+msgstr "Транскрипция"
+
+msgid "History"
+msgstr "История"
+
+msgid "Microphone"
+msgstr "Микрофон"
+
+msgid "Model"
+msgstr "Модель"
+
+msgid "Language"
+msgstr "Язык"
+
+msgid "Performance"
+msgstr "Производительность"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Collapse sidebar"
+msgstr "Свернуть боковую панель"
+
+msgid "Expand sidebar"
+msgstr "Развернуть боковую панель"
+
+msgid "New version available"
+msgstr "Доступна новая версия"
+
+msgid "Record"
+msgstr "Запись"
+
+msgid "Start recording (Ctrl+R)"
+msgstr "Начать запись (Ctrl+R)"
+
+msgid "Pause recording"
+msgstr "Пауза записи"
+
+msgid "Resume recording"
+msgstr "Возобновить запись"
+
+msgid "Stop recording and transcribe"
+msgstr "Остановить и транскрибировать"
+
+msgid "Copy transcript to clipboard"
+msgstr "Копировать транскрипцию в буфер обмена"
+
+msgid "Clear transcript"
+msgstr "Очистить транскрипцию"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Save transcript to file"
+msgstr "Сохранить транскрипцию в файл"
+
+msgid "Microphone:"
+msgstr "Микрофон:"
+
+msgid "Select microphone"
+msgstr "Выбрать микрофон"
+
+msgid "Model:"
+msgstr "Модель:"
+
+msgid "Select Whisper model"
+msgstr "Выбрать модель Whisper"
+
+msgid "No Model"
+msgstr "Нет модели"
+
+msgid "Model Loaded"
+msgstr "Модель загружена"
+
+msgid "Main menu"
+msgstr "Главное меню"
+
+msgid "Idle"
+msgstr "Ожидание"
+
+msgid "No model loaded"
+msgstr "Модель не загружена"
+
+msgid "CPU"
+msgstr "ЦП"
+
+msgid "Offline"
+msgstr "Автономно"
+
+msgid "Recording"
+msgstr "Запись"
+
+msgid "Paused"
+msgstr "Пауза"
+
+msgid "Auto-detect"
+msgstr "Автоопределение"
+
+msgid "Press Record to start transcribing…"
+msgstr "Нажмите Запись для начала транскрипции…"
+
+msgid "Confidence:"
+msgstr "Уверенность:"
+
+msgid "Recording…"
+msgstr "Запись…"
+
+msgid "Transcribing…"
+msgstr "Транскрипция…"
+
+msgid "Loading model…"
+msgstr "Загрузка модели…"
+
+msgid "Ready"
+msgstr "Готово"
+
+msgid "Error"
+msgstr "Ошибка"
+
+msgid "Copied to clipboard"
+msgstr "Скопировано в буфер обмена"
+
+msgid "Nothing to save"
+msgstr "Нечего сохранять"
+
+msgid "Transcript saved"
+msgstr "Транскрипция сохранена"
+
+msgid "No audio recorded"
+msgstr "Аудио не записано"
+
+msgid "Save Transcript"
+msgstr "Сохранить транскрипцию"
+
+msgid "Transcription History"
+msgstr "История транскрипций"
+
+msgid "Search transcriptions…"
+msgstr "Поиск транскрипций…"
+
+msgid "Clear all history"
+msgstr "Очистить всю историю"
+
+msgid "No Transcriptions Yet"
+msgstr "Транскрипций пока нет"
+
+msgid "Your transcription history will appear here"
+msgstr "Ваша история транскрипций появится здесь"
+
+msgid "Copy to clipboard"
+msgstr "Копировать в буфер обмена"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "System"
+msgstr "Системная"
+
+msgid "Light"
+msgstr "Светлая"
+
+msgid "Dark"
+msgstr "Тёмная"
+
+msgid "What's New"
+msgstr "Что нового"
+
+msgid "About Speech to Text"
+msgstr "О программе Речь в текст"
+
+msgid "Quit"
+msgstr "Выход"
+
+msgid "Welcome to Speech to Text"
+msgstr "Добро пожаловать в Речь в текст"
+
+msgid "Next"
+msgstr "Далее"
+
+msgid "Get Started"
+msgstr "Начать"
+
+msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
+msgstr "Преобразуйте речь в текст локально.\nПодключение к Интернету не требуется после настройки."
+
+msgid "100% offline — your audio never leaves your device"
+msgstr "100% автономно — ваш звук никогда не покидает устройство"
+
+msgid "Supports 99 languages with auto-detection"
+msgstr "Поддержка 99 языков с автоопределением"
+
+msgid "Download a Whisper Model"
+msgstr "Скачать модель Whisper"
+
+msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
+msgstr "Для транскрипции нужна модель.\nРекомендуем начать с модели Tiny (~75 МБ)."
+
+msgid "Download Model"
+msgstr "Скачать модель"
+
+msgid "Downloading…"
+msgstr "Загрузка…"
+
+msgid "Retry"
+msgstr "Повторить"
+
+msgid "You're All Set!"
+msgstr "Всё готово!"
+
+msgid "Download complete!"
+msgstr "Загрузка завершена!"
+
+msgid "Language Detection"
+msgstr "Определение языка"
+
+msgid "Whisper can automatically detect the spoken language"
+msgstr "Whisper может автоматически определять язык"
+
+msgid "Auto-detect Language"
+msgstr "Автоопределение языка"
+
+msgid "Let Whisper determine the language automatically"
+msgstr "Позвольте Whisper определить язык автоматически"
+
+msgid "Manual Selection"
+msgstr "Ручной выбор"
+
+msgid "Force a specific language for transcription"
+msgstr "Принудительно задать язык для транскрипции"
+
+msgid "Used when auto-detect is disabled"
+msgstr "Используется при отключённом автоопределении"
+
+msgid "Supported Languages"
+msgstr "Поддерживаемые языки"
+
+msgid "Translation"
+msgstr "Перевод"
+
+msgid "Whisper can also translate speech to English"
+msgstr "Whisper также может переводить речь на английский"
+
+msgid "Input Device"
+msgstr "Устройство ввода"
+
+msgid "Select the microphone to use for recording"
+msgstr "Выберите микрофон для записи"
+
+msgid "Refresh device list"
+msgstr "Обновить список устройств"
+
+msgid "Audio Settings"
+msgstr "Настройки звука"
+
+msgid "Sample Rate"
+msgstr "Частота дискретизации"
+
+msgid "Audio will be resampled to 16kHz for Whisper"
+msgstr "Звук будет преобразован в 16 кГц для Whisper"
+
+msgid "Channels"
+msgstr "Каналы"
+
+msgid "Stereo input is automatically converted to mono"
+msgstr "Стереовход автоматически преобразуется в моно"
+
+msgid "Mono"
+msgstr "Моно"
+
+msgid "Microphone Test"
+msgstr "Проверка микрофона"
+
+msgid "Test Microphone"
+msgstr "Проверить микрофон"
+
+msgid "Record a short sample to verify your microphone works"
+msgstr "Запишите короткий образец для проверки микрофона"
+
+msgid "Test"
+msgstr "Проверить"
+
+msgid "No audio input devices found"
+msgstr "Устройства ввода звука не найдены"
+
+msgid "Check that a microphone is connected"
+msgstr "Проверьте подключение микрофона"
+
+msgid "Whisper Models"
+msgstr "Модели Whisper"
+
+msgid "Select a model. Larger models are more accurate but slower."
+msgstr "Выберите модель. Большие модели точнее, но медленнее."
+
+msgid "Downloaded"
+msgstr "Скачано"
+
+msgid "Download"
+msgstr "Скачать"
+
+msgid "Download Progress"
+msgstr "Прогресс загрузки"
+
+msgid "No download in progress"
+msgstr "Нет активных загрузок"
+
+msgid "Storage"
+msgstr "Хранилище"
+
+msgid "Choose where Whisper models are stored."
+msgstr "Выберите место хранения моделей Whisper."
+
+msgid "Models Directory"
+msgstr "Каталог моделей"
+
+msgid "Open in file manager"
+msgstr "Открыть в файловом менеджере"
+
+msgid "Change models directory"
+msgstr "Изменить каталог моделей"
+
+msgid "Select Models Directory"
+msgstr "Выбрать каталог моделей"
+
+msgid "Reset to default location"
+msgstr "Сбросить расположение по умолчанию"
+
+msgid "GPU Acceleration"
+msgstr "Ускорение GPU"
+
+msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+msgstr "Использовать GPU для ускорения. Требуется CUDA или OpenCL."
+
+msgid "Use GPU"
+msgstr "Использовать GPU"
+
+msgid "Accelerate transcription with your graphics card"
+msgstr "Ускорить транскрипцию с помощью видеокарты"
+
+msgid "CPU Fallback"
+msgstr "Резерв ЦП"
+
+msgid "Automatically fall back to CPU if GPU is unavailable"
+msgstr "Автоматический переход на ЦП при недоступности GPU"
+
+msgid "GPU Status"
+msgstr "Статус GPU"
+
+msgid "CPU Settings"
+msgstr "Настройки ЦП"
+
+msgid "Worker Threads"
+msgstr "Рабочие потоки"
+
+msgid "Number of CPU threads for transcription"
+msgstr "Количество потоков ЦП для транскрипции"
+
+msgid "Memory"
+msgstr "Память"
+
+msgid "Estimated Memory Usage"
+msgstr "Оценка использования памяти"
+
+msgid "Depends on the selected model size"
+msgstr "Зависит от выбранного размера модели"
+
+msgid "Beam Size"
+msgstr "Размер луча"
+
+msgid "Higher values improve accuracy but use more memory"
+msgstr "Более высокие значения повышают точность, но требуют больше памяти"
+
+msgid "GPU"
+msgstr "GPU"
+
+msgid "VRAM"
+msgstr "Видеопамять"
+
+msgid "Detecting GPU…"
+msgstr "Обнаружение GPU…"
+
+msgid "No GPU detected"
+msgstr "GPU не обнаружен"
+
+msgid "CPU only"
+msgstr "Только ЦП"
+
+msgid "Available"
+msgstr "Доступно"
+
+msgid "Select"
+msgstr "Выбрать"
+
+msgid "Selected"
+msgstr "Выбрано"
+
+msgid "Offline speech-to-text transcription using Whisper"
+msgstr "Автономная транскрипция речи с помощью Whisper"
+
+msgid "Local offline speech-to-text transcription using Whisper"
+msgstr "Локальная автономная транскрипция речи с помощью Whisper"

@@ -1,0 +1,513 @@
+/* Speech to Text - Application Stylesheet */
+/* Copyright (C) 2026 Christos A. Daggas */
+/* SPDX-License-Identifier: MIT */
+
+/*
+ * Theming Strategy:
+ *   - GTK4 / libadwaita (v1.5) with AdwStyleManager
+ *   - All colors derive from libadwaita semantic named colors
+ *   - Native style classes used wherever possible
+ *   - Custom CSS only for app-specific surfaces
+ *   - Works on GNOME, COSMIC (via libadwaita fallback), KDE (Adwaita rendering)
+ *
+ * Libadwaita named colors used:
+ *   Surface roles:  @window_bg_color, @window_fg_color,
+ *                   @view_bg_color, @view_fg_color,
+ *                   @headerbar_bg_color, @headerbar_fg_color,
+ *                   @sidebar_bg_color, @sidebar_fg_color,
+ *                   @secondary_sidebar_bg_color, @secondary_sidebar_fg_color,
+ *                   @card_bg_color, @card_fg_color,
+ *                   @dialog_bg_color, @dialog_fg_color,
+ *                   @popover_bg_color, @popover_fg_color
+ *   Accent:         @accent_bg_color, @accent_fg_color, @accent_color
+ *   Semantic:       @success_bg_color, @success_fg_color, @success_color,
+ *                   @warning_bg_color, @warning_fg_color, @warning_color,
+ *                   @error_bg_color, @error_fg_color, @error_color,
+ *                   @destructive_bg_color, @destructive_fg_color, @destructive_color
+ *   Borders/shade:  @shade_color, @headerbar_shade_color
+ *
+ * Native style classes relied upon (not overridden here):
+ *   .background, .view, .card, .suggested-action, .destructive-action,
+ *   .flat, .dim-label, .accent, .success, .warning, .error,
+ *   .title-1 .. .title-4, .caption, .boxed-list, .navigation-sidebar,
+ *   .toolbar, headerbar, popover.menu
+ */
+
+/* ========================================
+   Sidebar
+   ======================================== */
+
+.navigation-sidebar {
+    background-color: transparent;
+}
+
+.sidebar-box {
+    background-color: @sidebar_bg_color;
+    color: @sidebar_fg_color;
+    transition: all 200ms ease-out;
+}
+
+/* ========================================
+   Scoped Popover: Theme Popover
+   Only strip background on the theme-menu popover,
+   not on every popover in the application.
+   ======================================== */
+
+popover.stt-theme-menu {
+    background: none;
+    box-shadow: none;
+}
+
+popover.stt-theme-menu > arrow {
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+popover.stt-theme-menu > contents {
+    background-color: @popover_bg_color;
+    color: @popover_fg_color;
+    border-radius: 12px;
+    border: 1px solid alpha(@shade_color, 0.5);
+    box-shadow: 0 2px 8px alpha(black, 0.15);
+    padding: 0;
+}
+
+/* ========================================
+   Cards & Containers
+   (Augment native .card — do not redefine base)
+   ======================================== */
+
+.card {
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px alpha(black, 0.12);
+    border-color: alpha(@accent_color, 0.25);
+}
+
+/* ========================================
+   Transcript View
+   ======================================== */
+
+.transcript-view {
+    background-color: transparent;
+}
+
+.transcript-frame {
+    background-color: alpha(@view_bg_color, 0.5);
+    border: 1px solid alpha(@shade_color, 0.35);
+    border-radius: 8px;
+}
+
+.transcript-text {
+    font-size: 1.05em;
+    line-height: 1.6;
+    color: @view_fg_color;
+    background-color: transparent;
+}
+
+/* ========================================
+   Message Bubbles
+   ======================================== */
+
+.message-bubble {
+    background-color: alpha(@card_bg_color, 0.6);
+    border: 1px solid alpha(@shade_color, 0.35);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: background-color 150ms ease;
+}
+
+.message-bubble:hover {
+    background-color: alpha(@card_bg_color, 0.85);
+}
+
+.message-bubble:focus-within {
+    outline: 2px solid alpha(@accent_color, 0.5);
+    outline-offset: -2px;
+}
+
+.bubble-text {
+    font-size: 1.05em;
+    line-height: 1.6;
+    color: @view_fg_color;
+}
+
+.bubble-copy-btn {
+    opacity: 0.5;
+    transition: opacity 150ms ease;
+}
+
+.bubble-copy-btn:hover {
+    opacity: 1.0;
+}
+
+.bubble-copy-btn:focus {
+    opacity: 1.0;
+}
+
+/* ========================================
+   Waveform Visualizer
+   ======================================== */
+
+.bottom-panel,
+.controls-area,
+.controls-panel,
+.status-bar {
+    background-color: @sidebar_bg_color;
+}
+
+.waveform-frame {
+    background-color: alpha(@view_bg_color, 0.5);
+    border: 1px solid alpha(@shade_color, 0.35);
+    border-radius: 8px;
+    padding: 0;
+}
+
+.waveform {
+    background-color: transparent;
+    color: @accent_bg_color;
+}
+
+/* ========================================
+   Confidence Indicator
+   ======================================== */
+
+.confidence-bar {
+    border-radius: 4px;
+}
+
+.confidence-bar block.filled {
+    background-color: @accent_bg_color;
+    border-radius: 4px;
+}
+
+.confidence-bar block.low {
+    background-color: @error_color;
+}
+
+/* ========================================
+   Recording Indicator
+   ======================================== */
+
+.recording-indicator {
+    color: @success_color;
+}
+
+@keyframes recording-pulse {
+    0%   { opacity: 1.0; }
+    50%  { opacity: 0.3; }
+    100% { opacity: 1.0; }
+}
+
+.recording-pulse {
+    animation: recording-pulse 1.2s ease-in-out infinite;
+}
+
+/* ========================================
+   Controls Panel
+   ======================================== */
+
+.controls-panel {
+    background-color: @sidebar_bg_color;
+}
+
+/* ========================================
+   Custom Action: Stop Button
+   (suggested-action and destructive-action are native libadwaita —
+    stop-action is app-specific for the "stop recording" action)
+   ======================================== */
+
+.stop-action {
+    background-color: @success_bg_color;
+    color: @success_fg_color;
+}
+
+.stop-action:hover {
+    background-image: image(alpha(currentColor, 0.07));
+}
+
+.stop-action:active {
+    background-image: image(alpha(currentColor, 0.16));
+}
+
+.stop-action:focus-visible {
+    outline: 2px solid @accent_color;
+    outline-offset: -2px;
+}
+
+.stop-action:disabled {
+    filter: opacity(0.5);
+}
+
+/* ========================================
+   Status Bar
+   ======================================== */
+
+.status-bar {
+    background-color: @sidebar_bg_color;
+    border-top: 1px solid alpha(@shade_color, 0.35);
+    padding: 4px 12px;
+    min-height: 24px;
+}
+
+/* ========================================
+   GPU Status Panel (Sidebar)
+   ======================================== */
+
+.gpu-status-panel .card {
+    background-color: alpha(@sidebar_fg_color, 0.04);
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+
+.gpu-status-panel levelbar block.filled {
+    background-color: @accent_bg_color;
+    border-radius: 3px;
+}
+
+.gpu-status-panel levelbar block.filled.warning {
+    background-color: @warning_color;
+}
+
+.gpu-status-panel levelbar block.filled.critical {
+    background-color: @error_color;
+}
+
+/* ========================================
+   Model Status Badges
+   ======================================== */
+
+.model-loaded {
+    background-color: @success_bg_color;
+    color: @success_fg_color;
+    border-radius: 4px;
+    padding: 2px 8px;
+}
+
+.model-loading {
+    background-color: @warning_bg_color;
+    color: @warning_fg_color;
+    border-radius: 4px;
+    padding: 2px 8px;
+}
+
+.model-error {
+    background-color: @error_bg_color;
+    color: @error_fg_color;
+    border-radius: 4px;
+    padding: 2px 8px;
+}
+
+/* ========================================
+   Header Status Indicator
+   (Theme-aware dot replacing hardcoded RGB in draw_func)
+   ======================================== */
+
+.status-dot {
+    min-width: 14px;
+    min-height: 14px;
+}
+
+.status-dot.error {
+    color: @error_color;
+}
+
+.status-dot.success {
+    color: @success_color;
+}
+
+/* ========================================
+   History Page
+   ======================================== */
+
+.history-row {
+    background-color: transparent;
+    border-radius: 8px;
+    padding: 8px;
+    transition: background-color 150ms ease;
+}
+
+.history-row:hover {
+    background-color: alpha(@view_fg_color, 0.05);
+}
+
+.history-row:focus-within {
+    background-color: alpha(@accent_color, 0.08);
+}
+
+/* ========================================
+   Welcome Wizard
+   ======================================== */
+
+.wizard-feature-row {
+    padding: 4px 0;
+}
+
+/* ========================================
+   Monospace & Caption Heading
+   ======================================== */
+
+.monospace {
+    font-family: monospace;
+}
+
+.caption-heading {
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: alpha(@window_fg_color, 0.55);
+}
+
+/* ========================================
+   Navigation
+   ======================================== */
+
+.nav-row-box {
+    min-height: 24px;
+}
+
+.nav-label {
+    transition: opacity 150ms ease-out;
+}
+
+.navigation-sidebar row {
+    padding: 8px 12px;
+    margin: 2px 6px;
+    border-radius: 6px;
+    transition: background-color 150ms ease;
+}
+
+.navigation-sidebar row:selected {
+    background-color: alpha(@accent_color, 0.15);
+}
+
+.navigation-sidebar row:hover:not(:selected) {
+    background-color: alpha(@accent_color, 0.07);
+}
+
+/* Remove dark background from selected language in combo dropdowns */
+comborow popover listview row:selected {
+    background-color: transparent;
+}
+
+/* ---- Collapsed sidebar overrides ---- */
+.sidebar-collapsed .navigation-sidebar row {
+    padding: 8px 4px;
+    margin: 2px 2px;
+}
+
+/* ========================================
+   Theme Selector
+   ======================================== */
+
+.theme-selector {
+    border-radius: 50%;
+    border: 2px solid alpha(currentColor, 0.3);
+    padding: 0;
+    margin: 0;
+}
+
+.theme-default {
+    /* Visual indicator: half-light/half-dark split with fixed colors */
+    background: conic-gradient(from 135deg, #ffffff 0deg, #ffffff 180deg, #303030 180deg, #303030 360deg);
+    background-size: 100% 100%;
+    background-origin: border-box;
+}
+
+.theme-light {
+    background-color: #ffffff;
+    border-color: alpha(#000000, 0.15);
+}
+
+.theme-dark {
+    background-color: #303030;
+}
+
+.theme-button {
+    padding: 4px;
+    min-width: 52px;
+    min-height: 52px;
+}
+
+.theme-button:checked {
+    background-color: alpha(@accent_color, 0.15);
+    border-radius: 50%;
+}
+
+.theme-button:checked .theme-selector {
+    border-color: @accent_color;
+    border-width: 3px;
+}
+
+.theme-button:focus-visible {
+    outline: 2px solid @accent_color;
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+.theme-check {
+    color: @accent_color;
+    background-color: @popover_bg_color;
+    border-radius: 50%;
+    padding: 2px;
+    -gtk-icon-size: 16px;
+}
+
+/* ========================================
+   Menu Items (inside theme popover)
+   ======================================== */
+
+.menu-item {
+    border-radius: 6px;
+    margin: 1px 0;
+    transition: background-color 100ms ease;
+}
+
+.menu-item:hover {
+    background-color: alpha(@popover_fg_color, 0.08);
+}
+
+.menu-item:active {
+    background-color: alpha(@popover_fg_color, 0.12);
+}
+
+.menu-item:focus-visible {
+    outline: 2px solid @accent_color;
+    outline-offset: -2px;
+}
+
+/* ========================================
+   Update Banner
+   (Uses semantic error/destructive colors instead of hardcoded hex)
+   ======================================== */
+
+.update-banner {
+    background-color: alpha(@error_color, 0.15);
+    border: 1px solid alpha(@error_color, 0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+}
+
+.update-banner .update-icon {
+    color: @error_color;
+}
+
+.update-banner .update-link {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: @error_color;
+    padding: 0;
+    min-height: 0;
+}
+
+.update-banner-label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: @error_color;
+}

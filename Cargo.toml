@@ -1,0 +1,86 @@
+[package]
+name = "speech-to-text"
+version = "1.0.0"
+edition = "2021"
+authors = ["Christos A. Daggas"]
+description = "Native Linux desktop application for offline speech-to-text transcription using Whisper"
+license = "MIT"
+keywords = ["speech", "whisper", "transcription", "gtk", "gnome"]
+categories = ["gui", "multimedia"]
+
+[dependencies]
+# GTK4 and Libadwaita
+gtk4 = { version = "0.9", features = ["v4_14"] }
+libadwaita = { version = "0.7", features = ["v1_5"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client (for model downloads)
+reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json"], default-features = false }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Whisper speech-to-text engine (whisper.cpp bindings)
+whisper-rs = "0.13"
+
+# Audio capture
+cpal = "0.15"
+
+# High-quality audio resampling
+rubato = "0.16"
+
+# Audio file decoding (for drag-and-drop file transcription)
+symphonia = { version = "0.5", features = ["all"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Config directories
+dirs = "5"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# UUID for history entries
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Futures utilities
+futures = "0.3"
+
+# Internationalization
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+
+# Async channel for GTK integration
+async-channel = "2"
+
+# Number of CPUs (for whisper thread count)
+num_cpus = "1"
+
+# Tokio stream utilities
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Byte utilities for download progress
+indicatif = "0.17"
+
+[features]
+default = []
+gresource = []
+cuda = ["whisper-rs/cuda"]
+metal = ["whisper-rs/metal"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0

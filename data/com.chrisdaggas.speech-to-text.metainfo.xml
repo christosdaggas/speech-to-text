@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 Christos A. Daggas -->
+<!-- SPDX-License-Identifier: MIT -->
+<component type="desktop-application">
+  <id>com.chrisdaggas.speech-to-text</id>
+
+  <name>Speech to Text</name>
+  <summary>Local offline speech-to-text transcription using Whisper</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Speech to Text is an offline speech transcription application for Linux.
+      It uses OpenAI's Whisper model to convert spoken audio into text, running
+      entirely on your machine — no internet connection required after
+      downloading the model. Your audio data never leaves your device.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>100% offline transcription — your audio never leaves your device</li>
+      <li>Supports 99 languages with automatic detection</li>
+      <li>GPU acceleration support (NVIDIA CUDA, AMD ROCm)</li>
+      <li>Five Whisper model sizes from Tiny (75 MB) to Large v3 (3 GB)</li>
+      <li>Real-time confidence scoring</li>
+      <li>Transcription history with search</li>
+      <li>Translation to English from any supported language</li>
+      <li>Light, dark, and system theme support</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.chrisdaggas.speech-to-text.desktop</launchable>
+
+  <url type="homepage">https://github.com/christosdaggas/speech-to-text</url>
+  <url type="bugtracker">https://github.com/christosdaggas/speech-to-text/issues</url>
+
+  <developer id="com.chrisdaggas">
+    <name>Christos A. Daggas</name>
+  </developer>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#99c1f1</color>
+    <color type="primary" scheme_preference="dark">#1a5fb4</color>
+  </branding>
+
+  <content_rating type="oars-1.1" />
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>speech</keyword>
+    <keyword>voice</keyword>
+    <keyword>transcription</keyword>
+    <keyword>whisper</keyword>
+    <keyword>dictation</keyword>
+    <keyword>offline</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.1.0" date="2026-03-06">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

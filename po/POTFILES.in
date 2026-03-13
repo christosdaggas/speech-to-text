@@ -1,0 +1,17 @@
+# List of source files containing translatable strings
+src/main.rs
+src/application.rs
+src/ui/main_window.rs
+src/ui/controls.rs
+src/ui/header.rs
+src/ui/history_page.rs
+src/ui/status_bar.rs
+src/ui/transcript_view.rs
+src/ui/welcome_wizard.rs
+src/ui/settings/language.rs
+src/ui/settings/microphone.rs
+src/ui/settings/model.rs
+src/ui/settings/performance.rs
+src/ui/widgets/gpu_status.rs
+src/ui/widgets/model_row.rs
+src/ui/widgets/theme_popover.rs

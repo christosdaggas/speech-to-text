@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Speech to Text
+Comment=Local offline speech-to-text transcription using Whisper
+Exec=speech-to-text
+Icon=com.chrisdaggas.speech-to-text
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Utility;
+Keywords=speech;voice;transcription;whisper;dictation;
+StartupWMClass=com.chrisdaggas.speech-to-text
+StartupNotify=true
+SingleMainWindow=true

@@ -1,0 +1,215 @@
+// Speech to Text - Audio Buffer
+// Copyright (C) 2026 Christos A. Daggas
+// SPDX-License-Identifier: MIT
+
+//! Audio buffer management and resampling to Whisper's expected format (16kHz mono f32).
+
+/// Accumulates raw audio samples and provides resampled output.
+pub struct AudioBuffer {
+    /// Raw samples as received from cpal (may be multi-channel, any sample rate).
+    raw_samples: Vec<f32>,
+    /// Source sample rate from the audio device.
+    source_sample_rate: u32,
+    /// Source channel count.
+    source_channels: u32,
+    /// Target sample rate for Whisper.
+    target_sample_rate: u32,
+}
+
+impl AudioBuffer {
+    pub fn new(target_sample_rate: u32) -> Self {
+        Self {
+            raw_samples: Vec::with_capacity(target_sample_rate as usize * 30), // 30s pre-alloc
+            source_sample_rate: target_sample_rate,
+            source_channels: 1,
+            target_sample_rate,
+        }
+    }
+
+    /// Set the source audio parameters (called when device config is known).
+    pub fn set_source_params(&mut self, sample_rate: u32, channels: u32) {
+        self.source_sample_rate = sample_rate;
+        self.source_channels = channels;
+    }
+
+    /// Push new samples into the buffer.
+    pub fn push_samples(&mut self, samples: &[f32]) {
+        self.raw_samples.extend_from_slice(samples);
+    }
+
+    /// Clear the buffer for a new recording.
+    pub fn clear(&mut self) {
+        self.raw_samples.clear();
+    }
+
+    /// Get the recording duration in seconds.
+    pub fn duration_secs(&self) -> f32 {
+        let total_frames = self.raw_samples.len() / self.source_channels.max(1) as usize;
+        total_frames as f32 / self.source_sample_rate.max(1) as f32
+    }
+
+    /// Convert the buffered audio to mono 16kHz f32 (Whisper's expected format).
+    pub fn get_mono_16khz(&self) -> Vec<f32> {
+        if self.raw_samples.is_empty() {
+            return Vec::new();
+        }
+
+        // Step 1: Convert to mono (average channels)
+        let mono = self.to_mono();
+
+        // Step 2: Resample to target rate if needed
+        if self.source_sample_rate == self.target_sample_rate {
+            mono
+        } else {
+            self.resample(&mono, self.source_sample_rate, self.target_sample_rate)
+        }
+    }
+
+    /// Convert multi-channel audio to mono by averaging channels.
+    fn to_mono(&self) -> Vec<f32> {
+        let channels = self.source_channels as usize;
+        if channels <= 1 {
+            return self.raw_samples.clone();
+        }
+
+        self.raw_samples
+            .chunks_exact(channels)
+            .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+            .collect()
+    }
+
+    /// High-quality sinc resampling using rubato.
+    fn resample(&self, samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+        if samples.is_empty() || from_rate == 0 || to_rate == 0 {
+            return Vec::new();
+        }
+
+        use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction, Resampler};
+
+        let params = SincInterpolationParameters {
+            sinc_len: 256,
+            f_cutoff: 0.95,
+            interpolation: SincInterpolationType::Linear,
+            oversampling_factor: 256,
+            window: WindowFunction::BlackmanHarris2,
+        };
+
+        let ratio = to_rate as f64 / from_rate as f64;
+        let chunk_size = 1024;
+        let mut resampler = match SincFixedIn::<f32>::new(
+            ratio,
+            2.0,
+            params,
+            chunk_size,
+            1, // mono
+        ) {
+            Ok(r) => r,
+            Err(_) => return self.resample_linear(samples, from_rate, to_rate),
+        };
+
+        let mut output = Vec::with_capacity((samples.len() as f64 * ratio) as usize + chunk_size);
+        let mut pos = 0;
+
+        while pos < samples.len() {
+            let end = (pos + chunk_size).min(samples.len());
+            let mut chunk = samples[pos..end].to_vec();
+            // Pad last chunk to chunk_size
+            if chunk.len() < chunk_size {
+                chunk.resize(chunk_size, 0.0);
+            }
+            let input = vec![chunk];
+            match resampler.process(&input, None) {
+                Ok(result) => {
+                    if let Some(ch) = result.first() {
+                        output.extend_from_slice(ch);
+                    }
+                }
+                Err(_) => break,
+            }
+            pos += chunk_size;
+        }
+
+        output
+    }
+
+    /// Fallback linear interpolation resampling.
+    fn resample_linear(&self, samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+        let ratio = from_rate as f64 / to_rate as f64;
+        let output_len = ((samples.len() as f64) / ratio) as usize;
+        let mut output = Vec::with_capacity(output_len);
+
+        for i in 0..output_len {
+            let src_pos = i as f64 * ratio;
+            let src_idx = src_pos as usize;
+            let frac = src_pos - src_idx as f64;
+
+            let sample = if src_idx + 1 < samples.len() {
+                samples[src_idx] as f64 * (1.0 - frac) + samples[src_idx + 1] as f64 * frac
+            } else if src_idx < samples.len() {
+                samples[src_idx] as f64
+            } else {
+                0.0
+            };
+
+            output.push(sample as f32);
+        }
+
+        output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::capture::WHISPER_SAMPLE_RATE;
+
+    #[test]
+    fn test_mono_conversion() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 2);
+
+        // Stereo: L=1.0, R=0.0, L=0.5, R=0.5
+        buf.push_samples(&[1.0, 0.0, 0.5, 0.5]);
+
+        let mono = buf.to_mono();
+        assert_eq!(mono.len(), 2);
+        assert!((mono[0] - 0.5).abs() < 1e-6);
+        assert!((mono[1] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_duration() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        buf.push_samples(&vec![0.0; 16000]);
+
+        let duration = buf.duration_secs();
+        assert!((duration - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_resample_downsample() {
+        let buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+
+        // 48kHz -> 16kHz: 3:1 ratio
+        let source: Vec<f32> = (0..4800).map(|i| i as f32 / 4800.0).collect();
+        let resampled = buf.resample(&source, 48000, 16000);
+
+        // Rubato sinc resampler may produce slightly different length due to
+        // filter latency and chunk processing; allow wider tolerance.
+        let expected = 1600.0f32;
+        let tolerance = expected * 0.1; // 10% tolerance
+        assert!(
+            (resampled.len() as f32 - expected).abs() < tolerance,
+            "Expected ~{} samples, got {}",
+            expected, resampled.len()
+        );
+    }
+
+    #[test]
+    fn test_empty_buffer() {
+        let buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        assert!(buf.get_mono_16khz().is_empty());
+        assert!((buf.duration_secs() - 0.0).abs() < 0.01);
+    }
+}

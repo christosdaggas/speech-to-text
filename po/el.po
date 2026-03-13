@@ -1,0 +1,422 @@
+# Greek translation for Speech to Text
+# Copyright (C) 2026 Christos A. Daggas
+# SPDX-License-Identifier: MIT
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: speech-to-text 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-01 00:00+0000\n"
+"PO-Revision-Date: 2026-01-01 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Greek\n"
+"Language: el\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Speech to Text"
+msgstr "Ομιλία σε Κείμενο"
+
+msgid "Transcription"
+msgstr "Μεταγραφή"
+
+msgid "History"
+msgstr "Ιστορικό"
+
+msgid "Microphone"
+msgstr "Μικρόφωνο"
+
+msgid "Model"
+msgstr "Μοντέλο"
+
+msgid "Language"
+msgstr "Γλώσσα"
+
+msgid "Performance"
+msgstr "Επιδόσεις"
+
+msgid "Settings"
+msgstr "Ρυθμίσεις"
+
+msgid "Collapse sidebar"
+msgstr "Σύμπτυξη πλαϊνής μπάρας"
+
+msgid "Expand sidebar"
+msgstr "Ανάπτυξη πλαϊνής μπάρας"
+
+msgid "New version available"
+msgstr "Νέα έκδοση διαθέσιμη"
+
+msgid "Record"
+msgstr "Εγγραφή"
+
+msgid "Start recording (Ctrl+R)"
+msgstr "Έναρξη εγγραφής (Ctrl+R)"
+
+msgid "Pause recording"
+msgstr "Παύση εγγραφής"
+
+msgid "Resume recording"
+msgstr "Συνέχιση εγγραφής"
+
+msgid "Stop recording and transcribe"
+msgstr "Διακοπή και μεταγραφή"
+
+msgid "Copy transcript to clipboard"
+msgstr "Αντιγραφή μεταγραφής στο πρόχειρο"
+
+msgid "Clear transcript"
+msgstr "Εκκαθάριση μεταγραφής"
+
+msgid "Save"
+msgstr "Αποθήκευση"
+
+msgid "Save transcript to file"
+msgstr "Αποθήκευση μεταγραφής σε αρχείο"
+
+msgid "Microphone:"
+msgstr "Μικρόφωνο:"
+
+msgid "Select microphone"
+msgstr "Επιλογή μικροφώνου"
+
+msgid "Model:"
+msgstr "Μοντέλο:"
+
+msgid "Select Whisper model"
+msgstr "Επιλογή μοντέλου Whisper"
+
+msgid "No Model"
+msgstr "Κανένα μοντέλο"
+
+msgid "Model Loaded"
+msgstr "Μοντέλο φορτωμένο"
+
+msgid "Main menu"
+msgstr "Κύριο μενού"
+
+msgid "Idle"
+msgstr "Αδρανές"
+
+msgid "No model loaded"
+msgstr "Κανένα μοντέλο φορτωμένο"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "Offline"
+msgstr "Εκτός σύνδεσης"
+
+msgid "Recording"
+msgstr "Εγγραφή"
+
+msgid "Paused"
+msgstr "Σε παύση"
+
+msgid "Auto-detect"
+msgstr "Αυτόματη ανίχνευση"
+
+msgid "Press Record to start transcribing…"
+msgstr "Πατήστε Εγγραφή για να ξεκινήσετε…"
+
+msgid "Confidence:"
+msgstr "Εμπιστοσύνη:"
+
+msgid "Recording…"
+msgstr "Εγγραφή…"
+
+msgid "Transcribing…"
+msgstr "Μεταγραφή…"
+
+msgid "Loading model…"
+msgstr "Φόρτωση μοντέλου…"
+
+msgid "Ready"
+msgstr "Έτοιμο"
+
+msgid "Error"
+msgstr "Σφάλμα"
+
+msgid "Copied to clipboard"
+msgstr "Αντιγράφηκε στο πρόχειρο"
+
+msgid "Nothing to save"
+msgstr "Τίποτα για αποθήκευση"
+
+msgid "Transcript saved"
+msgstr "Η μεταγραφή αποθηκεύτηκε"
+
+msgid "No audio recorded"
+msgstr "Δεν εγγράφηκε ήχος"
+
+msgid "Save Transcript"
+msgstr "Αποθήκευση μεταγραφής"
+
+msgid "Transcription History"
+msgstr "Ιστορικό μεταγραφών"
+
+msgid "Search transcriptions…"
+msgstr "Αναζήτηση μεταγραφών…"
+
+msgid "Clear all history"
+msgstr "Εκκαθάριση ιστορικού"
+
+msgid "No Transcriptions Yet"
+msgstr "Δεν υπάρχουν μεταγραφές"
+
+msgid "Your transcription history will appear here"
+msgstr "Το ιστορικό μεταγραφών θα εμφανιστεί εδώ"
+
+msgid "Copy to clipboard"
+msgstr "Αντιγραφή στο πρόχειρο"
+
+msgid "Delete"
+msgstr "Διαγραφή"
+
+msgid "System"
+msgstr "Σύστημα"
+
+msgid "Light"
+msgstr "Φωτεινό"
+
+msgid "Dark"
+msgstr "Σκοτεινό"
+
+msgid "What's New"
+msgstr "Τι νέο υπάρχει"
+
+msgid "About Speech to Text"
+msgstr "Σχετικά με Ομιλία σε Κείμενο"
+
+msgid "Quit"
+msgstr "Έξοδος"
+
+msgid "Welcome to Speech to Text"
+msgstr "Καλώς ήρθατε στο Ομιλία σε Κείμενο"
+
+msgid "Next"
+msgstr "Επόμενο"
+
+msgid "Get Started"
+msgstr "Ξεκινήστε"
+
+msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
+msgstr "Μετατρέψτε ομιλία σε κείμενο τοπικά.\nΔεν απαιτείται σύνδεση στο Internet μετά την αρχική ρύθμιση."
+
+msgid "100% offline — your audio never leaves your device"
+msgstr "100% εκτός σύνδεσης — ο ήχος σας δεν φεύγει ποτέ από τη συσκευή"
+
+msgid "Supports 99 languages with auto-detection"
+msgstr "Υποστηρίζει 99 γλώσσες με αυτόματη ανίχνευση"
+
+msgid "Download a Whisper Model"
+msgstr "Λήψη μοντέλου Whisper"
+
+msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
+msgstr "Απαιτείται μοντέλο για τη μεταγραφή.\nΣυνιστούμε το μοντέλο Tiny (~75 MB)."
+
+msgid "Download Model"
+msgstr "Λήψη μοντέλου"
+
+msgid "Downloading…"
+msgstr "Γίνεται λήψη…"
+
+msgid "Retry"
+msgstr "Επανάληψη"
+
+msgid "You're All Set!"
+msgstr "Όλα είναι έτοιμα!"
+
+msgid "Download complete!"
+msgstr "Η λήψη ολοκληρώθηκε!"
+
+msgid "Language Detection"
+msgstr "Ανίχνευση γλώσσας"
+
+msgid "Whisper can automatically detect the spoken language"
+msgstr "Το Whisper μπορεί να ανιχνεύσει αυτόματα την ομιλούμενη γλώσσα"
+
+msgid "Auto-detect Language"
+msgstr "Αυτόματη ανίχνευση γλώσσας"
+
+msgid "Let Whisper determine the language automatically"
+msgstr "Αφήστε το Whisper να καθορίσει τη γλώσσα αυτόματα"
+
+msgid "Manual Selection"
+msgstr "Χειροκίνητη επιλογή"
+
+msgid "Force a specific language for transcription"
+msgstr "Επιβολή συγκεκριμένης γλώσσας για μεταγραφή"
+
+msgid "Used when auto-detect is disabled"
+msgstr "Χρησιμοποιείται όταν η αυτόματη ανίχνευση είναι απενεργοποιημένη"
+
+msgid "Supported Languages"
+msgstr "Υποστηριζόμενες γλώσσες"
+
+msgid "Translation"
+msgstr "Μετάφραση"
+
+msgid "Whisper can also translate speech to English"
+msgstr "Το Whisper μπορεί να μεταφράσει ομιλία στα αγγλικά"
+
+msgid "Input Device"
+msgstr "Συσκευή εισόδου"
+
+msgid "Select the microphone to use for recording"
+msgstr "Επιλέξτε το μικρόφωνο για εγγραφή"
+
+msgid "Refresh device list"
+msgstr "Ανανέωση λίστας συσκευών"
+
+msgid "Audio Settings"
+msgstr "Ρυθμίσεις ήχου"
+
+msgid "Sample Rate"
+msgstr "Ρυθμός δειγματοληψίας"
+
+msgid "Audio will be resampled to 16kHz for Whisper"
+msgstr "Ο ήχος θα μετατραπεί σε 16 kHz για το Whisper"
+
+msgid "Channels"
+msgstr "Κανάλια"
+
+msgid "Stereo input is automatically converted to mono"
+msgstr "Η στερεοφωνική είσοδος μετατρέπεται αυτόματα σε μονοφωνική"
+
+msgid "Mono"
+msgstr "Μονοφωνικό"
+
+msgid "Microphone Test"
+msgstr "Δοκιμή μικροφώνου"
+
+msgid "Test Microphone"
+msgstr "Δοκιμή μικροφώνου"
+
+msgid "Record a short sample to verify your microphone works"
+msgstr "Εγγράψτε ένα σύντομο δείγμα για να ελέγξετε το μικρόφωνο"
+
+msgid "Test"
+msgstr "Δοκιμή"
+
+msgid "No audio input devices found"
+msgstr "Δεν βρέθηκαν συσκευές εισόδου ήχου"
+
+msgid "Check that a microphone is connected"
+msgstr "Ελέγξτε ότι είναι συνδεδεμένο ένα μικρόφωνο"
+
+msgid "Whisper Models"
+msgstr "Μοντέλα Whisper"
+
+msgid "Select a model. Larger models are more accurate but slower."
+msgstr "Επιλέξτε μοντέλο. Τα μεγαλύτερα είναι πιο ακριβή αλλά πιο αργά."
+
+msgid "Downloaded"
+msgstr "Ληφθέν"
+
+msgid "Download"
+msgstr "Λήψη"
+
+msgid "Download Progress"
+msgstr "Πρόοδος λήψης"
+
+msgid "No download in progress"
+msgstr "Καμία λήψη σε εξέλιξη"
+
+msgid "Storage"
+msgstr "Αποθηκευτικός χώρος"
+
+msgid "Choose where Whisper models are stored."
+msgstr "Επιλέξτε πού αποθηκεύονται τα μοντέλα Whisper."
+
+msgid "Models Directory"
+msgstr "Κατάλογος μοντέλων"
+
+msgid "Open in file manager"
+msgstr "Άνοιγμα στον διαχειριστή αρχείων"
+
+msgid "Change models directory"
+msgstr "Αλλαγή καταλόγου μοντέλων"
+
+msgid "Select Models Directory"
+msgstr "Επιλογή καταλόγου μοντέλων"
+
+msgid "Reset to default location"
+msgstr "Επαναφορά στην προεπιλεγμένη τοποθεσία"
+
+msgid "GPU Acceleration"
+msgstr "Επιτάχυνση GPU"
+
+msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+msgstr "Χρήση GPU για ταχύτερη μεταγραφή. Απαιτείται CUDA ή OpenCL."
+
+msgid "Use GPU"
+msgstr "Χρήση GPU"
+
+msgid "Accelerate transcription with your graphics card"
+msgstr "Επιτάχυνση μεταγραφής με την κάρτα γραφικών"
+
+msgid "CPU Fallback"
+msgstr "Εναλλακτική CPU"
+
+msgid "Automatically fall back to CPU if GPU is unavailable"
+msgstr "Αυτόματη εναλλαγή σε CPU αν η GPU δεν είναι διαθέσιμη"
+
+msgid "GPU Status"
+msgstr "Κατάσταση GPU"
+
+msgid "CPU Settings"
+msgstr "Ρυθμίσεις CPU"
+
+msgid "Worker Threads"
+msgstr "Νήματα εργασίας"
+
+msgid "Number of CPU threads for transcription"
+msgstr "Αριθμός νημάτων CPU για μεταγραφή"
+
+msgid "Memory"
+msgstr "Μνήμη"
+
+msgid "Estimated Memory Usage"
+msgstr "Εκτιμώμενη χρήση μνήμης"
+
+msgid "Depends on the selected model size"
+msgstr "Εξαρτάται από το μέγεθος του μοντέλου"
+
+msgid "Beam Size"
+msgstr "Μέγεθος beam"
+
+msgid "Higher values improve accuracy but use more memory"
+msgstr "Υψηλότερες τιμές βελτιώνουν την ακρίβεια αλλά χρησιμοποιούν περισσότερη μνήμη"
+
+msgid "GPU"
+msgstr "GPU"
+
+msgid "VRAM"
+msgstr "VRAM"
+
+msgid "Detecting GPU…"
+msgstr "Ανίχνευση GPU…"
+
+msgid "No GPU detected"
+msgstr "Δεν ανιχνεύτηκε GPU"
+
+msgid "CPU only"
+msgstr "Μόνο CPU"
+
+msgid "Available"
+msgstr "Διαθέσιμο"
+
+msgid "Select"
+msgstr "Επιλογή"
+
+msgid "Selected"
+msgstr "Επιλεγμένο"
+
+msgid "Offline speech-to-text transcription using Whisper"
+msgstr "Μεταγραφή ομιλίας εκτός σύνδεσης με το Whisper"
+
+msgid "Local offline speech-to-text transcription using Whisper"
+msgstr "Τοπική μεταγραφή ομιλίας εκτός σύνδεσης με το Whisper"
