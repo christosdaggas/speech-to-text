@@ -4,6 +4,13 @@
 
 //! Audio buffer management and resampling to Whisper's expected format (16kHz mono f32).
 
+const SILENCE_RMS_THRESHOLD: f32 = 0.004;
+const SILENCE_WINDOW_SAMPLES: usize = 320;
+const SILENCE_PADDING_SAMPLES: usize = 1600;
+const MIN_SPEECH_SAMPLES: usize = 1600;
+const NORMALIZE_TARGET_PEAK: f32 = 0.85;
+const MAX_NORMALIZE_GAIN: f32 = 6.0;
+
 /// Accumulates raw audio samples and provides resampled output.
 pub struct AudioBuffer {
     /// Raw samples as received from cpal (may be multi-channel, any sample rate).
@@ -58,11 +65,22 @@ impl AudioBuffer {
         let mono = self.to_mono();
 
         // Step 2: Resample to target rate if needed
-        if self.source_sample_rate == self.target_sample_rate {
+        let prepared = if self.source_sample_rate == self.target_sample_rate {
             mono
         } else {
             self.resample(&mono, self.source_sample_rate, self.target_sample_rate)
+        };
+
+        self.condition_for_transcription(&prepared)
+    }
+
+    fn condition_for_transcription(&self, samples: &[f32]) -> Vec<f32> {
+        let trimmed = self.trim_silence(samples);
+        if trimmed.is_empty() {
+            return Vec::new();
         }
+
+        self.normalize_audio(&trimmed)
     }
 
     /// Convert multi-channel audio to mono by averaging channels.
@@ -76,6 +94,65 @@ impl AudioBuffer {
             .chunks_exact(channels)
             .map(|frame| frame.iter().sum::<f32>() / channels as f32)
             .collect()
+    }
+
+    fn trim_silence(&self, samples: &[f32]) -> Vec<f32> {
+        if samples.is_empty() {
+            return Vec::new();
+        }
+
+        let first_window = samples
+            .chunks(SILENCE_WINDOW_SAMPLES)
+            .position(|chunk| Self::window_rms(chunk) >= SILENCE_RMS_THRESHOLD);
+        let last_window = samples
+            .chunks(SILENCE_WINDOW_SAMPLES)
+            .rposition(|chunk| Self::window_rms(chunk) >= SILENCE_RMS_THRESHOLD);
+
+        let (first_window, last_window) = match (first_window, last_window) {
+            (Some(first), Some(last)) => (first, last),
+            _ => return Vec::new(),
+        };
+
+        let start = first_window
+            .saturating_mul(SILENCE_WINDOW_SAMPLES)
+            .saturating_sub(SILENCE_PADDING_SAMPLES);
+        let end = ((last_window + 1) * SILENCE_WINDOW_SAMPLES + SILENCE_PADDING_SAMPLES)
+            .min(samples.len());
+
+        if end <= start || end - start < MIN_SPEECH_SAMPLES {
+            return Vec::new();
+        }
+
+        samples[start..end].to_vec()
+    }
+
+    fn normalize_audio(&self, samples: &[f32]) -> Vec<f32> {
+        let peak = samples
+            .iter()
+            .fold(0.0f32, |acc, sample| acc.max(sample.abs()));
+
+        if peak <= f32::EPSILON {
+            return Vec::new();
+        }
+
+        if peak >= NORMALIZE_TARGET_PEAK {
+            return samples.to_vec();
+        }
+
+        let gain = (NORMALIZE_TARGET_PEAK / peak).min(MAX_NORMALIZE_GAIN);
+        samples
+            .iter()
+            .map(|sample| (sample * gain).clamp(-1.0, 1.0))
+            .collect()
+    }
+
+    fn window_rms(samples: &[f32]) -> f32 {
+        if samples.is_empty() {
+            return 0.0;
+        }
+
+        let mean_square = samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32;
+        mean_square.sqrt()
     }
 
     /// High-quality sinc resampling using rubato.
@@ -211,5 +288,29 @@ mod tests {
         let buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
         assert!(buf.get_mono_16khz().is_empty());
         assert!((buf.duration_secs() - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_trim_silence_keeps_voice_region() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+
+        let mut samples = vec![0.0; 3200];
+        samples.extend(vec![0.1; 3200]);
+        samples.extend(vec![0.0; 3200]);
+        buf.push_samples(&samples);
+
+        let conditioned = buf.get_mono_16khz();
+        assert!(!conditioned.is_empty());
+        assert!(conditioned.len() < samples.len());
+    }
+
+    #[test]
+    fn test_silence_only_is_discarded() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        buf.push_samples(&vec![0.0; 16000]);
+
+        assert!(buf.get_mono_16khz().is_empty());
     }
 }

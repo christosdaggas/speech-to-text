@@ -1,5 +1,5 @@
 Name:           speech-to-text
-Version:        1.0.0
+Version:        1.2.0
 Release:        1%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
@@ -73,5 +73,21 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Fri Jun 05 2026 Christos A. Daggas <chris@daggas.com> - 1.2.0-1
+- Mini Panel with global dictation shortcut: transcribe, paste into the focused app, and keep dictating
+- System tray icon and background mode
+- Dictation modes: Plain, Message, Email, Note, Code Prompt
+- Whisper Large v3 Turbo models
+- Engine selector moved to Settings > Model ("Default Engine")
+- Translate to English applies to the mini panel too
+- Fixed auto-detect language producing empty transcriptions
+- Fixed Cohere Transcribe language handling
+- Fixed recording getting stuck repeating old text
+
+* Sun Mar 29 2026 Christos A. Daggas <chris@daggas.com> - 1.1.0-1
+- Multi-backend transcription engine support
+- Fixed icon display in welcome wizard
+- Stability and reliability improvements
+
 * Sat Mar 07 2026 Christos A. Daggas <chris@daggas.com> - 1.0.0-1
 - Initial RPM release

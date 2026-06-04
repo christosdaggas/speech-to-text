@@ -13,7 +13,12 @@ mod application;
 mod audio;
 mod config;
 mod error;
+mod i18n;
+mod portal;
+mod recording;
+mod secrets;
 mod transcription;
+mod tray;
 mod ui;
 mod version_check;
 
@@ -36,7 +41,9 @@ fn main() -> glib::ExitCode {
     glib::set_application_name(APP_NAME);
 
     // Initialize logging
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     tracing::info!("Starting {} v{}", APP_NAME, VERSION);
 
     // Initialize translations

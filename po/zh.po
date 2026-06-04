@@ -16,407 +16,570 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Application name
+#: src/main.rs
 msgid "Speech to Text"
 msgstr "语音转文字"
 
+#. Navigation items
+#: src/ui/main_window.rs
 msgid "Transcription"
 msgstr "转录"
 
+#: src/ui/main_window.rs
 msgid "History"
 msgstr "历史记录"
 
+#: src/ui/main_window.rs
 msgid "Microphone"
 msgstr "麦克风"
 
+#: src/ui/main_window.rs
 msgid "Model"
 msgstr "模型"
 
+#: src/ui/main_window.rs
 msgid "Language"
 msgstr "语言"
 
+#: src/ui/main_window.rs
 msgid "Performance"
 msgstr "性能"
 
+#: src/ui/main_window.rs
 msgid "Settings"
 msgstr "设置"
 
+#: src/ui/main_window.rs
 msgid "Collapse sidebar"
 msgstr "收起侧边栏"
 
+#: src/ui/main_window.rs
 msgid "Expand sidebar"
 msgstr "展开侧边栏"
 
+#: src/ui/main_window.rs
 msgid "New version available"
 msgstr "有新版本可用"
 
+#. Controls
+#: src/ui/controls.rs
 msgid "Record"
 msgstr "录制"
 
+#: src/ui/controls.rs
 msgid "Start recording (Ctrl+R)"
 msgstr "开始录制 (Ctrl+R)"
 
+#: src/ui/controls.rs
 msgid "Pause recording"
 msgstr "暂停录制"
 
+#: src/ui/controls.rs
 msgid "Resume recording"
 msgstr "继续录制"
 
+#: src/ui/controls.rs
 msgid "Stop recording and transcribe"
 msgstr "停止并转录"
 
+#: src/ui/controls.rs
 msgid "Copy transcript to clipboard"
 msgstr "复制转录到剪贴板"
 
+#: src/ui/controls.rs
 msgid "Clear transcript"
 msgstr "清除转录"
 
+#: src/ui/controls.rs
 msgid "Save"
 msgstr "保存"
 
+#: src/ui/controls.rs
 msgid "Save transcript to file"
 msgstr "保存转录到文件"
 
+#. Header controls
+#: src/ui/header.rs
 msgid "Microphone:"
 msgstr "麦克风："
 
+#: src/ui/header.rs
 msgid "Select microphone"
 msgstr "选择麦克风"
 
+#: src/ui/header.rs
 msgid "Model:"
 msgstr "模型："
 
+#: src/ui/header.rs
 msgid "Select Whisper model"
 msgstr "选择 Whisper 模型"
 
+#: src/ui/header.rs
 msgid "No Model"
 msgstr "无模型"
 
+#: src/ui/header.rs
 msgid "Model Loaded"
 msgstr "模型已加载"
 
+#: src/ui/header.rs
 msgid "Main menu"
 msgstr "主菜单"
 
+#. Status bar
+#: src/ui/status_bar.rs
 msgid "Idle"
 msgstr "空闲"
 
+#: src/ui/status_bar.rs
 msgid "No model loaded"
 msgstr "未加载模型"
 
+#: src/ui/status_bar.rs
 msgid "CPU"
 msgstr "CPU"
 
+#: src/ui/status_bar.rs
 msgid "Offline"
 msgstr "离线"
 
+#: src/ui/status_bar.rs
 msgid "Recording"
 msgstr "录制中"
 
+#: src/ui/status_bar.rs
 msgid "Paused"
 msgstr "已暂停"
 
+#. Transcript view
+#: src/ui/transcript_view.rs
 msgid "Auto-detect"
 msgstr "自动检测"
 
+#: src/ui/transcript_view.rs
 msgid "Press Record to start transcribing…"
 msgstr "按下录制按钮开始转录…"
 
+#: src/ui/transcript_view.rs
 msgid "Confidence:"
 msgstr "置信度："
 
+#. Recording states (main_window)
+#: src/ui/main_window.rs
 msgid "Recording…"
 msgstr "录制中…"
 
+#: src/ui/main_window.rs
 msgid "Transcribing…"
 msgstr "转录中…"
 
+#: src/ui/main_window.rs
 msgid "Loading model…"
 msgstr "加载模型中…"
 
+#: src/ui/main_window.rs
 msgid "Ready"
 msgstr "就绪"
 
+#: src/ui/main_window.rs
 msgid "Error"
 msgstr "错误"
 
+#: src/ui/main_window.rs
 msgid "Copied to clipboard"
 msgstr "已复制到剪贴板"
 
+#: src/ui/main_window.rs
 msgid "Nothing to save"
 msgstr "没有可保存的内容"
 
+#: src/ui/main_window.rs
 msgid "Transcript saved"
 msgstr "转录已保存"
 
+#: src/ui/main_window.rs
 msgid "No audio recorded"
 msgstr "未录制音频"
 
+#: src/ui/main_window.rs
 msgid "Save Transcript"
 msgstr "保存转录"
 
+#. History page
+#: src/ui/history_page.rs
 msgid "Transcription History"
 msgstr "转录历史"
 
+#: src/ui/history_page.rs
 msgid "Search transcriptions…"
 msgstr "搜索转录…"
 
+#: src/ui/history_page.rs
 msgid "Clear all history"
 msgstr "清除所有历史"
 
+#: src/ui/history_page.rs
 msgid "No Transcriptions Yet"
 msgstr "暂无转录记录"
 
+#: src/ui/history_page.rs
 msgid "Your transcription history will appear here"
 msgstr "您的转录历史将显示在这里"
 
+#: src/ui/history_page.rs
 msgid "Copy to clipboard"
 msgstr "复制到剪贴板"
 
+#: src/ui/history_page.rs
 msgid "Delete"
 msgstr "删除"
 
+#. Theme popover
+#: src/ui/widgets/theme_popover.rs
 msgid "System"
 msgstr "系统"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Light"
 msgstr "浅色"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Dark"
 msgstr "深色"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "What's New"
 msgstr "新功能"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "About Speech to Text"
 msgstr "关于语音转文字"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Quit"
 msgstr "退出"
 
+#. Welcome wizard
+#: src/ui/welcome_wizard.rs
 msgid "Welcome to Speech to Text"
 msgstr "欢迎使用语音转文字"
 
+#: src/ui/welcome_wizard.rs
 msgid "Next"
 msgstr "下一步"
 
+#: src/ui/welcome_wizard.rs
 msgid "Get Started"
 msgstr "开始使用"
 
-msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
-msgstr "在本地将语音转换为文字。\n初始设置后无需互联网连接。"
+#: src/ui/welcome_wizard.rs
+msgid ""
+"Convert speech to text locally on your machine.\n"
+"No internet connection required after initial setup."
+msgstr ""
+"在本地将语音转换为文字。\n"
+"初始设置后无需互联网连接。"
 
+#: src/ui/welcome_wizard.rs
 msgid "100% offline — your audio never leaves your device"
 msgstr "100% 离线 — 您的音频永远不会离开设备"
 
+#: src/ui/welcome_wizard.rs
 msgid "Supports 99 languages with auto-detection"
 msgstr "支持 99 种语言，具有自动检测功能"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download a Whisper Model"
 msgstr "下载 Whisper 模型"
 
-msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
-msgstr "转录需要语言模型。\n建议从 Tiny 模型开始（约 75 MB）。"
+#: src/ui/welcome_wizard.rs
+msgid ""
+"A language model is needed for transcription.\n"
+"We recommend starting with the Tiny model (~75 MB)."
+msgstr ""
+"转录需要语言模型。\n"
+"建议从 Tiny 模型开始（约 75 MB）。"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download Model"
 msgstr "下载模型"
 
+#: src/ui/welcome_wizard.rs
 msgid "Downloading…"
 msgstr "下载中…"
 
+#: src/ui/welcome_wizard.rs
 msgid "Retry"
 msgstr "重试"
 
+#: src/ui/welcome_wizard.rs
 msgid "You're All Set!"
 msgstr "一切就绪！"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download complete!"
 msgstr "下载完成！"
 
+#. Settings — Language
+#: src/ui/settings/language.rs
 msgid "Language Detection"
 msgstr "语言检测"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can automatically detect the spoken language"
 msgstr "Whisper 可以自动检测口语语言"
 
+#: src/ui/settings/language.rs
 msgid "Auto-detect Language"
 msgstr "自动检测语言"
 
+#: src/ui/settings/language.rs
 msgid "Let Whisper determine the language automatically"
 msgstr "让 Whisper 自动确定语言"
 
+#: src/ui/settings/language.rs
 msgid "Manual Selection"
 msgstr "手动选择"
 
+#: src/ui/settings/language.rs
 msgid "Force a specific language for transcription"
 msgstr "强制使用特定语言进行转录"
 
+#: src/ui/settings/language.rs
 msgid "Used when auto-detect is disabled"
 msgstr "在自动检测禁用时使用"
 
+#: src/ui/settings/language.rs
 msgid "Supported Languages"
 msgstr "支持的语言"
 
+#: src/ui/settings/language.rs
 msgid "Translation"
 msgstr "翻译"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can also translate speech to English"
 msgstr "Whisper 还可以将语音翻译为英语"
 
+#. Settings — Microphone
+#: src/ui/settings/microphone.rs
 msgid "Input Device"
 msgstr "输入设备"
 
+#: src/ui/settings/microphone.rs
 msgid "Select the microphone to use for recording"
 msgstr "选择用于录制的麦克风"
 
+#: src/ui/settings/microphone.rs
 msgid "Refresh device list"
 msgstr "刷新设备列表"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio Settings"
 msgstr "音频设置"
 
+#: src/ui/settings/microphone.rs
 msgid "Sample Rate"
 msgstr "采样率"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio will be resampled to 16kHz for Whisper"
 msgstr "音频将重新采样至 16kHz 以供 Whisper 使用"
 
+#: src/ui/settings/microphone.rs
 msgid "Channels"
 msgstr "声道"
 
+#: src/ui/settings/microphone.rs
 msgid "Stereo input is automatically converted to mono"
 msgstr "立体声输入会自动转换为单声道"
 
+#: src/ui/settings/microphone.rs
 msgid "Mono"
 msgstr "单声道"
 
+#: src/ui/settings/microphone.rs
 msgid "Microphone Test"
 msgstr "麦克风测试"
 
+#: src/ui/settings/microphone.rs
 msgid "Test Microphone"
 msgstr "测试麦克风"
 
+#: src/ui/settings/microphone.rs
 msgid "Record a short sample to verify your microphone works"
 msgstr "录制一段短样本以验证麦克风"
 
+#: src/ui/settings/microphone.rs
 msgid "Test"
 msgstr "测试"
 
+#: src/ui/settings/microphone.rs
 msgid "No audio input devices found"
 msgstr "未找到音频输入设备"
 
+#: src/ui/settings/microphone.rs
 msgid "Check that a microphone is connected"
 msgstr "请检查是否已连接麦克风"
 
+#. Settings — Model
+#: src/ui/settings/model.rs
 msgid "Whisper Models"
 msgstr "Whisper 模型"
 
+#: src/ui/settings/model.rs
 msgid "Select a model. Larger models are more accurate but slower."
 msgstr "选择模型。较大的模型更准确但更慢。"
 
+#: src/ui/settings/model.rs
 msgid "Downloaded"
 msgstr "已下载"
 
+#: src/ui/settings/model.rs
 msgid "Download"
 msgstr "下载"
 
+#: src/ui/settings/model.rs
 msgid "Download Progress"
 msgstr "下载进度"
 
+#: src/ui/settings/model.rs
 msgid "No download in progress"
 msgstr "没有正在进行的下载"
 
+#: src/ui/settings/model.rs
 msgid "Storage"
 msgstr "存储"
 
+#: src/ui/settings/model.rs
 msgid "Choose where Whisper models are stored."
 msgstr "选择 Whisper 模型的存储位置。"
 
+#: src/ui/settings/model.rs
 msgid "Models Directory"
 msgstr "模型目录"
 
+#: src/ui/settings/model.rs
 msgid "Open in file manager"
 msgstr "在文件管理器中打开"
 
+#: src/ui/settings/model.rs
 msgid "Change models directory"
 msgstr "更改模型目录"
 
+#: src/ui/settings/model.rs
 msgid "Select Models Directory"
 msgstr "选择模型目录"
 
+#: src/ui/settings/model.rs
 msgid "Reset to default location"
 msgstr "重置为默认位置"
 
+#. Settings — Performance
+#: src/ui/settings/performance.rs
 msgid "GPU Acceleration"
 msgstr "GPU 加速"
 
-msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+#: src/ui/settings/performance.rs
+msgid ""
+"Use GPU for faster transcription when available. Requires CUDA or OpenCL "
+"support."
 msgstr "可用时使用 GPU 加速转录。需要 CUDA 或 OpenCL 支持。"
 
+#: src/ui/settings/performance.rs
 msgid "Use GPU"
 msgstr "使用 GPU"
 
+#: src/ui/settings/performance.rs
 msgid "Accelerate transcription with your graphics card"
 msgstr "使用显卡加速转录"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Fallback"
 msgstr "CPU 后备"
 
+#: src/ui/settings/performance.rs
 msgid "Automatically fall back to CPU if GPU is unavailable"
 msgstr "GPU 不可用时自动切换到 CPU"
 
+#: src/ui/settings/performance.rs
 msgid "GPU Status"
 msgstr "GPU 状态"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Settings"
 msgstr "CPU 设置"
 
+#: src/ui/settings/performance.rs
 msgid "Worker Threads"
 msgstr "工作线程"
 
+#: src/ui/settings/performance.rs
 msgid "Number of CPU threads for transcription"
 msgstr "转录使用的 CPU 线程数"
 
+#: src/ui/settings/performance.rs
 msgid "Memory"
 msgstr "内存"
 
+#: src/ui/settings/performance.rs
 msgid "Estimated Memory Usage"
 msgstr "预计内存使用量"
 
+#: src/ui/settings/performance.rs
 msgid "Depends on the selected model size"
 msgstr "取决于所选模型的大小"
 
+#: src/ui/settings/performance.rs
 msgid "Beam Size"
 msgstr "Beam 大小"
 
+#: src/ui/settings/performance.rs
 msgid "Higher values improve accuracy but use more memory"
 msgstr "更高的值提高准确性但使用更多内存"
 
+#. GPU Status panel
+#: src/ui/widgets/gpu_status.rs
 msgid "GPU"
 msgstr "GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "VRAM"
 msgstr "显存"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Detecting GPU…"
 msgstr "检测 GPU…"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "No GPU detected"
 msgstr "未检测到 GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "CPU only"
 msgstr "仅 CPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Available"
 msgstr "可用"
 
+#. Model row widget
+#: src/ui/widgets/model_row.rs
 msgid "Select"
 msgstr "选择"
 
+#: src/ui/widgets/model_row.rs
 msgid "Selected"
 msgstr "已选择"
 
+#. Application about
+#: src/application.rs
 msgid "Offline speech-to-text transcription using Whisper"
 msgstr "使用 Whisper 的离线语音转文字转录"
 
+#. Desktop entry
+#: data/com.chrisdaggas.speech-to-text.desktop
 msgid "Local offline speech-to-text transcription using Whisper"
 msgstr "使用 Whisper 的本地离线语音转文字转录"

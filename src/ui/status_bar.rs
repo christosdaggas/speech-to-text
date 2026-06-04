@@ -5,6 +5,7 @@
 //! Bottom status bar showing recording state, model info, GPU/CPU mode, and offline badge.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use gtk4::glib;
 use gtk4 as gtk;
 use libadwaita as adw;
@@ -69,7 +70,7 @@ impl StatusBar {
         rec_icon.add_css_class("dim-label");
         rec_box.append(&rec_icon);
 
-        let rec_label = gtk::Label::new(Some("Idle"));
+        let rec_label = gtk::Label::new(Some(gettext("Idle").as_str()));
         rec_label.add_css_class("caption");
         rec_label.add_css_class("dim-label");
         rec_box.append(&rec_label);
@@ -89,7 +90,7 @@ impl StatusBar {
         model_icon.set_pixel_size(10);
         model_box.append(&model_icon);
 
-        let model_label = gtk::Label::new(Some("No model loaded"));
+        let model_label = gtk::Label::new(Some(gettext("No model loaded").as_str()));
         model_label.add_css_class("caption");
         model_label.add_css_class("dim-label");
         model_box.append(&model_label);
@@ -109,7 +110,7 @@ impl StatusBar {
         cpu_icon.set_pixel_size(10);
         compute_box.append(&cpu_icon);
 
-        let compute_label = gtk::Label::new(Some("CPU"));
+        let compute_label = gtk::Label::new(Some(gettext("CPU").as_str()));
         compute_label.add_css_class("caption");
         compute_label.add_css_class("dim-label");
         compute_box.append(&compute_label);
@@ -136,7 +137,7 @@ impl StatusBar {
         update_icon.add_css_class("error");
         update_box.append(&update_icon);
 
-        let update_label = gtk::Label::new(Some("Update available"));
+        let update_label = gtk::Label::new(Some(gettext("Update available").as_str()));
         update_label.add_css_class("caption");
         update_label.add_css_class("error");
         update_box.append(&update_label);

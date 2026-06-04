@@ -5,11 +5,12 @@
 //! User interface components.
 
 mod main_window;
+mod mini_panel;
 mod sidebar;
 mod header;
 mod transcript_view;
 mod controls;
-mod history_page;
+pub mod history_page;
 mod help_page;
 mod welcome_wizard;
 mod status_bar;
@@ -18,6 +19,7 @@ pub mod settings;
 pub mod widgets;
 
 pub use main_window::MainWindow;
+pub use mini_panel::{MiniPanel, MiniPanelAction};
 pub use header::HeaderControls;
 pub use transcript_view::TranscriptView;
 pub use controls::{Controls, ControlAction};

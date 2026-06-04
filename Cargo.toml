@@ -1,6 +1,6 @@
 [package]
 name = "speech-to-text"
-version = "1.0.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Christos A. Daggas"]
 description = "Native Linux desktop application for offline speech-to-text transcription using Whisper"
@@ -61,6 +61,9 @@ gettext-rs = { version = "0.7", features = ["gettext-system"] }
 # Async channel for GTK integration
 async-channel = "2"
 
+# Zip extraction
+zip = "2"
+
 # Number of CPUs (for whisper thread count)
 num_cpus = "1"
 
@@ -69,6 +72,14 @@ tokio-util = { version = "0.7", features = ["io"] }
 
 # Byte utilities for download progress
 indicatif = "0.17"
+oo7 = "0.6"
+
+# XDG Desktop Portals: global shortcuts + remote-desktop (auto-paste).
+# Already present transitively via oo7; we enable the two portal modules we use.
+ashpd = { version = "0.13", features = ["global_shortcuts", "remote_desktop", "screencast"] }
+# Bitflags for the RemoteDesktop DeviceType selection (already in the tree via ashpd).
+enumflags2 = "0.7"
+ksni = "0.3.4"
 
 [features]
 default = []

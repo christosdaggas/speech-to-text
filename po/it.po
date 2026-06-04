@@ -16,407 +16,571 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Application name
+#: src/main.rs
 msgid "Speech to Text"
 msgstr "Voce in Testo"
 
+#. Navigation items
+#: src/ui/main_window.rs
 msgid "Transcription"
 msgstr "Trascrizione"
 
+#: src/ui/main_window.rs
 msgid "History"
 msgstr "Cronologia"
 
+#: src/ui/main_window.rs
 msgid "Microphone"
 msgstr "Microfono"
 
+#: src/ui/main_window.rs
 msgid "Model"
 msgstr "Modello"
 
+#: src/ui/main_window.rs
 msgid "Language"
 msgstr "Lingua"
 
+#: src/ui/main_window.rs
 msgid "Performance"
 msgstr "Prestazioni"
 
+#: src/ui/main_window.rs
 msgid "Settings"
 msgstr "Impostazioni"
 
+#: src/ui/main_window.rs
 msgid "Collapse sidebar"
 msgstr "Comprimi barra laterale"
 
+#: src/ui/main_window.rs
 msgid "Expand sidebar"
 msgstr "Espandi barra laterale"
 
+#: src/ui/main_window.rs
 msgid "New version available"
 msgstr "Nuova versione disponibile"
 
+#. Controls
+#: src/ui/controls.rs
 msgid "Record"
 msgstr "Registra"
 
+#: src/ui/controls.rs
 msgid "Start recording (Ctrl+R)"
 msgstr "Avvia registrazione (Ctrl+R)"
 
+#: src/ui/controls.rs
 msgid "Pause recording"
 msgstr "Pausa registrazione"
 
+#: src/ui/controls.rs
 msgid "Resume recording"
 msgstr "Riprendi registrazione"
 
+#: src/ui/controls.rs
 msgid "Stop recording and transcribe"
 msgstr "Ferma e trascrivi"
 
+#: src/ui/controls.rs
 msgid "Copy transcript to clipboard"
 msgstr "Copia trascrizione negli appunti"
 
+#: src/ui/controls.rs
 msgid "Clear transcript"
 msgstr "Cancella trascrizione"
 
+#: src/ui/controls.rs
 msgid "Save"
 msgstr "Salva"
 
+#: src/ui/controls.rs
 msgid "Save transcript to file"
 msgstr "Salva trascrizione su file"
 
+#. Header controls
+#: src/ui/header.rs
 msgid "Microphone:"
 msgstr "Microfono:"
 
+#: src/ui/header.rs
 msgid "Select microphone"
 msgstr "Seleziona microfono"
 
+#: src/ui/header.rs
 msgid "Model:"
 msgstr "Modello:"
 
+#: src/ui/header.rs
 msgid "Select Whisper model"
 msgstr "Seleziona modello Whisper"
 
+#: src/ui/header.rs
 msgid "No Model"
 msgstr "Nessun modello"
 
+#: src/ui/header.rs
 msgid "Model Loaded"
 msgstr "Modello caricato"
 
+#: src/ui/header.rs
 msgid "Main menu"
 msgstr "Menu principale"
 
+#. Status bar
+#: src/ui/status_bar.rs
 msgid "Idle"
 msgstr "Inattivo"
 
+#: src/ui/status_bar.rs
 msgid "No model loaded"
 msgstr "Nessun modello caricato"
 
+#: src/ui/status_bar.rs
 msgid "CPU"
 msgstr "CPU"
 
+#: src/ui/status_bar.rs
 msgid "Offline"
 msgstr "Non in linea"
 
+#: src/ui/status_bar.rs
 msgid "Recording"
 msgstr "Registrazione"
 
+#: src/ui/status_bar.rs
 msgid "Paused"
 msgstr "In pausa"
 
+#. Transcript view
+#: src/ui/transcript_view.rs
 msgid "Auto-detect"
 msgstr "Rilevamento auto"
 
+#: src/ui/transcript_view.rs
 msgid "Press Record to start transcribing…"
 msgstr "Premi Registra per iniziare la trascrizione…"
 
+#: src/ui/transcript_view.rs
 msgid "Confidence:"
 msgstr "Affidabilità:"
 
+#. Recording states (main_window)
+#: src/ui/main_window.rs
 msgid "Recording…"
 msgstr "Registrazione…"
 
+#: src/ui/main_window.rs
 msgid "Transcribing…"
 msgstr "Trascrizione…"
 
+#: src/ui/main_window.rs
 msgid "Loading model…"
 msgstr "Caricamento modello…"
 
+#: src/ui/main_window.rs
 msgid "Ready"
 msgstr "Pronto"
 
+#: src/ui/main_window.rs
 msgid "Error"
 msgstr "Errore"
 
+#: src/ui/main_window.rs
 msgid "Copied to clipboard"
 msgstr "Copiato negli appunti"
 
+#: src/ui/main_window.rs
 msgid "Nothing to save"
 msgstr "Niente da salvare"
 
+#: src/ui/main_window.rs
 msgid "Transcript saved"
 msgstr "Trascrizione salvata"
 
+#: src/ui/main_window.rs
 msgid "No audio recorded"
 msgstr "Nessun audio registrato"
 
+#: src/ui/main_window.rs
 msgid "Save Transcript"
 msgstr "Salva trascrizione"
 
+#. History page
+#: src/ui/history_page.rs
 msgid "Transcription History"
 msgstr "Cronologia trascrizioni"
 
+#: src/ui/history_page.rs
 msgid "Search transcriptions…"
 msgstr "Cerca trascrizioni…"
 
+#: src/ui/history_page.rs
 msgid "Clear all history"
 msgstr "Cancella tutta la cronologia"
 
+#: src/ui/history_page.rs
 msgid "No Transcriptions Yet"
 msgstr "Nessuna trascrizione"
 
+#: src/ui/history_page.rs
 msgid "Your transcription history will appear here"
 msgstr "La cronologia delle trascrizioni apparirà qui"
 
+#: src/ui/history_page.rs
 msgid "Copy to clipboard"
 msgstr "Copia negli appunti"
 
+#: src/ui/history_page.rs
 msgid "Delete"
 msgstr "Elimina"
 
+#. Theme popover
+#: src/ui/widgets/theme_popover.rs
 msgid "System"
 msgstr "Sistema"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Light"
 msgstr "Chiaro"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Dark"
 msgstr "Scuro"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "What's New"
 msgstr "Novità"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "About Speech to Text"
 msgstr "Informazioni su Voce in Testo"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Quit"
 msgstr "Esci"
 
+#. Welcome wizard
+#: src/ui/welcome_wizard.rs
 msgid "Welcome to Speech to Text"
 msgstr "Benvenuto in Voce in Testo"
 
+#: src/ui/welcome_wizard.rs
 msgid "Next"
 msgstr "Avanti"
 
+#: src/ui/welcome_wizard.rs
 msgid "Get Started"
 msgstr "Inizia"
 
-msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
-msgstr "Converti la voce in testo localmente.\nNessuna connessione Internet necessaria dopo la configurazione."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"Convert speech to text locally on your machine.\n"
+"No internet connection required after initial setup."
+msgstr ""
+"Converti la voce in testo localmente.\n"
+"Nessuna connessione Internet necessaria dopo la configurazione."
 
+#: src/ui/welcome_wizard.rs
 msgid "100% offline — your audio never leaves your device"
 msgstr "100% offline — il tuo audio non lascia mai il dispositivo"
 
+#: src/ui/welcome_wizard.rs
 msgid "Supports 99 languages with auto-detection"
 msgstr "Supporta 99 lingue con rilevamento automatico"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download a Whisper Model"
 msgstr "Scarica un modello Whisper"
 
-msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
-msgstr "È necessario un modello per la trascrizione.\nConsigliamo il modello Tiny (~75 MB)."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"A language model is needed for transcription.\n"
+"We recommend starting with the Tiny model (~75 MB)."
+msgstr ""
+"È necessario un modello per la trascrizione.\n"
+"Consigliamo il modello Tiny (~75 MB)."
 
+#: src/ui/welcome_wizard.rs
 msgid "Download Model"
 msgstr "Scarica modello"
 
+#: src/ui/welcome_wizard.rs
 msgid "Downloading…"
 msgstr "Download in corso…"
 
+#: src/ui/welcome_wizard.rs
 msgid "Retry"
 msgstr "Riprova"
 
+#: src/ui/welcome_wizard.rs
 msgid "You're All Set!"
 msgstr "Tutto pronto!"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download complete!"
 msgstr "Download completato!"
 
+#. Settings — Language
+#: src/ui/settings/language.rs
 msgid "Language Detection"
 msgstr "Rilevamento lingua"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can automatically detect the spoken language"
 msgstr "Whisper può rilevare automaticamente la lingua parlata"
 
+#: src/ui/settings/language.rs
 msgid "Auto-detect Language"
 msgstr "Rileva lingua automaticamente"
 
+#: src/ui/settings/language.rs
 msgid "Let Whisper determine the language automatically"
 msgstr "Lascia che Whisper determini la lingua automaticamente"
 
+#: src/ui/settings/language.rs
 msgid "Manual Selection"
 msgstr "Selezione manuale"
 
+#: src/ui/settings/language.rs
 msgid "Force a specific language for transcription"
 msgstr "Forza una lingua specifica per la trascrizione"
 
+#: src/ui/settings/language.rs
 msgid "Used when auto-detect is disabled"
 msgstr "Usato quando il rilevamento automatico è disattivato"
 
+#: src/ui/settings/language.rs
 msgid "Supported Languages"
 msgstr "Lingue supportate"
 
+#: src/ui/settings/language.rs
 msgid "Translation"
 msgstr "Traduzione"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can also translate speech to English"
 msgstr "Whisper può anche tradurre la voce in inglese"
 
+#. Settings — Microphone
+#: src/ui/settings/microphone.rs
 msgid "Input Device"
 msgstr "Dispositivo di ingresso"
 
+#: src/ui/settings/microphone.rs
 msgid "Select the microphone to use for recording"
 msgstr "Seleziona il microfono da utilizzare"
 
+#: src/ui/settings/microphone.rs
 msgid "Refresh device list"
 msgstr "Aggiorna elenco dispositivi"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio Settings"
 msgstr "Impostazioni audio"
 
+#: src/ui/settings/microphone.rs
 msgid "Sample Rate"
 msgstr "Frequenza di campionamento"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio will be resampled to 16kHz for Whisper"
 msgstr "L'audio verrà ricampionato a 16 kHz per Whisper"
 
+#: src/ui/settings/microphone.rs
 msgid "Channels"
 msgstr "Canali"
 
+#: src/ui/settings/microphone.rs
 msgid "Stereo input is automatically converted to mono"
 msgstr "L'ingresso stereo viene convertito automaticamente in mono"
 
+#: src/ui/settings/microphone.rs
 msgid "Mono"
 msgstr "Mono"
 
+#: src/ui/settings/microphone.rs
 msgid "Microphone Test"
 msgstr "Test microfono"
 
+#: src/ui/settings/microphone.rs
 msgid "Test Microphone"
 msgstr "Testa microfono"
 
+#: src/ui/settings/microphone.rs
 msgid "Record a short sample to verify your microphone works"
 msgstr "Registra un breve campione per verificare il microfono"
 
+#: src/ui/settings/microphone.rs
 msgid "Test"
 msgstr "Testa"
 
+#: src/ui/settings/microphone.rs
 msgid "No audio input devices found"
 msgstr "Nessun dispositivo audio trovato"
 
+#: src/ui/settings/microphone.rs
 msgid "Check that a microphone is connected"
 msgstr "Verifica che un microfono sia collegato"
 
+#. Settings — Model
+#: src/ui/settings/model.rs
 msgid "Whisper Models"
 msgstr "Modelli Whisper"
 
+#: src/ui/settings/model.rs
 msgid "Select a model. Larger models are more accurate but slower."
-msgstr "Seleziona un modello. I modelli più grandi sono più precisi ma più lenti."
+msgstr ""
+"Seleziona un modello. I modelli più grandi sono più precisi ma più lenti."
 
+#: src/ui/settings/model.rs
 msgid "Downloaded"
 msgstr "Scaricato"
 
+#: src/ui/settings/model.rs
 msgid "Download"
 msgstr "Scarica"
 
+#: src/ui/settings/model.rs
 msgid "Download Progress"
 msgstr "Avanzamento download"
 
+#: src/ui/settings/model.rs
 msgid "No download in progress"
 msgstr "Nessun download in corso"
 
+#: src/ui/settings/model.rs
 msgid "Storage"
 msgstr "Archiviazione"
 
+#: src/ui/settings/model.rs
 msgid "Choose where Whisper models are stored."
 msgstr "Scegli dove salvare i modelli Whisper."
 
+#: src/ui/settings/model.rs
 msgid "Models Directory"
 msgstr "Directory dei modelli"
 
+#: src/ui/settings/model.rs
 msgid "Open in file manager"
 msgstr "Apri nel gestore file"
 
+#: src/ui/settings/model.rs
 msgid "Change models directory"
 msgstr "Cambia directory dei modelli"
 
+#: src/ui/settings/model.rs
 msgid "Select Models Directory"
 msgstr "Seleziona directory dei modelli"
 
+#: src/ui/settings/model.rs
 msgid "Reset to default location"
 msgstr "Ripristina posizione predefinita"
 
+#. Settings — Performance
+#: src/ui/settings/performance.rs
 msgid "GPU Acceleration"
 msgstr "Accelerazione GPU"
 
-msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+#: src/ui/settings/performance.rs
+msgid ""
+"Use GPU for faster transcription when available. Requires CUDA or OpenCL "
+"support."
 msgstr "Usa la GPU per una trascrizione più veloce. Richiede CUDA o OpenCL."
 
+#: src/ui/settings/performance.rs
 msgid "Use GPU"
 msgstr "Usa GPU"
 
+#: src/ui/settings/performance.rs
 msgid "Accelerate transcription with your graphics card"
 msgstr "Accelera la trascrizione con la scheda grafica"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Fallback"
 msgstr "Riserva CPU"
 
+#: src/ui/settings/performance.rs
 msgid "Automatically fall back to CPU if GPU is unavailable"
 msgstr "Ripiego automatico su CPU se la GPU non è disponibile"
 
+#: src/ui/settings/performance.rs
 msgid "GPU Status"
 msgstr "Stato GPU"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Settings"
 msgstr "Impostazioni CPU"
 
+#: src/ui/settings/performance.rs
 msgid "Worker Threads"
 msgstr "Thread di lavoro"
 
+#: src/ui/settings/performance.rs
 msgid "Number of CPU threads for transcription"
 msgstr "Numero di thread CPU per la trascrizione"
 
+#: src/ui/settings/performance.rs
 msgid "Memory"
 msgstr "Memoria"
 
+#: src/ui/settings/performance.rs
 msgid "Estimated Memory Usage"
 msgstr "Utilizzo memoria stimato"
 
+#: src/ui/settings/performance.rs
 msgid "Depends on the selected model size"
 msgstr "Dipende dalla dimensione del modello selezionato"
 
+#: src/ui/settings/performance.rs
 msgid "Beam Size"
 msgstr "Dimensione beam"
 
+#: src/ui/settings/performance.rs
 msgid "Higher values improve accuracy but use more memory"
 msgstr "Valori più alti migliorano la precisione ma usano più memoria"
 
+#. GPU Status panel
+#: src/ui/widgets/gpu_status.rs
 msgid "GPU"
 msgstr "GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "VRAM"
 msgstr "VRAM"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Detecting GPU…"
 msgstr "Rilevamento GPU…"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "No GPU detected"
 msgstr "Nessuna GPU rilevata"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "CPU only"
 msgstr "Solo CPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Available"
 msgstr "Disponibile"
 
+#. Model row widget
+#: src/ui/widgets/model_row.rs
 msgid "Select"
 msgstr "Seleziona"
 
+#: src/ui/widgets/model_row.rs
 msgid "Selected"
 msgstr "Selezionato"
 
+#. Application about
+#: src/application.rs
 msgid "Offline speech-to-text transcription using Whisper"
 msgstr "Trascrizione vocale offline con Whisper"
 
+#. Desktop entry
+#: data/com.chrisdaggas.speech-to-text.desktop
 msgid "Local offline speech-to-text transcription using Whisper"
 msgstr "Trascrizione vocale locale e offline con Whisper"

@@ -1,20 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg
-   height="128"
-   viewBox="0 0 24 24"
-   width="128"
-   version="1.1"
-   xmlns="http://www.w3.org/2000/svg">
+<svg width="16" height="16" viewBox="0 0 24 24" version="1.1" color="#ffffff" xmlns="http://www.w3.org/2000/svg">
   <title>Speech to Text</title>
-  <!-- Microphone body -->
-  <rect x="9" y="2" width="6" height="11" rx="3" ry="3" fill="#888888"/>
-  <!-- Microphone stand arc -->
-  <path d="M 6,11 A 6,6 0 0 0 18,11" fill="none" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Stand vertical line -->
-  <line x1="12" y1="17" x2="12" y2="20" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Stand base -->
-  <line x1="9" y1="20" x2="15" y2="20" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Sound waves -->
-  <path d="M 19,7 C 20.5,9 20.5,13 19,15" fill="none" stroke="#555555" stroke-width="1.2" stroke-linecap="round"/>
-  <path d="M 21,5 C 23.5,8.5 23.5,13.5 21,17" fill="none" stroke="#555555" stroke-width="1.2" stroke-linecap="round"/>
+  <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color:#ffffff; }</style>
+  <!-- Audio-levels glyph (matches the app icon), monochrome, ~15% larger -->
+  <g class="ColorScheme-Text" fill="currentColor" transform="translate(12 12) scale(1.15) translate(-12 -12)">
+    <rect x="5.25"  y="9.11" width="1.5" height="5.78"  rx="0.75" ry="0.75"/>
+    <rect x="8.25"  y="7.68" width="1.5" height="8.64"  rx="0.75" ry="0.75"/>
+    <rect x="11.25" y="6.25" width="1.5" height="11.50" rx="0.75" ry="0.75"/>
+    <rect x="14.25" y="7.68" width="1.5" height="8.64"  rx="0.75" ry="0.75"/>
+    <rect x="17.25" y="9.11" width="1.5" height="5.78"  rx="0.75" ry="0.75"/>
+  </g>
 </svg>

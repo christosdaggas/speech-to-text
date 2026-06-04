@@ -14,409 +14,573 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+#. Application name
+#: src/main.rs
 msgid "Speech to Text"
 msgstr "Речь в текст"
 
+#. Navigation items
+#: src/ui/main_window.rs
 msgid "Transcription"
 msgstr "Транскрипция"
 
+#: src/ui/main_window.rs
 msgid "History"
 msgstr "История"
 
+#: src/ui/main_window.rs
 msgid "Microphone"
 msgstr "Микрофон"
 
+#: src/ui/main_window.rs
 msgid "Model"
 msgstr "Модель"
 
+#: src/ui/main_window.rs
 msgid "Language"
 msgstr "Язык"
 
+#: src/ui/main_window.rs
 msgid "Performance"
 msgstr "Производительность"
 
+#: src/ui/main_window.rs
 msgid "Settings"
 msgstr "Настройки"
 
+#: src/ui/main_window.rs
 msgid "Collapse sidebar"
 msgstr "Свернуть боковую панель"
 
+#: src/ui/main_window.rs
 msgid "Expand sidebar"
 msgstr "Развернуть боковую панель"
 
+#: src/ui/main_window.rs
 msgid "New version available"
 msgstr "Доступна новая версия"
 
+#. Controls
+#: src/ui/controls.rs
 msgid "Record"
 msgstr "Запись"
 
+#: src/ui/controls.rs
 msgid "Start recording (Ctrl+R)"
 msgstr "Начать запись (Ctrl+R)"
 
+#: src/ui/controls.rs
 msgid "Pause recording"
 msgstr "Пауза записи"
 
+#: src/ui/controls.rs
 msgid "Resume recording"
 msgstr "Возобновить запись"
 
+#: src/ui/controls.rs
 msgid "Stop recording and transcribe"
 msgstr "Остановить и транскрибировать"
 
+#: src/ui/controls.rs
 msgid "Copy transcript to clipboard"
 msgstr "Копировать транскрипцию в буфер обмена"
 
+#: src/ui/controls.rs
 msgid "Clear transcript"
 msgstr "Очистить транскрипцию"
 
+#: src/ui/controls.rs
 msgid "Save"
 msgstr "Сохранить"
 
+#: src/ui/controls.rs
 msgid "Save transcript to file"
 msgstr "Сохранить транскрипцию в файл"
 
+#. Header controls
+#: src/ui/header.rs
 msgid "Microphone:"
 msgstr "Микрофон:"
 
+#: src/ui/header.rs
 msgid "Select microphone"
 msgstr "Выбрать микрофон"
 
+#: src/ui/header.rs
 msgid "Model:"
 msgstr "Модель:"
 
+#: src/ui/header.rs
 msgid "Select Whisper model"
 msgstr "Выбрать модель Whisper"
 
+#: src/ui/header.rs
 msgid "No Model"
 msgstr "Нет модели"
 
+#: src/ui/header.rs
 msgid "Model Loaded"
 msgstr "Модель загружена"
 
+#: src/ui/header.rs
 msgid "Main menu"
 msgstr "Главное меню"
 
+#. Status bar
+#: src/ui/status_bar.rs
 msgid "Idle"
 msgstr "Ожидание"
 
+#: src/ui/status_bar.rs
 msgid "No model loaded"
 msgstr "Модель не загружена"
 
+#: src/ui/status_bar.rs
 msgid "CPU"
 msgstr "ЦП"
 
+#: src/ui/status_bar.rs
 msgid "Offline"
 msgstr "Автономно"
 
+#: src/ui/status_bar.rs
 msgid "Recording"
 msgstr "Запись"
 
+#: src/ui/status_bar.rs
 msgid "Paused"
 msgstr "Пауза"
 
+#. Transcript view
+#: src/ui/transcript_view.rs
 msgid "Auto-detect"
 msgstr "Автоопределение"
 
+#: src/ui/transcript_view.rs
 msgid "Press Record to start transcribing…"
 msgstr "Нажмите Запись для начала транскрипции…"
 
+#: src/ui/transcript_view.rs
 msgid "Confidence:"
 msgstr "Уверенность:"
 
+#. Recording states (main_window)
+#: src/ui/main_window.rs
 msgid "Recording…"
 msgstr "Запись…"
 
+#: src/ui/main_window.rs
 msgid "Transcribing…"
 msgstr "Транскрипция…"
 
+#: src/ui/main_window.rs
 msgid "Loading model…"
 msgstr "Загрузка модели…"
 
+#: src/ui/main_window.rs
 msgid "Ready"
 msgstr "Готово"
 
+#: src/ui/main_window.rs
 msgid "Error"
 msgstr "Ошибка"
 
+#: src/ui/main_window.rs
 msgid "Copied to clipboard"
 msgstr "Скопировано в буфер обмена"
 
+#: src/ui/main_window.rs
 msgid "Nothing to save"
 msgstr "Нечего сохранять"
 
+#: src/ui/main_window.rs
 msgid "Transcript saved"
 msgstr "Транскрипция сохранена"
 
+#: src/ui/main_window.rs
 msgid "No audio recorded"
 msgstr "Аудио не записано"
 
+#: src/ui/main_window.rs
 msgid "Save Transcript"
 msgstr "Сохранить транскрипцию"
 
+#. History page
+#: src/ui/history_page.rs
 msgid "Transcription History"
 msgstr "История транскрипций"
 
+#: src/ui/history_page.rs
 msgid "Search transcriptions…"
 msgstr "Поиск транскрипций…"
 
+#: src/ui/history_page.rs
 msgid "Clear all history"
 msgstr "Очистить всю историю"
 
+#: src/ui/history_page.rs
 msgid "No Transcriptions Yet"
 msgstr "Транскрипций пока нет"
 
+#: src/ui/history_page.rs
 msgid "Your transcription history will appear here"
 msgstr "Ваша история транскрипций появится здесь"
 
+#: src/ui/history_page.rs
 msgid "Copy to clipboard"
 msgstr "Копировать в буфер обмена"
 
+#: src/ui/history_page.rs
 msgid "Delete"
 msgstr "Удалить"
 
+#. Theme popover
+#: src/ui/widgets/theme_popover.rs
 msgid "System"
 msgstr "Системная"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Light"
 msgstr "Светлая"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Dark"
 msgstr "Тёмная"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "What's New"
 msgstr "Что нового"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "About Speech to Text"
 msgstr "О программе Речь в текст"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Quit"
 msgstr "Выход"
 
+#. Welcome wizard
+#: src/ui/welcome_wizard.rs
 msgid "Welcome to Speech to Text"
 msgstr "Добро пожаловать в Речь в текст"
 
+#: src/ui/welcome_wizard.rs
 msgid "Next"
 msgstr "Далее"
 
+#: src/ui/welcome_wizard.rs
 msgid "Get Started"
 msgstr "Начать"
 
-msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
-msgstr "Преобразуйте речь в текст локально.\nПодключение к Интернету не требуется после настройки."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"Convert speech to text locally on your machine.\n"
+"No internet connection required after initial setup."
+msgstr ""
+"Преобразуйте речь в текст локально.\n"
+"Подключение к Интернету не требуется после настройки."
 
+#: src/ui/welcome_wizard.rs
 msgid "100% offline — your audio never leaves your device"
 msgstr "100% автономно — ваш звук никогда не покидает устройство"
 
+#: src/ui/welcome_wizard.rs
 msgid "Supports 99 languages with auto-detection"
 msgstr "Поддержка 99 языков с автоопределением"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download a Whisper Model"
 msgstr "Скачать модель Whisper"
 
-msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
-msgstr "Для транскрипции нужна модель.\nРекомендуем начать с модели Tiny (~75 МБ)."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"A language model is needed for transcription.\n"
+"We recommend starting with the Tiny model (~75 MB)."
+msgstr ""
+"Для транскрипции нужна модель.\n"
+"Рекомендуем начать с модели Tiny (~75 МБ)."
 
+#: src/ui/welcome_wizard.rs
 msgid "Download Model"
 msgstr "Скачать модель"
 
+#: src/ui/welcome_wizard.rs
 msgid "Downloading…"
 msgstr "Загрузка…"
 
+#: src/ui/welcome_wizard.rs
 msgid "Retry"
 msgstr "Повторить"
 
+#: src/ui/welcome_wizard.rs
 msgid "You're All Set!"
 msgstr "Всё готово!"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download complete!"
 msgstr "Загрузка завершена!"
 
+#. Settings — Language
+#: src/ui/settings/language.rs
 msgid "Language Detection"
 msgstr "Определение языка"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can automatically detect the spoken language"
 msgstr "Whisper может автоматически определять язык"
 
+#: src/ui/settings/language.rs
 msgid "Auto-detect Language"
 msgstr "Автоопределение языка"
 
+#: src/ui/settings/language.rs
 msgid "Let Whisper determine the language automatically"
 msgstr "Позвольте Whisper определить язык автоматически"
 
+#: src/ui/settings/language.rs
 msgid "Manual Selection"
 msgstr "Ручной выбор"
 
+#: src/ui/settings/language.rs
 msgid "Force a specific language for transcription"
 msgstr "Принудительно задать язык для транскрипции"
 
+#: src/ui/settings/language.rs
 msgid "Used when auto-detect is disabled"
 msgstr "Используется при отключённом автоопределении"
 
+#: src/ui/settings/language.rs
 msgid "Supported Languages"
 msgstr "Поддерживаемые языки"
 
+#: src/ui/settings/language.rs
 msgid "Translation"
 msgstr "Перевод"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can also translate speech to English"
 msgstr "Whisper также может переводить речь на английский"
 
+#. Settings — Microphone
+#: src/ui/settings/microphone.rs
 msgid "Input Device"
 msgstr "Устройство ввода"
 
+#: src/ui/settings/microphone.rs
 msgid "Select the microphone to use for recording"
 msgstr "Выберите микрофон для записи"
 
+#: src/ui/settings/microphone.rs
 msgid "Refresh device list"
 msgstr "Обновить список устройств"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio Settings"
 msgstr "Настройки звука"
 
+#: src/ui/settings/microphone.rs
 msgid "Sample Rate"
 msgstr "Частота дискретизации"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio will be resampled to 16kHz for Whisper"
 msgstr "Звук будет преобразован в 16 кГц для Whisper"
 
+#: src/ui/settings/microphone.rs
 msgid "Channels"
 msgstr "Каналы"
 
+#: src/ui/settings/microphone.rs
 msgid "Stereo input is automatically converted to mono"
 msgstr "Стереовход автоматически преобразуется в моно"
 
+#: src/ui/settings/microphone.rs
 msgid "Mono"
 msgstr "Моно"
 
+#: src/ui/settings/microphone.rs
 msgid "Microphone Test"
 msgstr "Проверка микрофона"
 
+#: src/ui/settings/microphone.rs
 msgid "Test Microphone"
 msgstr "Проверить микрофон"
 
+#: src/ui/settings/microphone.rs
 msgid "Record a short sample to verify your microphone works"
 msgstr "Запишите короткий образец для проверки микрофона"
 
+#: src/ui/settings/microphone.rs
 msgid "Test"
 msgstr "Проверить"
 
+#: src/ui/settings/microphone.rs
 msgid "No audio input devices found"
 msgstr "Устройства ввода звука не найдены"
 
+#: src/ui/settings/microphone.rs
 msgid "Check that a microphone is connected"
 msgstr "Проверьте подключение микрофона"
 
+#. Settings — Model
+#: src/ui/settings/model.rs
 msgid "Whisper Models"
 msgstr "Модели Whisper"
 
+#: src/ui/settings/model.rs
 msgid "Select a model. Larger models are more accurate but slower."
 msgstr "Выберите модель. Большие модели точнее, но медленнее."
 
+#: src/ui/settings/model.rs
 msgid "Downloaded"
 msgstr "Скачано"
 
+#: src/ui/settings/model.rs
 msgid "Download"
 msgstr "Скачать"
 
+#: src/ui/settings/model.rs
 msgid "Download Progress"
 msgstr "Прогресс загрузки"
 
+#: src/ui/settings/model.rs
 msgid "No download in progress"
 msgstr "Нет активных загрузок"
 
+#: src/ui/settings/model.rs
 msgid "Storage"
 msgstr "Хранилище"
 
+#: src/ui/settings/model.rs
 msgid "Choose where Whisper models are stored."
 msgstr "Выберите место хранения моделей Whisper."
 
+#: src/ui/settings/model.rs
 msgid "Models Directory"
 msgstr "Каталог моделей"
 
+#: src/ui/settings/model.rs
 msgid "Open in file manager"
 msgstr "Открыть в файловом менеджере"
 
+#: src/ui/settings/model.rs
 msgid "Change models directory"
 msgstr "Изменить каталог моделей"
 
+#: src/ui/settings/model.rs
 msgid "Select Models Directory"
 msgstr "Выбрать каталог моделей"
 
+#: src/ui/settings/model.rs
 msgid "Reset to default location"
 msgstr "Сбросить расположение по умолчанию"
 
+#. Settings — Performance
+#: src/ui/settings/performance.rs
 msgid "GPU Acceleration"
 msgstr "Ускорение GPU"
 
-msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+#: src/ui/settings/performance.rs
+msgid ""
+"Use GPU for faster transcription when available. Requires CUDA or OpenCL "
+"support."
 msgstr "Использовать GPU для ускорения. Требуется CUDA или OpenCL."
 
+#: src/ui/settings/performance.rs
 msgid "Use GPU"
 msgstr "Использовать GPU"
 
+#: src/ui/settings/performance.rs
 msgid "Accelerate transcription with your graphics card"
 msgstr "Ускорить транскрипцию с помощью видеокарты"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Fallback"
 msgstr "Резерв ЦП"
 
+#: src/ui/settings/performance.rs
 msgid "Automatically fall back to CPU if GPU is unavailable"
 msgstr "Автоматический переход на ЦП при недоступности GPU"
 
+#: src/ui/settings/performance.rs
 msgid "GPU Status"
 msgstr "Статус GPU"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Settings"
 msgstr "Настройки ЦП"
 
+#: src/ui/settings/performance.rs
 msgid "Worker Threads"
 msgstr "Рабочие потоки"
 
+#: src/ui/settings/performance.rs
 msgid "Number of CPU threads for transcription"
 msgstr "Количество потоков ЦП для транскрипции"
 
+#: src/ui/settings/performance.rs
 msgid "Memory"
 msgstr "Память"
 
+#: src/ui/settings/performance.rs
 msgid "Estimated Memory Usage"
 msgstr "Оценка использования памяти"
 
+#: src/ui/settings/performance.rs
 msgid "Depends on the selected model size"
 msgstr "Зависит от выбранного размера модели"
 
+#: src/ui/settings/performance.rs
 msgid "Beam Size"
 msgstr "Размер луча"
 
+#: src/ui/settings/performance.rs
 msgid "Higher values improve accuracy but use more memory"
 msgstr "Более высокие значения повышают точность, но требуют больше памяти"
 
+#. GPU Status panel
+#: src/ui/widgets/gpu_status.rs
 msgid "GPU"
 msgstr "GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "VRAM"
 msgstr "Видеопамять"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Detecting GPU…"
 msgstr "Обнаружение GPU…"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "No GPU detected"
 msgstr "GPU не обнаружен"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "CPU only"
 msgstr "Только ЦП"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Available"
 msgstr "Доступно"
 
+#. Model row widget
+#: src/ui/widgets/model_row.rs
 msgid "Select"
 msgstr "Выбрать"
 
+#: src/ui/widgets/model_row.rs
 msgid "Selected"
 msgstr "Выбрано"
 
+#. Application about
+#: src/application.rs
 msgid "Offline speech-to-text transcription using Whisper"
 msgstr "Автономная транскрипция речи с помощью Whisper"
 
+#. Desktop entry
+#: data/com.chrisdaggas.speech-to-text.desktop
 msgid "Local offline speech-to-text transcription using Whisper"
 msgstr "Локальная автономная транскрипция речи с помощью Whisper"

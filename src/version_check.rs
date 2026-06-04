@@ -19,15 +19,12 @@ const GITHUB_REPO: &str = "speech-to-text";
 pub struct UpdateInfo {
     /// Latest version string from GitHub (e.g. "1.2.0").
     pub latest_version: String,
-    /// URL the user can visit to download the release.
-    pub download_url: String,
 }
 
 /// Subset of the GitHub Release API response we care about.
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
-    html_url: String,
 }
 
 /// Check GitHub for the latest release.
@@ -80,7 +77,6 @@ pub async fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
     if is_newer(&latest, current_version) {
         Some(UpdateInfo {
             latest_version: latest,
-            download_url: release.html_url,
         })
     } else {
         debug!("Application is up to date");
@@ -93,7 +89,11 @@ pub async fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
 fn is_newer(remote: &str, local: &str) -> bool {
     let parse = |s: &str| -> Vec<u64> {
         s.split('.')
-            .map(|part| part.parse::<u64>().unwrap_or(0))
+            .map(|part| {
+                // Drop any pre-release/build suffix (e.g. "0-beta", "1+build").
+                let numeric: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
+                numeric.parse::<u64>().unwrap_or(0)
+            })
             .collect()
     };
 

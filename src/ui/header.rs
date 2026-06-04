@@ -5,8 +5,10 @@
 //! Header bar with microphone selector, model selector, and status indicator.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use gtk4::glib;
 use gtk4 as gtk;
+use gtk4::pango;
 use libadwaita as adw;
 use adw::subclass::prelude::*;
 use std::cell::RefCell;
@@ -20,6 +22,7 @@ mod imp {
     pub struct HeaderControls {
         pub mic_dropdown: RefCell<Option<gtk::DropDown>>,
         pub model_dropdown: RefCell<Option<gtk::DropDown>>,
+        pub model_ids: RefCell<Vec<String>>,
         pub status_label: RefCell<Option<gtk::Label>>,
         pub status_icon: RefCell<Option<gtk::Image>>,
         pub header_bar: RefCell<Option<adw::HeaderBar>>,
@@ -51,6 +54,11 @@ glib::wrapper! {
 }
 
 impl HeaderControls {
+    const MIC_DROPDOWN_WIDTH: i32 = 120;
+    const MODEL_DROPDOWN_WIDTH: i32 = 120;
+    const STATUS_LABEL_CHARS: i32 = 10;
+    const LANGUAGE_LABEL_CHARS: i32 = 10;
+
     pub fn new() -> Self {
         glib::Object::builder()
             .property("orientation", gtk::Orientation::Vertical)
@@ -67,39 +75,47 @@ impl HeaderControls {
         let mic_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         mic_box.set_margin_start(4);
 
-        let mic_label = gtk::Label::new(Some("Microphone:"));
-        mic_label.add_css_class("dim-label");
-        mic_box.append(&mic_label);
-
         let mic_icon = gtk::Image::from_icon_name("audio-input-microphone-symbolic");
         mic_icon.set_pixel_size(16);
+        mic_icon.set_tooltip_text(Some(gettext("Microphone").as_str()));
+        mic_box.append(&mic_icon);
 
         let mic_model = gtk::StringList::new(&["Built-in Audio"]);
         let mic_dropdown = gtk::DropDown::new(Some(mic_model), gtk::Expression::NONE);
-        mic_dropdown.set_tooltip_text(Some("Select microphone"));
+        mic_dropdown.set_tooltip_text(Some(gettext("Select microphone").as_str()));
+        Self::configure_fixed_width_dropdown(
+            &mic_dropdown,
+            Self::MIC_DROPDOWN_WIDTH,
+            20,
+        );
         mic_box.append(&mic_dropdown);
 
         header_bar.pack_start(&mic_box);
 
         // === Center: Model selector + status ===
-        let center_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        // (The engine/backend selector lives in Settings → Model → "Default Engine".)
+        let center_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         center_box.set_halign(gtk::Align::Center);
 
-        let model_label = gtk::Label::new(Some("Model:"));
-        model_label.add_css_class("dim-label");
-        center_box.append(&model_label);
-
+        // Model selector
         let model_icon = gtk::Image::from_icon_name("system-software-install-symbolic");
         model_icon.set_pixel_size(16);
+        model_icon.set_tooltip_text(Some(gettext("Model").as_str()));
+        center_box.append(&model_icon);
 
-        let model_list = gtk::StringList::new(&["Whisper Tiny", "Whisper Base", "Whisper Small", "Whisper Medium", "Whisper Large"]);
+        let model_list = gtk::StringList::new(&["Tiny", "Base", "Small", "Medium", "Large"]);
         let model_dropdown = gtk::DropDown::new(Some(model_list), gtk::Expression::NONE);
-        model_dropdown.set_tooltip_text(Some("Select Whisper model"));
+        model_dropdown.set_tooltip_text(Some(gettext("Select model").as_str()));
+        Self::configure_fixed_width_dropdown(
+            &model_dropdown,
+            Self::MODEL_DROPDOWN_WIDTH,
+            16,
+        );
         center_box.append(&model_dropdown);
 
         // Model status indicator
         let status_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        status_box.set_margin_start(8);
+        status_box.set_margin_start(4);
 
         // Theme-aware status dot: uses @error_color / @success_color
         // via the widget's resolved style context instead of hardcoded RGB.
@@ -110,8 +126,12 @@ impl HeaderControls {
         status_icon.add_css_class("error");
         status_box.append(&status_icon);
 
-        let status_label = gtk::Label::new(Some("No Model"));
+        let status_label = gtk::Label::new(Some(gettext("No Model").as_str()));
         status_label.add_css_class("caption");
+        status_label.set_width_chars(Self::STATUS_LABEL_CHARS);
+        status_label.set_max_width_chars(Self::STATUS_LABEL_CHARS);
+        status_label.set_ellipsize(pango::EllipsizeMode::End);
+        status_label.set_xalign(0.0);
         status_box.append(&status_label);
 
         center_box.append(&status_box);
@@ -126,16 +146,20 @@ impl HeaderControls {
         lang_icon.set_pixel_size(16);
         lang_box.append(&lang_icon);
 
-        let language_label = gtk::Label::new(Some("Auto-detect"));
+        let language_label = gtk::Label::new(Some(gettext("Auto-detect").as_str()));
         language_label.add_css_class("caption");
         language_label.add_css_class("dim-label");
+        language_label.set_width_chars(Self::LANGUAGE_LABEL_CHARS);
+        language_label.set_max_width_chars(Self::LANGUAGE_LABEL_CHARS);
+        language_label.set_ellipsize(pango::EllipsizeMode::End);
+        language_label.set_xalign(0.0);
         lang_box.append(&language_label);
 
         // Pack menu button first (rightmost, next to window buttons),
         // then language box to its left
         let menu_button = gtk::MenuButton::new();
         menu_button.set_icon_name("open-menu-symbolic");
-        menu_button.set_tooltip_text(Some("Main menu"));
+        menu_button.set_tooltip_text(Some(gettext("Main menu").as_str()));
         let theme_popover = ThemePopover::new();
         menu_button.set_popover(Some(&theme_popover));
         header_bar.pack_end(&menu_button);
@@ -152,6 +176,38 @@ impl HeaderControls {
         *imp.header_bar.borrow_mut() = Some(header_bar);
         *imp.theme_popover.borrow_mut() = Some(theme_popover);
         *imp.language_label.borrow_mut() = Some(language_label);
+    }
+
+    fn configure_fixed_width_dropdown(dropdown: &gtk::DropDown, width: i32, max_chars: i32) {
+        dropdown.set_width_request(width);
+        dropdown.set_hexpand(false);
+        dropdown.set_halign(gtk::Align::Start);
+        let button_factory = Self::fixed_width_factory(max_chars);
+        let list_factory = Self::fixed_width_factory(max_chars);
+        dropdown.set_factory(Some(&button_factory));
+        dropdown.set_list_factory(Some(&list_factory));
+    }
+
+    /// Create a SignalListItemFactory that renders items as fixed-width ellipsized labels.
+    /// This prevents the DropDown from growing its natural size based on content.
+    fn fixed_width_factory(max_chars: i32) -> gtk::SignalListItemFactory {
+        let factory = gtk::SignalListItemFactory::new();
+        factory.connect_setup(move |_, item| {
+            let item = item.downcast_ref::<gtk::ListItem>().unwrap();
+            let label = gtk::Label::new(None);
+            label.set_xalign(0.0);
+            label.set_ellipsize(pango::EllipsizeMode::End);
+            label.set_width_chars(max_chars);
+            label.set_max_width_chars(max_chars);
+            item.set_child(Some(&label));
+        });
+        factory.connect_bind(|_, item| {
+            let item = item.downcast_ref::<gtk::ListItem>().unwrap();
+            let string_object = item.item().and_downcast::<gtk::StringObject>().unwrap();
+            let label = item.child().and_downcast::<gtk::Label>().unwrap();
+            label.set_text(&string_object.string());
+        });
+        factory
     }
 
     /// Update the microphone list.
@@ -195,35 +251,58 @@ impl HeaderControls {
         }
     }
 
-    /// Get the currently selected model ID based on dropdown index.
+    /// Update the model dropdown items based on the selected backend.
+    /// For Whisper, only shows models that are actually downloaded.
+    /// `downloaded` is a list of (model_id, display_name) for downloaded models.
+    pub fn update_models_for_backend(&self, backend: &str, downloaded: &[(String, String)]) {
+        let imp = self.imp();
+        if let Some(dropdown) = imp.model_dropdown.borrow().as_ref() {
+            if backend == "cohere" {
+                let model_list = gtk::StringList::new(&["Cohere Transcribe"]);
+                dropdown.set_model(Some(&model_list));
+                dropdown.set_selected(0);
+                dropdown.set_sensitive(false);
+                *imp.model_ids.borrow_mut() = vec!["cohere-transcribe".to_string()];
+            } else if downloaded.is_empty() {
+                let model_list = gtk::StringList::new(&["No models downloaded"]);
+                dropdown.set_model(Some(&model_list));
+                dropdown.set_selected(0);
+                dropdown.set_sensitive(false);
+                *imp.model_ids.borrow_mut() = Vec::new();
+            } else {
+                let names: Vec<&str> = downloaded.iter().map(|(_, name)| name.as_str()).collect();
+                let ids: Vec<String> = downloaded.iter().map(|(id, _)| id.clone()).collect();
+                let model_list = gtk::StringList::new(&names);
+                dropdown.set_model(Some(&model_list));
+                dropdown.set_selected(0);
+                dropdown.set_sensitive(true);
+                *imp.model_ids.borrow_mut() = ids;
+            }
+        }
+    }
+
+    /// Get the currently selected model ID from the model dropdown. For Cohere,
+    /// `update_models_for_backend` has set `model_ids = ["cohere-transcribe"]`.
     pub fn selected_model_id(&self) -> String {
-        let index = self.imp().model_dropdown.borrow()
+        let imp = self.imp();
+        let index = imp.model_dropdown.borrow()
             .as_ref()
             .map(|d| d.selected())
-            .unwrap_or(0);
-        match index {
-            0 => "tiny".to_string(),
-            1 => "base".to_string(),
-            2 => "small".to_string(),
-            3 => "medium".to_string(),
-            4 => "large-v3".to_string(),
-            _ => "base".to_string(),
-        }
+            .unwrap_or(0) as usize;
+        let ids = imp.model_ids.borrow();
+        ids.get(index).cloned().unwrap_or_else(|| "base".to_string())
     }
 
     /// Connect a callback for when the model dropdown selection changes.
     pub fn connect_model_changed<F: Fn(String) + 'static>(&self, callback: F) {
+        let ids_ref = self.imp().model_ids.clone();
         if let Some(dropdown) = self.imp().model_dropdown.borrow().as_ref() {
             dropdown.connect_selected_notify(move |dd| {
-                let model_id = match dd.selected() {
-                    0 => "tiny",
-                    1 => "base",
-                    2 => "small",
-                    3 => "medium",
-                    4 => "large-v3",
-                    _ => "base",
-                };
-                callback(model_id.to_string());
+                let index = dd.selected() as usize;
+                let ids = ids_ref.borrow();
+                if let Some(model_id) = ids.get(index) {
+                    callback(model_id.clone());
+                }
             });
         }
     }

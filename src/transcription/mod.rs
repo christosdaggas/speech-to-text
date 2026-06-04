@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Christos A. Daggas
 // SPDX-License-Identifier: MIT
 
-//! Whisper-based transcription engine, model management, and post-processing.
+//! Transcription types, Whisper implementation, model management, and post-processing.
 
+pub mod cohere;
 pub mod engine;
 pub mod model;
 pub mod postprocess;

@@ -110,6 +110,16 @@ impl ModelCatalog {
             quantized: false,
         });
 
+        catalog.add_model(ModelInfo {
+            display_name: "Large v3 Turbo".into(),
+            id: "large-v3-turbo".into(),
+            url: format!("{}/ggml-large-v3-turbo.bin", base_url),
+            size_bytes: 1_624_000_000,
+            size_display: "~1.6 GB".into(),
+            description: "Near Large v3 accuracy, several times faster. Great quality/speed pick.".into(),
+            quantized: false,
+        });
+
         // Quantized (q5) models — significantly smaller with minimal quality loss
         catalog.add_model(ModelInfo {
             display_name: "Tiny Q5".into(),
@@ -158,6 +168,16 @@ impl ModelCatalog {
             size_bytes: 1_080_000_000,
             size_display: "~1.1 GB".into(),
             description: "Quantized large. ~64% smaller, near-identical accuracy.".into(),
+            quantized: true,
+        });
+
+        catalog.add_model(ModelInfo {
+            display_name: "Large v3 Turbo Q5".into(),
+            id: "large-v3-turbo-q5_0".into(),
+            url: format!("{}/ggml-large-v3-turbo-q5_0.bin", base_url),
+            size_bytes: 574_000_000,
+            size_display: "~574 MB".into(),
+            description: "Quantized Turbo. ~65% smaller, near-identical accuracy. Fast and light.".into(),
             quantized: true,
         });
 
@@ -243,6 +263,7 @@ impl ModelCatalog {
             "small" => Some("small-q5_1".into()),
             "medium" => Some("medium-q5_0".into()),
             "large-v3" => Some("large-v3-q5_0".into()),
+            "large-v3-turbo" => Some("large-v3-turbo-q5_0".into()),
             _ => None,
         }
     }
@@ -286,14 +307,19 @@ impl ModelCatalog {
 /// Download a model asynchronously with progress reporting.
 ///
 /// `progress_callback` receives (bytes_downloaded, total_bytes) on each chunk.
-#[allow(dead_code)]
+/// `cancel` aborts the download when set to `true`; the partial file is removed.
+/// The completed file is verified against the server's `Content-Length` to guard
+/// against silent truncation or an HTML error page being saved as a model.
 pub async fn download_model<F>(
     model_info: &ModelInfo,
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     progress_callback: F,
 ) -> AppResult<PathBuf>
 where
     F: Fn(u64, u64) + Send + 'static,
 {
+    use std::sync::atomic::Ordering;
+
     let models_dir = AppConfig::models_dir();
     std::fs::create_dir_all(&models_dir)?;
 
@@ -317,7 +343,8 @@ where
         ));
     }
 
-    let total_size = response.content_length().unwrap_or(model_info.size_bytes);
+    let content_len = response.content_length();
+    let total_size = content_len.unwrap_or(model_info.size_bytes);
     let mut downloaded: u64 = 0;
 
     let mut file = tokio::fs::File::create(&temp_path).await
@@ -328,6 +355,12 @@ where
 
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
+        if cancel.load(Ordering::Relaxed) {
+            drop(file);
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(AppError::ModelDownloadFailed("Download cancelled".into()));
+        }
+
         let chunk = chunk
             .map_err(|e| AppError::ModelDownloadFailed(format!("Download interrupted: {}", e)))?;
 
@@ -340,11 +373,87 @@ where
 
     file.flush().await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to flush: {}", e)))?;
+    drop(file);
+
+    // Integrity check before publishing the file.
+    let valid = match content_len {
+        Some(expected) => downloaded == expected,
+        // No Content-Length: at least reject obviously-truncated downloads.
+        None => downloaded >= model_info.size_bytes / 2,
+    };
+    if !valid {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err(AppError::ModelDownloadFailed(format!(
+            "Incomplete download for '{}': got {} bytes (expected ~{})",
+            model_info.id, downloaded, total_size
+        )));
+    }
 
     // Rename temp file to final path atomically
     tokio::fs::rename(&temp_path, &output_path).await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to finalize: {}", e)))?;
 
-    info!("Model '{}' downloaded successfully to {:?}", model_info.id, output_path);
+    info!("Model '{}' downloaded successfully to {:?} ({} bytes)", model_info.id, output_path, downloaded);
     Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_model_id_strips_quantization_suffix() {
+        assert_eq!(ModelCatalog::base_model_id("tiny"), "tiny");
+        assert_eq!(ModelCatalog::base_model_id("tiny-q5_1"), "tiny");
+        assert_eq!(ModelCatalog::base_model_id("base-q5_1"), "base");
+        assert_eq!(ModelCatalog::base_model_id("medium-q5_0"), "medium");
+        assert_eq!(ModelCatalog::base_model_id("large-v3"), "large-v3");
+        assert_eq!(ModelCatalog::base_model_id("large-v3-q5_0"), "large-v3");
+        assert_eq!(ModelCatalog::base_model_id("large-v3-turbo"), "large-v3-turbo");
+        assert_eq!(ModelCatalog::base_model_id("large-v3-turbo-q5_0"), "large-v3-turbo");
+    }
+
+    #[test]
+    fn quantized_variant_maps_each_base_model() {
+        assert_eq!(ModelCatalog::quantized_variant("tiny").as_deref(), Some("tiny-q5_1"));
+        assert_eq!(ModelCatalog::quantized_variant("base").as_deref(), Some("base-q5_1"));
+        assert_eq!(ModelCatalog::quantized_variant("small").as_deref(), Some("small-q5_1"));
+        assert_eq!(ModelCatalog::quantized_variant("medium").as_deref(), Some("medium-q5_0"));
+        assert_eq!(ModelCatalog::quantized_variant("large-v3").as_deref(), Some("large-v3-q5_0"));
+        assert_eq!(ModelCatalog::quantized_variant("large-v3-turbo").as_deref(), Some("large-v3-turbo-q5_0"));
+        assert_eq!(ModelCatalog::quantized_variant("nonexistent"), None);
+    }
+
+    #[test]
+    fn effective_model_id_honors_quantization_preference() {
+        assert_eq!(ModelCatalog::effective_model_id("base", false), "base");
+        assert_eq!(ModelCatalog::effective_model_id("base", true), "base-q5_1");
+        assert_eq!(ModelCatalog::effective_model_id("large-v3", true), "large-v3-q5_0");
+        // A model with no quantized variant falls back to the base id.
+        assert_eq!(ModelCatalog::effective_model_id("nonexistent", true), "nonexistent");
+    }
+
+    #[test]
+    fn base_and_effective_round_trip() {
+        // The B2 invariant: resolving a quantized id back to base and forward
+        // again with use_quantized=true returns the same quantized id.
+        for full in ["tiny-q5_1", "base-q5_1", "medium-q5_0", "large-v3-q5_0"] {
+            let base = ModelCatalog::base_model_id(full);
+            assert_eq!(ModelCatalog::effective_model_id(base, true), full);
+        }
+    }
+
+    #[test]
+    fn catalog_contains_expected_models() {
+        let catalog = ModelCatalog::new();
+        assert!(catalog.get("base").is_some());
+        assert!(catalog.get("large-v3-q5_0").is_some());
+        assert!(catalog.get("large-v3-turbo").is_some());
+        assert!(catalog.get("large-v3-turbo-q5_0").is_some());
+        // Full and quantized partition the catalog.
+        assert_eq!(
+            catalog.full_models().len() + catalog.quantized_models().len(),
+            catalog.models().len()
+        );
+    }
 }

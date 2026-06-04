@@ -5,6 +5,7 @@
 //! Microphone selection and audio device configuration page.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use adw::prelude::*;
 use gtk4::glib;
 use gtk4 as gtk;
@@ -13,6 +14,7 @@ use adw::subclass::prelude::*;
 use std::cell::RefCell;
 
 use crate::audio::capture::{list_input_devices, AudioDevice};
+use crate::config::AppConfig;
 
 mod imp {
     use super::*;
@@ -21,6 +23,9 @@ mod imp {
     pub struct MicrophonePage {
         pub device_group: RefCell<Option<adw::PreferencesGroup>>,
         pub device_rows: RefCell<Vec<adw::ActionRow>>,
+        /// Per-device selection checkmarks, keyed by device name, so the active
+        /// device can be re-highlighted when the selection changes.
+        pub device_checks: RefCell<Vec<(gtk::Image, String)>>,
     }
 
     #[glib::object_subclass]
@@ -59,12 +64,12 @@ impl MicrophonePage {
 
         // Device selection group
         let device_group = adw::PreferencesGroup::new();
-        device_group.set_title("Input Device");
-        device_group.set_description(Some("Select the microphone to use for recording"));
+        device_group.set_title(gettext("Input Device").as_str());
+        device_group.set_description(Some(gettext("Select the microphone to use for recording").as_str()));
 
         // Refresh button in header
         let refresh_btn = gtk::Button::from_icon_name("view-refresh-symbolic");
-        refresh_btn.set_tooltip_text(Some("Refresh device list"));
+        refresh_btn.set_tooltip_text(Some(gettext("Refresh device list").as_str()));
         refresh_btn.add_css_class("flat");
         device_group.set_header_suffix(Some(&refresh_btn));
 
@@ -73,22 +78,22 @@ impl MicrophonePage {
 
         // Audio settings group
         let audio_group = adw::PreferencesGroup::new();
-        audio_group.set_title("Audio Settings");
+        audio_group.set_title(gettext("Audio Settings").as_str());
 
         let sample_rate_row = adw::ActionRow::builder()
-            .title("Sample Rate")
-            .subtitle("Audio will be resampled to 16kHz for Whisper")
+            .title(gettext("Sample Rate").as_str())
+            .subtitle(gettext("Audio will be resampled to 16kHz for Whisper").as_str())
             .build();
-        let rate_label = gtk::Label::new(Some("16,000 Hz"));
+        let rate_label = gtk::Label::new(Some(gettext("16,000 Hz").as_str()));
         rate_label.add_css_class("dim-label");
         sample_rate_row.add_suffix(&rate_label);
         audio_group.add(&sample_rate_row);
 
         let channels_row = adw::ActionRow::builder()
-            .title("Channels")
-            .subtitle("Stereo input is automatically converted to mono")
+            .title(gettext("Channels").as_str())
+            .subtitle(gettext("Stereo input is automatically converted to mono").as_str())
             .build();
-        let ch_label = gtk::Label::new(Some("Mono"));
+        let ch_label = gtk::Label::new(Some(gettext("Mono").as_str()));
         ch_label.add_css_class("dim-label");
         channels_row.add_suffix(&ch_label);
         audio_group.add(&channels_row);
@@ -97,11 +102,11 @@ impl MicrophonePage {
 
         // Test group
         let test_group = adw::PreferencesGroup::new();
-        test_group.set_title("Microphone Test");
+        test_group.set_title(gettext("Microphone Test").as_str());
 
         let test_row = adw::ActionRow::builder()
-            .title("Test Microphone")
-            .subtitle("Record a short sample to verify your microphone works")
+            .title(gettext("Test Microphone").as_str())
+            .subtitle(gettext("Record a short sample to verify your microphone works").as_str())
             .build();
         let test_btn = gtk::Button::with_label("Test");
         test_btn.set_valign(gtk::Align::Center);
@@ -116,15 +121,16 @@ impl MicrophonePage {
         let test_row_ref = test_row.clone();
         test_btn.connect_clicked(move |btn| {
             btn.set_sensitive(false);
-            btn.set_label("Listening…");
+            btn.set_label(gettext("Listening…").as_str());
             let btn_weak = btn.downgrade();
             let row_weak = test_row_ref.downgrade();
 
-            // Record 2 seconds of audio to test
+            // Record 2 seconds of audio to test, using the selected device.
+            let selected_device = AppConfig::load().selected_microphone;
             let (sender, receiver) = async_channel::bounded::<Result<String, String>>(1);
             std::thread::spawn(move || {
                 let mut cap = crate::audio::AudioCapture::new();
-                let result = cap.start_recording(None);
+                let result = cap.start_recording(selected_device.as_deref());
                 if let Err(e) = result {
                     let _ = sender.send_blocking(Err(format!("Failed: {}", e)));
                     return;
@@ -154,7 +160,7 @@ impl MicrophonePage {
                 if let Ok(result) = receiver.recv().await {
                     if let Some(btn) = btn_weak.upgrade() {
                         btn.set_sensitive(true);
-                        btn.set_label("Test");
+                        btn.set_label(gettext("Test").as_str());
                     }
                     if let Some(row) = row_weak.upgrade() {
                         match result {
@@ -204,28 +210,46 @@ impl MicrophonePage {
                 group.remove(row);
             }
 
+            // The active device: the user's saved choice, or the default device.
+            let saved = AppConfig::load().selected_microphone;
+            let effective = saved.clone().or_else(|| {
+                devices.iter().find(|d| d.is_default).map(|d| d.name.clone())
+            });
+
             let mut new_rows = Vec::new();
+            let mut new_checks = Vec::new();
             for device in devices {
+                let subtitle = if device.is_default { "Default device" } else { "" };
                 let row = adw::ActionRow::builder()
                     .title(device.name.as_str())
-                    .subtitle(if device.is_default { "Default device" } else { "" })
+                    .subtitle(subtitle)
                     .activatable(true)
                     .build();
 
-                if device.is_default {
-                    let check = gtk::Image::from_icon_name("object-select-symbolic");
-                    check.add_css_class("accent");
-                    row.add_suffix(&check);
-                }
+                // Every row carries a checkmark; only the active device shows it.
+                let check = gtk::Image::from_icon_name("object-select-symbolic");
+                check.add_css_class("accent");
+                check.set_visible(effective.as_deref() == Some(device.name.as_str()));
+                row.add_suffix(&check);
+
+                // Clicking a row selects that device.
+                let page_weak = self.downgrade();
+                let device_name = device.name.clone();
+                row.connect_activated(move |_| {
+                    if let Some(page) = page_weak.upgrade() {
+                        page.set_selected_device(&device_name);
+                    }
+                });
 
                 group.add(&row);
                 new_rows.push(row);
+                new_checks.push((check, device.name.clone()));
             }
 
             if devices.is_empty() {
                 let row = adw::ActionRow::builder()
-                    .title("No audio input devices found")
-                    .subtitle("Check that a microphone is connected")
+                    .title(gettext("No audio input devices found").as_str())
+                    .subtitle(gettext("Check that a microphone is connected").as_str())
                     .build();
                 let icon = gtk::Image::from_icon_name("dialog-warning-symbolic");
                 row.add_prefix(&icon);
@@ -234,6 +258,18 @@ impl MicrophonePage {
             }
 
             *imp.device_rows.borrow_mut() = new_rows;
+            *imp.device_checks.borrow_mut() = new_checks;
+        }
+    }
+
+    /// Persist the chosen input device and move the selection checkmark to it.
+    fn set_selected_device(&self, device_name: &str) {
+        let mut config = AppConfig::load();
+        config.selected_microphone = Some(device_name.to_string());
+        config.save();
+
+        for (check, name) in self.imp().device_checks.borrow().iter() {
+            check.set_visible(name == device_name);
         }
     }
 }

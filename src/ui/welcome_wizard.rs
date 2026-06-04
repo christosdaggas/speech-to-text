@@ -5,6 +5,7 @@
 //! First-run welcome wizard for model download and initial setup.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use adw::prelude::*;
 use gtk4::glib;
 use gtk4 as gtk;
@@ -159,17 +160,19 @@ impl WelcomeWizard {
             if let Some(wizard) = wizard_weak.upgrade() {
                 wizard.imp().completed.set(true);
 
-                // Save config: mark first_run = false and set selected model
+                // Save config: mark first_run = false and set selected model.
+                // Store the EXACT downloaded model ID (e.g. "tiny-q5_1") so the
+                // engine reloads the same variant on the next launch.
                 let mut config = AppConfig::load();
                 config.first_run = false;
                 if let Some(ref model_id) = *wizard.imp().downloaded_model_id.borrow() {
-                    let base_id = ModelCatalog::base_model_id(model_id).to_string();
-                    // Check if the downloaded model is a quantized variant
+                    // Track whether the downloaded model is a quantized variant so
+                    // resolve_model() can recover the right one if the ID ever drifts.
                     config.use_quantized = ModelCatalog::new()
                         .get(model_id)
                         .map(|m| m.quantized)
                         .unwrap_or(false);
-                    config.selected_model = base_id;
+                    config.selected_model = model_id.clone();
                 }
                 config.save();
 
@@ -197,12 +200,12 @@ impl WelcomeWizard {
         page.set_margin_start(48);
         page.set_margin_end(48);
 
-        let icon = gtk::Image::from_icon_name(crate::APP_ID);
+        let icon = Self::icon_with_fallback(crate::APP_ID, "audio-input-microphone-symbolic");
         icon.set_pixel_size(96);
         icon.add_css_class("accent");
         page.append(&icon);
 
-        let title = gtk::Label::new(Some("Welcome to Speech to Text"));
+        let title = gtk::Label::new(Some(gettext("Welcome to Speech to Text").as_str()));
         title.add_css_class("title-1");
         page.append(&title);
 
@@ -246,7 +249,7 @@ impl WelcomeWizard {
         page.set_margin_start(48);
         page.set_margin_end(48);
 
-        let title = gtk::Label::new(Some("Download a Whisper Model"));
+        let title = gtk::Label::new(Some(gettext("Download a Whisper Model").as_str()));
         title.add_css_class("title-2");
         page.append(&title);
 
@@ -325,7 +328,7 @@ impl WelcomeWizard {
             let downloaded_id = model_info.id.clone();
 
             btn_ref.set_sensitive(false);
-            btn_ref.set_label("Downloading…");
+            btn_ref.set_label(gettext("Downloading…").as_str());
             progress_ref.set_visible(true);
             progress_ref.set_fraction(0.0);
             status_ref.set_text("Starting download…");
@@ -335,7 +338,8 @@ impl WelcomeWizard {
 
             let rt = tokio_runtime();
             rt.spawn(async move {
-                match download_model(&model_info, move |downloaded, total| {
+                let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                match download_model(&model_info, cancel, move |downloaded, total| {
                     let _ = progress_tx.send_blocking((downloaded, total));
                 }).await {
                     Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
@@ -372,7 +376,7 @@ impl WelcomeWizard {
                             }
                         }
                         Err(e) => {
-                            btn_clone.set_label("Retry");
+                            btn_clone.set_label(gettext("Retry").as_str());
                             btn_clone.set_sensitive(true);
                             status_clone2.set_text(&format!("Error: {}", e));
                         }
@@ -395,12 +399,12 @@ impl WelcomeWizard {
         page.set_margin_start(48);
         page.set_margin_end(48);
 
-        let icon = gtk::Image::from_icon_name("emblem-ok-symbolic");
+        let icon = Self::icon_with_fallback("object-select-symbolic", "emblem-ok-symbolic");
         icon.set_pixel_size(64);
         icon.add_css_class("success");
         page.append(&icon);
 
-        let title = gtk::Label::new(Some("You're All Set!"));
+        let title = gtk::Label::new(Some(gettext("You're All Set!").as_str()));
         title.add_css_class("title-1");
         page.append(&title);
 
@@ -428,10 +432,10 @@ impl WelcomeWizard {
     pub fn download_complete(&self) {
         if let Some(bar) = self.imp().progress_bar.borrow().as_ref() {
             bar.set_fraction(1.0);
-            bar.set_text(Some("Download complete!"));
+            bar.set_text(Some(gettext("Download complete!").as_str()));
         }
         if let Some(btn) = self.imp().download_btn.borrow().as_ref() {
-            btn.set_label("Downloaded ✓");
+            btn.set_label(gettext("Downloaded ✓").as_str());
             btn.set_sensitive(false);
         }
         // Auto-advance to finish page
@@ -450,5 +454,16 @@ impl WelcomeWizard {
     /// Check if the wizard was completed (not just closed).
     pub fn is_completed(&self) -> bool {
         self.imp().completed.get()
+    }
+
+    /// Create an image from an icon name, falling back if the primary icon is unavailable.
+    fn icon_with_fallback(name: &str, fallback: &str) -> gtk::Image {
+        if let Some(display) = gtk::gdk::Display::default() {
+            let theme = gtk::IconTheme::for_display(&display);
+            if theme.has_icon(name) {
+                return gtk::Image::from_icon_name(name);
+            }
+        }
+        gtk::Image::from_icon_name(fallback)
     }
 }

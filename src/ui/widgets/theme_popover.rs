@@ -5,6 +5,7 @@
 //! Theme selector popup with System/Light/Dark options, About, and Quit.
 
 use gtk4 as gtk;
+use crate::i18n::gettext;
 use gtk4::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -102,19 +103,19 @@ impl ThemePopover {
         }
 
         default_btn.set_child(Some(&create_theme_content("theme-default", false)));
-        default_btn.set_tooltip_text(Some("System"));
+        default_btn.set_tooltip_text(Some(gettext("System").as_str()));
         default_btn.add_css_class("flat");
         default_btn.add_css_class("circular");
         default_btn.add_css_class("theme-button");
 
         light_btn.set_child(Some(&create_theme_content("theme-light", false)));
-        light_btn.set_tooltip_text(Some("Light"));
+        light_btn.set_tooltip_text(Some(gettext("Light").as_str()));
         light_btn.add_css_class("flat");
         light_btn.add_css_class("circular");
         light_btn.add_css_class("theme-button");
 
         dark_btn.set_child(Some(&create_theme_content("theme-dark", false)));
-        dark_btn.set_tooltip_text(Some("Dark"));
+        dark_btn.set_tooltip_text(Some(gettext("Dark").as_str()));
         dark_btn.add_css_class("flat");
         dark_btn.add_css_class("circular");
         dark_btn.add_css_class("theme-button");
@@ -202,7 +203,7 @@ impl ThemePopover {
         whats_new_box.set_margin_top(8);
         whats_new_box.set_margin_bottom(8);
         let whats_new_icon = gtk::Image::from_icon_name("dialog-information-symbolic");
-        let whats_new_label = gtk::Label::new(Some("What's New"));
+        let whats_new_label = gtk::Label::new(Some(gettext("What's New").as_str()));
         whats_new_label.set_halign(gtk::Align::Start);
         whats_new_label.set_hexpand(true);
         whats_new_box.append(&whats_new_icon);
@@ -221,7 +222,7 @@ impl ThemePopover {
         about_box.set_margin_top(8);
         about_box.set_margin_bottom(8);
         let about_icon = gtk::Image::from_icon_name("help-about-symbolic");
-        let about_label = gtk::Label::new(Some("About Speech to Text"));
+        let about_label = gtk::Label::new(Some(gettext("About Speech to Text").as_str()));
         about_label.set_halign(gtk::Align::Start);
         about_label.set_hexpand(true);
         about_box.append(&about_icon);
@@ -240,7 +241,7 @@ impl ThemePopover {
         quit_box.set_margin_top(8);
         quit_box.set_margin_bottom(8);
         let quit_icon = gtk::Image::from_icon_name("application-exit-symbolic");
-        let quit_label = gtk::Label::new(Some("Quit"));
+        let quit_label = gtk::Label::new(Some(gettext("Quit").as_str()));
         quit_label.set_halign(gtk::Align::Start);
         quit_label.set_hexpand(true);
         quit_box.append(&quit_icon);

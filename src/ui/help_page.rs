@@ -5,6 +5,7 @@
 //! Help Page - Application documentation and guidance.
 
 use gtk4 as gtk;
+use crate::i18n::gettext;
 use gtk4::prelude::*;
 use gtk4::glib;
 use gtk4::subclass::prelude::*;
@@ -54,12 +55,12 @@ impl HelpPage {
         header_box.set_margin_top(24);
         header_box.set_margin_bottom(12);
 
-        let title = gtk::Label::new(Some("Help"));
+        let title = gtk::Label::new(Some(gettext("Help").as_str()));
         title.add_css_class("title-1");
         title.set_halign(gtk::Align::Start);
         header_box.append(&title);
 
-        let subtitle = gtk::Label::new(Some("Learn how to use Speech to Text"));
+        let subtitle = gtk::Label::new(Some(gettext("Learn how to use Speech to Text").as_str()));
         subtitle.add_css_class("dim-label");
         subtitle.set_halign(gtk::Align::Start);
         header_box.append(&subtitle);

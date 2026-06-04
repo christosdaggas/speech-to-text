@@ -71,6 +71,22 @@
   </keywords>
 
   <releases>
+    <release version="1.2.0" date="2026-06-05">
+      <description>
+        <p>Dictate anywhere and run in the background.</p>
+        <ul>
+          <li>Mini Panel: dictate into any app with a global shortcut — transcribes, pastes into the focused app, and stays open so you can dictate again</li>
+          <li>System tray icon and background mode</li>
+          <li>Dictation modes: Plain, Message, Email, Note, and Code Prompt</li>
+          <li>Whisper Large v3 Turbo models</li>
+          <li>Engine selector moved to Settings → Model (“Default Engine”)</li>
+          <li>Translate to English now also applies to the mini panel</li>
+          <li>Fixed auto-detect language producing empty transcriptions</li>
+          <li>Fixed Cohere Transcribe language handling</li>
+          <li>Fixed recording getting stuck repeating old text</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-03-06">
       <description>
         <p>Initial release.</p>

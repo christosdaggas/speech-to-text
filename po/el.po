@@ -16,407 +16,571 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Application name
+#: src/main.rs
 msgid "Speech to Text"
 msgstr "Ομιλία σε Κείμενο"
 
+#. Navigation items
+#: src/ui/main_window.rs
 msgid "Transcription"
 msgstr "Μεταγραφή"
 
+#: src/ui/main_window.rs
 msgid "History"
 msgstr "Ιστορικό"
 
+#: src/ui/main_window.rs
 msgid "Microphone"
 msgstr "Μικρόφωνο"
 
+#: src/ui/main_window.rs
 msgid "Model"
 msgstr "Μοντέλο"
 
+#: src/ui/main_window.rs
 msgid "Language"
 msgstr "Γλώσσα"
 
+#: src/ui/main_window.rs
 msgid "Performance"
 msgstr "Επιδόσεις"
 
+#: src/ui/main_window.rs
 msgid "Settings"
 msgstr "Ρυθμίσεις"
 
+#: src/ui/main_window.rs
 msgid "Collapse sidebar"
 msgstr "Σύμπτυξη πλαϊνής μπάρας"
 
+#: src/ui/main_window.rs
 msgid "Expand sidebar"
 msgstr "Ανάπτυξη πλαϊνής μπάρας"
 
+#: src/ui/main_window.rs
 msgid "New version available"
 msgstr "Νέα έκδοση διαθέσιμη"
 
+#. Controls
+#: src/ui/controls.rs
 msgid "Record"
 msgstr "Εγγραφή"
 
+#: src/ui/controls.rs
 msgid "Start recording (Ctrl+R)"
 msgstr "Έναρξη εγγραφής (Ctrl+R)"
 
+#: src/ui/controls.rs
 msgid "Pause recording"
 msgstr "Παύση εγγραφής"
 
+#: src/ui/controls.rs
 msgid "Resume recording"
 msgstr "Συνέχιση εγγραφής"
 
+#: src/ui/controls.rs
 msgid "Stop recording and transcribe"
 msgstr "Διακοπή και μεταγραφή"
 
+#: src/ui/controls.rs
 msgid "Copy transcript to clipboard"
 msgstr "Αντιγραφή μεταγραφής στο πρόχειρο"
 
+#: src/ui/controls.rs
 msgid "Clear transcript"
 msgstr "Εκκαθάριση μεταγραφής"
 
+#: src/ui/controls.rs
 msgid "Save"
 msgstr "Αποθήκευση"
 
+#: src/ui/controls.rs
 msgid "Save transcript to file"
 msgstr "Αποθήκευση μεταγραφής σε αρχείο"
 
+#. Header controls
+#: src/ui/header.rs
 msgid "Microphone:"
 msgstr "Μικρόφωνο:"
 
+#: src/ui/header.rs
 msgid "Select microphone"
 msgstr "Επιλογή μικροφώνου"
 
+#: src/ui/header.rs
 msgid "Model:"
 msgstr "Μοντέλο:"
 
+#: src/ui/header.rs
 msgid "Select Whisper model"
 msgstr "Επιλογή μοντέλου Whisper"
 
+#: src/ui/header.rs
 msgid "No Model"
 msgstr "Κανένα μοντέλο"
 
+#: src/ui/header.rs
 msgid "Model Loaded"
 msgstr "Μοντέλο φορτωμένο"
 
+#: src/ui/header.rs
 msgid "Main menu"
 msgstr "Κύριο μενού"
 
+#. Status bar
+#: src/ui/status_bar.rs
 msgid "Idle"
 msgstr "Αδρανές"
 
+#: src/ui/status_bar.rs
 msgid "No model loaded"
 msgstr "Κανένα μοντέλο φορτωμένο"
 
+#: src/ui/status_bar.rs
 msgid "CPU"
 msgstr "CPU"
 
+#: src/ui/status_bar.rs
 msgid "Offline"
 msgstr "Εκτός σύνδεσης"
 
+#: src/ui/status_bar.rs
 msgid "Recording"
 msgstr "Εγγραφή"
 
+#: src/ui/status_bar.rs
 msgid "Paused"
 msgstr "Σε παύση"
 
+#. Transcript view
+#: src/ui/transcript_view.rs
 msgid "Auto-detect"
 msgstr "Αυτόματη ανίχνευση"
 
+#: src/ui/transcript_view.rs
 msgid "Press Record to start transcribing…"
 msgstr "Πατήστε Εγγραφή για να ξεκινήσετε…"
 
+#: src/ui/transcript_view.rs
 msgid "Confidence:"
 msgstr "Εμπιστοσύνη:"
 
+#. Recording states (main_window)
+#: src/ui/main_window.rs
 msgid "Recording…"
 msgstr "Εγγραφή…"
 
+#: src/ui/main_window.rs
 msgid "Transcribing…"
 msgstr "Μεταγραφή…"
 
+#: src/ui/main_window.rs
 msgid "Loading model…"
 msgstr "Φόρτωση μοντέλου…"
 
+#: src/ui/main_window.rs
 msgid "Ready"
 msgstr "Έτοιμο"
 
+#: src/ui/main_window.rs
 msgid "Error"
 msgstr "Σφάλμα"
 
+#: src/ui/main_window.rs
 msgid "Copied to clipboard"
 msgstr "Αντιγράφηκε στο πρόχειρο"
 
+#: src/ui/main_window.rs
 msgid "Nothing to save"
 msgstr "Τίποτα για αποθήκευση"
 
+#: src/ui/main_window.rs
 msgid "Transcript saved"
 msgstr "Η μεταγραφή αποθηκεύτηκε"
 
+#: src/ui/main_window.rs
 msgid "No audio recorded"
 msgstr "Δεν εγγράφηκε ήχος"
 
+#: src/ui/main_window.rs
 msgid "Save Transcript"
 msgstr "Αποθήκευση μεταγραφής"
 
+#. History page
+#: src/ui/history_page.rs
 msgid "Transcription History"
 msgstr "Ιστορικό μεταγραφών"
 
+#: src/ui/history_page.rs
 msgid "Search transcriptions…"
 msgstr "Αναζήτηση μεταγραφών…"
 
+#: src/ui/history_page.rs
 msgid "Clear all history"
 msgstr "Εκκαθάριση ιστορικού"
 
+#: src/ui/history_page.rs
 msgid "No Transcriptions Yet"
 msgstr "Δεν υπάρχουν μεταγραφές"
 
+#: src/ui/history_page.rs
 msgid "Your transcription history will appear here"
 msgstr "Το ιστορικό μεταγραφών θα εμφανιστεί εδώ"
 
+#: src/ui/history_page.rs
 msgid "Copy to clipboard"
 msgstr "Αντιγραφή στο πρόχειρο"
 
+#: src/ui/history_page.rs
 msgid "Delete"
 msgstr "Διαγραφή"
 
+#. Theme popover
+#: src/ui/widgets/theme_popover.rs
 msgid "System"
 msgstr "Σύστημα"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Light"
 msgstr "Φωτεινό"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Dark"
 msgstr "Σκοτεινό"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "What's New"
 msgstr "Τι νέο υπάρχει"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "About Speech to Text"
 msgstr "Σχετικά με Ομιλία σε Κείμενο"
 
+#: src/ui/widgets/theme_popover.rs
 msgid "Quit"
 msgstr "Έξοδος"
 
+#. Welcome wizard
+#: src/ui/welcome_wizard.rs
 msgid "Welcome to Speech to Text"
 msgstr "Καλώς ήρθατε στο Ομιλία σε Κείμενο"
 
+#: src/ui/welcome_wizard.rs
 msgid "Next"
 msgstr "Επόμενο"
 
+#: src/ui/welcome_wizard.rs
 msgid "Get Started"
 msgstr "Ξεκινήστε"
 
-msgid "Convert speech to text locally on your machine.\nNo internet connection required after initial setup."
-msgstr "Μετατρέψτε ομιλία σε κείμενο τοπικά.\nΔεν απαιτείται σύνδεση στο Internet μετά την αρχική ρύθμιση."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"Convert speech to text locally on your machine.\n"
+"No internet connection required after initial setup."
+msgstr ""
+"Μετατρέψτε ομιλία σε κείμενο τοπικά.\n"
+"Δεν απαιτείται σύνδεση στο Internet μετά την αρχική ρύθμιση."
 
+#: src/ui/welcome_wizard.rs
 msgid "100% offline — your audio never leaves your device"
 msgstr "100% εκτός σύνδεσης — ο ήχος σας δεν φεύγει ποτέ από τη συσκευή"
 
+#: src/ui/welcome_wizard.rs
 msgid "Supports 99 languages with auto-detection"
 msgstr "Υποστηρίζει 99 γλώσσες με αυτόματη ανίχνευση"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download a Whisper Model"
 msgstr "Λήψη μοντέλου Whisper"
 
-msgid "A language model is needed for transcription.\nWe recommend starting with the Tiny model (~75 MB)."
-msgstr "Απαιτείται μοντέλο για τη μεταγραφή.\nΣυνιστούμε το μοντέλο Tiny (~75 MB)."
+#: src/ui/welcome_wizard.rs
+msgid ""
+"A language model is needed for transcription.\n"
+"We recommend starting with the Tiny model (~75 MB)."
+msgstr ""
+"Απαιτείται μοντέλο για τη μεταγραφή.\n"
+"Συνιστούμε το μοντέλο Tiny (~75 MB)."
 
+#: src/ui/welcome_wizard.rs
 msgid "Download Model"
 msgstr "Λήψη μοντέλου"
 
+#: src/ui/welcome_wizard.rs
 msgid "Downloading…"
 msgstr "Γίνεται λήψη…"
 
+#: src/ui/welcome_wizard.rs
 msgid "Retry"
 msgstr "Επανάληψη"
 
+#: src/ui/welcome_wizard.rs
 msgid "You're All Set!"
 msgstr "Όλα είναι έτοιμα!"
 
+#: src/ui/welcome_wizard.rs
 msgid "Download complete!"
 msgstr "Η λήψη ολοκληρώθηκε!"
 
+#. Settings — Language
+#: src/ui/settings/language.rs
 msgid "Language Detection"
 msgstr "Ανίχνευση γλώσσας"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can automatically detect the spoken language"
 msgstr "Το Whisper μπορεί να ανιχνεύσει αυτόματα την ομιλούμενη γλώσσα"
 
+#: src/ui/settings/language.rs
 msgid "Auto-detect Language"
 msgstr "Αυτόματη ανίχνευση γλώσσας"
 
+#: src/ui/settings/language.rs
 msgid "Let Whisper determine the language automatically"
 msgstr "Αφήστε το Whisper να καθορίσει τη γλώσσα αυτόματα"
 
+#: src/ui/settings/language.rs
 msgid "Manual Selection"
 msgstr "Χειροκίνητη επιλογή"
 
+#: src/ui/settings/language.rs
 msgid "Force a specific language for transcription"
 msgstr "Επιβολή συγκεκριμένης γλώσσας για μεταγραφή"
 
+#: src/ui/settings/language.rs
 msgid "Used when auto-detect is disabled"
 msgstr "Χρησιμοποιείται όταν η αυτόματη ανίχνευση είναι απενεργοποιημένη"
 
+#: src/ui/settings/language.rs
 msgid "Supported Languages"
 msgstr "Υποστηριζόμενες γλώσσες"
 
+#: src/ui/settings/language.rs
 msgid "Translation"
 msgstr "Μετάφραση"
 
+#: src/ui/settings/language.rs
 msgid "Whisper can also translate speech to English"
 msgstr "Το Whisper μπορεί να μεταφράσει ομιλία στα αγγλικά"
 
+#. Settings — Microphone
+#: src/ui/settings/microphone.rs
 msgid "Input Device"
 msgstr "Συσκευή εισόδου"
 
+#: src/ui/settings/microphone.rs
 msgid "Select the microphone to use for recording"
 msgstr "Επιλέξτε το μικρόφωνο για εγγραφή"
 
+#: src/ui/settings/microphone.rs
 msgid "Refresh device list"
 msgstr "Ανανέωση λίστας συσκευών"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio Settings"
 msgstr "Ρυθμίσεις ήχου"
 
+#: src/ui/settings/microphone.rs
 msgid "Sample Rate"
 msgstr "Ρυθμός δειγματοληψίας"
 
+#: src/ui/settings/microphone.rs
 msgid "Audio will be resampled to 16kHz for Whisper"
 msgstr "Ο ήχος θα μετατραπεί σε 16 kHz για το Whisper"
 
+#: src/ui/settings/microphone.rs
 msgid "Channels"
 msgstr "Κανάλια"
 
+#: src/ui/settings/microphone.rs
 msgid "Stereo input is automatically converted to mono"
 msgstr "Η στερεοφωνική είσοδος μετατρέπεται αυτόματα σε μονοφωνική"
 
+#: src/ui/settings/microphone.rs
 msgid "Mono"
 msgstr "Μονοφωνικό"
 
+#: src/ui/settings/microphone.rs
 msgid "Microphone Test"
 msgstr "Δοκιμή μικροφώνου"
 
+#: src/ui/settings/microphone.rs
 msgid "Test Microphone"
 msgstr "Δοκιμή μικροφώνου"
 
+#: src/ui/settings/microphone.rs
 msgid "Record a short sample to verify your microphone works"
 msgstr "Εγγράψτε ένα σύντομο δείγμα για να ελέγξετε το μικρόφωνο"
 
+#: src/ui/settings/microphone.rs
 msgid "Test"
 msgstr "Δοκιμή"
 
+#: src/ui/settings/microphone.rs
 msgid "No audio input devices found"
 msgstr "Δεν βρέθηκαν συσκευές εισόδου ήχου"
 
+#: src/ui/settings/microphone.rs
 msgid "Check that a microphone is connected"
 msgstr "Ελέγξτε ότι είναι συνδεδεμένο ένα μικρόφωνο"
 
+#. Settings — Model
+#: src/ui/settings/model.rs
 msgid "Whisper Models"
 msgstr "Μοντέλα Whisper"
 
+#: src/ui/settings/model.rs
 msgid "Select a model. Larger models are more accurate but slower."
 msgstr "Επιλέξτε μοντέλο. Τα μεγαλύτερα είναι πιο ακριβή αλλά πιο αργά."
 
+#: src/ui/settings/model.rs
 msgid "Downloaded"
 msgstr "Ληφθέν"
 
+#: src/ui/settings/model.rs
 msgid "Download"
 msgstr "Λήψη"
 
+#: src/ui/settings/model.rs
 msgid "Download Progress"
 msgstr "Πρόοδος λήψης"
 
+#: src/ui/settings/model.rs
 msgid "No download in progress"
 msgstr "Καμία λήψη σε εξέλιξη"
 
+#: src/ui/settings/model.rs
 msgid "Storage"
 msgstr "Αποθηκευτικός χώρος"
 
+#: src/ui/settings/model.rs
 msgid "Choose where Whisper models are stored."
 msgstr "Επιλέξτε πού αποθηκεύονται τα μοντέλα Whisper."
 
+#: src/ui/settings/model.rs
 msgid "Models Directory"
 msgstr "Κατάλογος μοντέλων"
 
+#: src/ui/settings/model.rs
 msgid "Open in file manager"
 msgstr "Άνοιγμα στον διαχειριστή αρχείων"
 
+#: src/ui/settings/model.rs
 msgid "Change models directory"
 msgstr "Αλλαγή καταλόγου μοντέλων"
 
+#: src/ui/settings/model.rs
 msgid "Select Models Directory"
 msgstr "Επιλογή καταλόγου μοντέλων"
 
+#: src/ui/settings/model.rs
 msgid "Reset to default location"
 msgstr "Επαναφορά στην προεπιλεγμένη τοποθεσία"
 
+#. Settings — Performance
+#: src/ui/settings/performance.rs
 msgid "GPU Acceleration"
 msgstr "Επιτάχυνση GPU"
 
-msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
+#: src/ui/settings/performance.rs
+msgid ""
+"Use GPU for faster transcription when available. Requires CUDA or OpenCL "
+"support."
 msgstr "Χρήση GPU για ταχύτερη μεταγραφή. Απαιτείται CUDA ή OpenCL."
 
+#: src/ui/settings/performance.rs
 msgid "Use GPU"
 msgstr "Χρήση GPU"
 
+#: src/ui/settings/performance.rs
 msgid "Accelerate transcription with your graphics card"
 msgstr "Επιτάχυνση μεταγραφής με την κάρτα γραφικών"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Fallback"
 msgstr "Εναλλακτική CPU"
 
+#: src/ui/settings/performance.rs
 msgid "Automatically fall back to CPU if GPU is unavailable"
 msgstr "Αυτόματη εναλλαγή σε CPU αν η GPU δεν είναι διαθέσιμη"
 
+#: src/ui/settings/performance.rs
 msgid "GPU Status"
 msgstr "Κατάσταση GPU"
 
+#: src/ui/settings/performance.rs
 msgid "CPU Settings"
 msgstr "Ρυθμίσεις CPU"
 
+#: src/ui/settings/performance.rs
 msgid "Worker Threads"
 msgstr "Νήματα εργασίας"
 
+#: src/ui/settings/performance.rs
 msgid "Number of CPU threads for transcription"
 msgstr "Αριθμός νημάτων CPU για μεταγραφή"
 
+#: src/ui/settings/performance.rs
 msgid "Memory"
 msgstr "Μνήμη"
 
+#: src/ui/settings/performance.rs
 msgid "Estimated Memory Usage"
 msgstr "Εκτιμώμενη χρήση μνήμης"
 
+#: src/ui/settings/performance.rs
 msgid "Depends on the selected model size"
 msgstr "Εξαρτάται από το μέγεθος του μοντέλου"
 
+#: src/ui/settings/performance.rs
 msgid "Beam Size"
 msgstr "Μέγεθος beam"
 
+#: src/ui/settings/performance.rs
 msgid "Higher values improve accuracy but use more memory"
-msgstr "Υψηλότερες τιμές βελτιώνουν την ακρίβεια αλλά χρησιμοποιούν περισσότερη μνήμη"
+msgstr ""
+"Υψηλότερες τιμές βελτιώνουν την ακρίβεια αλλά χρησιμοποιούν περισσότερη μνήμη"
 
+#. GPU Status panel
+#: src/ui/widgets/gpu_status.rs
 msgid "GPU"
 msgstr "GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "VRAM"
 msgstr "VRAM"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Detecting GPU…"
 msgstr "Ανίχνευση GPU…"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "No GPU detected"
 msgstr "Δεν ανιχνεύτηκε GPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "CPU only"
 msgstr "Μόνο CPU"
 
+#: src/ui/widgets/gpu_status.rs
 msgid "Available"
 msgstr "Διαθέσιμο"
 
+#. Model row widget
+#: src/ui/widgets/model_row.rs
 msgid "Select"
 msgstr "Επιλογή"
 
+#: src/ui/widgets/model_row.rs
 msgid "Selected"
 msgstr "Επιλεγμένο"
 
+#. Application about
+#: src/application.rs
 msgid "Offline speech-to-text transcription using Whisper"
 msgstr "Μεταγραφή ομιλίας εκτός σύνδεσης με το Whisper"
 
+#. Desktop entry
+#: data/com.chrisdaggas.speech-to-text.desktop
 msgid "Local offline speech-to-text transcription using Whisper"
 msgstr "Τοπική μεταγραφή ομιλίας εκτός σύνδεσης με το Whisper"

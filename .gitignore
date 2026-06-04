@@ -1,6 +1,15 @@
 # Rust build artifacts
 /target/
 
+# Packaging build trees and binaries (built locally / via CI; not source)
+/dist/rpmbuild/
+/dist/deb/
+/dist/appimage/
+/dist/rpm/*.rpm
+
+# Scratch / working notes
+/review.md
+
 # IDE
 .idea/
 .vscode/

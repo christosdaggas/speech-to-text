@@ -5,6 +5,7 @@
 //! Record / Pause / Stop controls and action buttons (Copy, Clear, Save).
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use gtk4::glib;
 use gtk4 as gtk;
 use libadwaita as adw;
@@ -88,25 +89,25 @@ impl Controls {
         let record_btn = gtk::Button::new();
         let rec_content = adw::ButtonContent::new();
         rec_content.set_icon_name("media-record-symbolic");
-        rec_content.set_label("Record");
+        rec_content.set_label(gettext("Record").as_str());
         record_btn.set_child(Some(&rec_content));
         record_btn.add_css_class("suggested-action");
-        record_btn.set_tooltip_text(Some("Start recording (Ctrl+R)"));
+        record_btn.set_tooltip_text(Some(gettext("Start recording (Ctrl+R)").as_str()));
 
         // Pause button
         let pause_btn = gtk::Button::from_icon_name("media-playback-pause-symbolic");
-        pause_btn.set_tooltip_text(Some("Pause recording"));
+        pause_btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
         pause_btn.set_sensitive(false);
 
         // Stop button
         let stop_btn = gtk::Button::from_icon_name("media-playback-stop-symbolic");
-        stop_btn.set_tooltip_text(Some("Stop recording and transcribe"));
+        stop_btn.set_tooltip_text(Some(gettext("Stop recording and transcribe").as_str()));
         stop_btn.add_css_class("stop-action");
         stop_btn.set_sensitive(false);
 
         // Cancel button
         let cancel_btn = gtk::Button::from_icon_name("process-stop-symbolic");
-        cancel_btn.set_tooltip_text(Some("Cancel recording and discard"));
+        cancel_btn.set_tooltip_text(Some(gettext("Cancel recording and discard").as_str()));
         cancel_btn.add_css_class("destructive-action");
         cancel_btn.set_sensitive(false);
 
@@ -126,9 +127,9 @@ impl Controls {
         let translate_toggle = gtk::ToggleButton::new();
         let translate_content = adw::ButtonContent::new();
         translate_content.set_icon_name("preferences-desktop-locale-symbolic");
-        translate_content.set_label("Translate");
+        translate_content.set_label(gettext("Translate").as_str());
         translate_toggle.set_child(Some(&translate_content));
-        translate_toggle.set_tooltip_text(Some("Translate to English"));
+        translate_toggle.set_tooltip_text(Some(gettext("Translate to English").as_str()));
         translate_toggle.add_css_class("flat");
         self.append(&translate_toggle);
 
@@ -143,22 +144,22 @@ impl Controls {
 
         // Copy button
         let copy_btn = gtk::Button::from_icon_name("edit-copy-symbolic");
-        copy_btn.set_tooltip_text(Some("Copy transcript to clipboard"));
+        copy_btn.set_tooltip_text(Some(gettext("Copy transcript to clipboard").as_str()));
         copy_btn.add_css_class("flat");
 
         // Clear button
         let clear_btn = gtk::Button::from_icon_name("edit-clear-all-symbolic");
-        clear_btn.set_tooltip_text(Some("Clear transcript"));
+        clear_btn.set_tooltip_text(Some(gettext("Clear transcript").as_str()));
         clear_btn.add_css_class("flat");
 
         // Save button
         let save_btn = gtk::Button::new();
         let save_content = adw::ButtonContent::new();
         save_content.set_icon_name("document-save-symbolic");
-        save_content.set_label("Save");
+        save_content.set_label(gettext("Save").as_str());
         save_btn.set_child(Some(&save_content));
         save_btn.add_css_class("flat");
-        save_btn.set_tooltip_text(Some("Save transcript to file"));
+        save_btn.set_tooltip_text(Some(gettext("Save transcript to file").as_str()));
 
         action_group.append(&copy_btn);
         action_group.append(&clear_btn);
@@ -232,10 +233,10 @@ impl Controls {
         if let Some(btn) = self.imp().pause_btn.borrow().as_ref() {
             if paused {
                 btn.set_icon_name("media-playback-start-symbolic");
-                btn.set_tooltip_text(Some("Resume recording"));
+                btn.set_tooltip_text(Some(gettext("Resume recording").as_str()));
             } else {
                 btn.set_icon_name("media-playback-pause-symbolic");
-                btn.set_tooltip_text(Some("Pause recording"));
+                btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
             }
         }
     }
@@ -269,6 +270,16 @@ impl Controls {
             toggle.connect_active_notify(move |t| {
                 callback(t.is_active());
             });
+        }
+    }
+
+    /// Show or hide the translate toggle based on backend capabilities.
+    pub fn set_translate_visible(&self, visible: bool) {
+        if let Some(toggle) = self.imp().translate_toggle.borrow().as_ref() {
+            toggle.set_visible(visible);
+            if !visible {
+                toggle.set_active(false);
+            }
         }
     }
 }

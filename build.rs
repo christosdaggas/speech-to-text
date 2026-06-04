@@ -55,9 +55,7 @@ fn main() {
                     .status();
 
                 match result {
-                    Ok(s) if s.success() => {
-                        println!("cargo:warning=Compiled {}.po → {}.mo", locale, locale);
-                    }
+                    Ok(s) if s.success() => {}
                     _ => {
                         println!(
                             "cargo:warning=msgfmt failed for {}.po (gettext tools not installed?)",

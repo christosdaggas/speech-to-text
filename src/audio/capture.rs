@@ -110,9 +110,13 @@ impl AudioCapture {
 
     /// Start recording from the specified device (or default).
     pub fn start_recording(&mut self, device_name: Option<&str>) -> AppResult<()> {
-        if self.state == RecordingState::Recording {
-            return Ok(());
-        }
+        // Always start a clean recording. Dropping any existing stream and
+        // resetting state prevents a previous (possibly stuck) capture from
+        // bleeding old audio into the new one — which manifested as the app
+        // "replaying" old text no matter what was said.
+        self.stream = None;
+        self.paused.store(false, Ordering::Relaxed);
+        self.state = RecordingState::Idle;
 
         let device = get_device(device_name)?;
         let device_name_str = device.name().unwrap_or_else(|_| "unknown".into());
@@ -134,9 +138,10 @@ impl AudioCapture {
             buffer_size: cpal::BufferSize::Default,
         };
 
-        // Reset buffer for new recording
+        // Reset buffer for new recording (recover the lock if it was poisoned by
+        // a panic, instead of panicking again and wedging recording for good).
         {
-            let mut buf = self.buffer.lock().unwrap();
+            let mut buf = self.buffer.lock().unwrap_or_else(|e| e.into_inner());
             buf.clear();
             buf.set_source_params(sample_rate, channels);
         }
@@ -266,7 +271,7 @@ impl AudioCapture {
         self.state = RecordingState::Idle;
 
         let audio = self.buffer.lock()
-            .map_err(|_| AppError::Audio("Failed to lock audio buffer".into()))?
+            .unwrap_or_else(|e| e.into_inner())
             .get_mono_16khz();
 
         info!("Recording stopped: {} samples ({:.1}s)", audio.len(), audio.len() as f32 / WHISPER_SAMPLE_RATE as f32);

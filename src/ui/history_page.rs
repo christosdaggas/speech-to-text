@@ -5,6 +5,7 @@
 //! Transcription history page with search and management.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use adw::prelude::*;
 use gtk4::glib;
 use gtk4 as gtk;
@@ -79,7 +80,7 @@ impl HistoryPage {
         header_box.set_margin_top(16);
         header_box.set_margin_bottom(8);
 
-        let title = gtk::Label::new(Some("Transcription History"));
+        let title = gtk::Label::new(Some(gettext("Transcription History").as_str()));
         title.add_css_class("title-3");
         title.set_hexpand(true);
         title.set_xalign(0.0);
@@ -93,7 +94,7 @@ impl HistoryPage {
 
         // Clear all button
         let clear_all_btn = gtk::Button::from_icon_name("edit-clear-all-symbolic");
-        clear_all_btn.set_tooltip_text(Some("Clear all history"));
+        clear_all_btn.set_tooltip_text(Some(gettext("Clear all history").as_str()));
         clear_all_btn.add_css_class("flat");
         let page_weak = self.downgrade();
         clear_all_btn.connect_clicked(move |_| {
@@ -119,8 +120,8 @@ impl HistoryPage {
         // Empty state placeholder
         let placeholder = adw::StatusPage::new();
         placeholder.set_icon_name(Some("document-open-recent-symbolic"));
-        placeholder.set_title("No Transcriptions Yet");
-        placeholder.set_description(Some("Your transcription history will appear here"));
+        placeholder.set_title(gettext("No Transcriptions Yet").as_str());
+        placeholder.set_description(Some(gettext("Your transcription history will appear here").as_str()));
         list_box.set_placeholder(Some(placeholder.upcast_ref::<gtk::Widget>()));
 
         scrolled.set_child(Some(&list_box));
@@ -197,7 +198,7 @@ impl HistoryPage {
 
         // Copy button
         let copy_btn = gtk::Button::from_icon_name("edit-copy-symbolic");
-        copy_btn.set_tooltip_text(Some("Copy to clipboard"));
+        copy_btn.set_tooltip_text(Some(gettext("Copy to clipboard").as_str()));
         copy_btn.set_valign(gtk::Align::Center);
         copy_btn.add_css_class("flat");
         let text = entry.text.clone();
@@ -211,7 +212,7 @@ impl HistoryPage {
 
         // Delete button
         let delete_btn = gtk::Button::from_icon_name("user-trash-symbolic");
-        delete_btn.set_tooltip_text(Some("Delete"));
+        delete_btn.set_tooltip_text(Some(gettext("Delete").as_str()));
         delete_btn.set_valign(gtk::Align::Center);
         delete_btn.add_css_class("flat");
 
@@ -280,6 +281,35 @@ impl HistoryPage {
             }
         }
         *imp.entries.borrow_mut() = entries;
+    }
+}
+
+/// Append a single entry to the on-disk history file.
+///
+/// Use this ONLY when no [`HistoryPage`] is loaded in memory (e.g. a global
+/// dictation completed while the main window is closed). When the main window
+/// is open, route through [`HistoryPage::add_entry`] instead, which keeps the
+/// in-memory list and disk in sync — otherwise a later `save_history()` would
+/// overwrite a directly-appended entry.
+pub fn append_entry_to_disk(entry: &HistoryEntry) {
+    let history_dir = crate::config::AppConfig::history_dir();
+    if let Err(e) = std::fs::create_dir_all(&history_dir) {
+        tracing::warn!("Failed to create history dir: {}", e);
+        return;
+    }
+    let path = history_dir.join("history.json");
+    let mut entries: Vec<HistoryEntry> = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default();
+    entries.push(entry.clone());
+    match serde_json::to_string_pretty(&entries) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&path, &json) {
+                tracing::warn!("Failed to write history: {}", e);
+            }
+        }
+        Err(e) => tracing::warn!("Failed to serialize history: {}", e),
     }
 }
 

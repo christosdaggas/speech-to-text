@@ -5,12 +5,21 @@
 //! Language selection and auto-detection settings.
 
 use gtk4::prelude::*;
+use crate::i18n::gettext;
 use adw::prelude::*;
 use gtk4::glib;
 use gtk4 as gtk;
 use libadwaita as adw;
 use adw::subclass::prelude::*;
 use std::cell::RefCell;
+
+use crate::config::AppConfig;
+
+/// Language codes in the same order as the manual-selection combo rows.
+const LANG_CODES: [&str; 20] = [
+    "en", "el", "es", "fr", "de", "it", "pt", "ru", "zh", "ja",
+    "ko", "ar", "hi", "nl", "pl", "sv", "tr", "uk", "vi", "th",
+];
 
 mod imp {
     use super::*;
@@ -59,12 +68,12 @@ impl LanguagePage {
 
         // Detection group
         let detect_group = adw::PreferencesGroup::new();
-        detect_group.set_title("Language Detection");
-        detect_group.set_description(Some("Whisper can automatically detect the spoken language"));
+        detect_group.set_title(gettext("Language Detection").as_str());
+        detect_group.set_description(Some(gettext("Whisper can automatically detect the spoken language").as_str()));
 
         let auto_detect = adw::SwitchRow::builder()
-            .title("Auto-detect Language")
-            .subtitle("Let Whisper determine the language automatically")
+            .title(gettext("Auto-detect Language").as_str())
+            .subtitle(gettext("Let Whisper determine the language automatically").as_str())
             .active(true)
             .build();
 
@@ -73,8 +82,8 @@ impl LanguagePage {
 
         // Manual selection group
         let manual_group = adw::PreferencesGroup::new();
-        manual_group.set_title("Manual Selection");
-        manual_group.set_description(Some("Force a specific language for transcription"));
+        manual_group.set_title(gettext("Manual Selection").as_str());
+        manual_group.set_description(Some(gettext("Force a specific language for transcription").as_str()));
 
         let languages = gtk::StringList::new(&[
             "English", "Greek", "Spanish", "French", "German",
@@ -84,8 +93,8 @@ impl LanguagePage {
         ]);
 
         let lang_combo = adw::ComboRow::builder()
-            .title("Language")
-            .subtitle("Used when auto-detect is disabled")
+            .title(gettext("Language").as_str())
+            .subtitle(gettext("Used when auto-detect is disabled").as_str())
             .model(&languages)
             .build();
         lang_combo.set_sensitive(false); // Disabled when auto-detect is on
@@ -101,7 +110,7 @@ impl LanguagePage {
 
         // Translation group
         let translate_group = adw::PreferencesGroup::new();
-        translate_group.set_title("Translation");
+        translate_group.set_title(gettext("Translation").as_str());
         translate_group.set_description(Some(
             "Whisper can translate speech from any supported language into English. \
              This is a built-in capability of the Whisper model — English is the \
@@ -109,8 +118,8 @@ impl LanguagePage {
         ));
 
         let translate_row = adw::ActionRow::builder()
-            .title("Enable Translation")
-            .subtitle("Translate spoken audio to English")
+            .title(gettext("Enable Translation").as_str())
+            .subtitle(gettext("Translate spoken audio to English").as_str())
             .build();
 
         let translate_switch = gtk::Switch::new();
@@ -121,12 +130,12 @@ impl LanguagePage {
 
         // Fixed target language row (informational, not editable)
         let target_row = adw::ActionRow::builder()
-            .title("Target Language")
-            .subtitle("Only English is supported by Whisper")
+            .title(gettext("Target Language").as_str())
+            .subtitle(gettext("Only English is supported by Whisper").as_str())
             .sensitive(false)
             .build();
 
-        let target_label = gtk::Label::new(Some("English"));
+        let target_label = gtk::Label::new(Some(gettext("English").as_str()));
         target_label.add_css_class("dim-label");
         target_label.set_valign(gtk::Align::Center);
         target_row.add_suffix(&target_label);
@@ -136,7 +145,7 @@ impl LanguagePage {
 
         // Info group
         let info_group = adw::PreferencesGroup::new();
-        info_group.set_title("Supported Languages");
+        info_group.set_title(gettext("Supported Languages").as_str());
         info_group.set_description(Some(
             "Whisper supports 99 languages. The most common ones are listed above. \
              For the full list, see the Whisper documentation."
@@ -147,6 +156,34 @@ impl LanguagePage {
         *imp.language_combo.borrow_mut() = Some(lang_combo);
         *imp.translate_switch.borrow_mut() = Some(translate_switch);
         *imp.target_label.borrow_mut() = Some(target_row);
+
+        // Restore the saved manual language, then persist combo changes. This is
+        // the language used by the Cohere backend (which has no auto-detect) and
+        // by the global dictation path.
+        self.load_from_config();
+        self.connect_persistence();
+    }
+
+    fn load_from_config(&self) {
+        let config = AppConfig::load();
+        if let Some(combo) = self.imp().language_combo.borrow().as_ref() {
+            if let Some(ref code) = config.language {
+                if let Some(idx) = LANG_CODES.iter().position(|c| c == code) {
+                    combo.set_selected(idx as u32);
+                }
+            }
+        }
+    }
+
+    fn connect_persistence(&self) {
+        if let Some(combo) = self.imp().language_combo.borrow().as_ref() {
+            combo.connect_selected_notify(|combo| {
+                let idx = (combo.selected() as usize).min(LANG_CODES.len() - 1);
+                let mut c = AppConfig::load();
+                c.language = Some(LANG_CODES[idx].to_string());
+                c.save();
+            });
+        }
     }
 
     /// Get whether auto-detect is enabled.
@@ -180,6 +217,13 @@ impl LanguagePage {
     pub fn set_translate_enabled(&self, enabled: bool) {
         if let Some(switch) = self.imp().translate_switch.borrow().as_ref() {
             switch.set_active(enabled);
+        }
+    }
+
+    /// Connect a callback for when the translate switch changes.
+    pub fn connect_translate_changed<F: Fn(bool) + 'static>(&self, callback: F) {
+        if let Some(switch) = self.imp().translate_switch.borrow().as_ref() {
+            switch.connect_active_notify(move |s| callback(s.is_active()));
         }
     }
 
@@ -248,6 +292,29 @@ impl LanguagePage {
             combo.connect_selected_notify(move |_| {
                 cb(page.selected_language_name());
             });
+        }
+    }
+
+    /// Enable/disable auto-detect based on backend capabilities.
+    pub fn set_auto_detect_available(&self, available: bool) {
+        if let Some(switch) = self.imp().auto_detect_switch.borrow().as_ref() {
+            switch.set_sensitive(available);
+            if !available {
+                switch.set_active(false);
+            }
+        }
+    }
+
+    /// Enable/disable translation based on backend capabilities.
+    pub fn set_translation_available(&self, available: bool) {
+        if let Some(switch) = self.imp().translate_switch.borrow().as_ref() {
+            switch.set_sensitive(available);
+            if !available {
+                switch.set_active(false);
+            }
+        }
+        if let Some(row) = self.imp().target_label.borrow().as_ref() {
+            row.set_sensitive(available);
         }
     }
 }
