@@ -310,6 +310,7 @@ impl ModelCatalog {
 /// `cancel` aborts the download when set to `true`; the partial file is removed.
 /// The completed file is verified against the server's `Content-Length` to guard
 /// against silent truncation or an HTML error page being saved as a model.
+#[tracing::instrument(name = "download.whisper_model", skip_all, fields(model = %model_info.id))]
 pub async fn download_model<F>(
     model_info: &ModelInfo,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -368,6 +369,13 @@ where
             .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to write: {}", e)))?;
 
         downloaded += chunk.len() as u64;
+        if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {
+            drop(file);
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(AppError::ModelDownloadFailed(
+                "Download exceeded the maximum allowed size.".into(),
+            ));
+        }
         progress_callback(downloaded, total_size);
     }
 
@@ -392,6 +400,15 @@ where
     // Rename temp file to final path atomically
     tokio::fs::rename(&temp_path, &output_path).await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to finalize: {}", e)))?;
+
+    // Verify integrity against HuggingFace's published LFS sha256 (best-effort:
+    // proceeds if the hash can't be fetched, fails closed + removes on mismatch).
+    let client = super::download_client();
+    let filename = format!("ggml-{}.bin", model_info.id);
+    match crate::transcription::verify::hf_lfs_sha256(&client, "ggerganov/whisper.cpp", &filename).await {
+        Some(sha) => crate::transcription::verify::verify_file(&output_path, &sha)?,
+        None => info!("No published checksum for '{}'; skipping hash verification.", filename),
+    }
 
     info!("Model '{}' downloaded successfully to {:?} ({} bytes)", model_info.id, output_path, downloaded);
     Ok(output_path)

@@ -15,11 +15,23 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use std::sync::atomic::AtomicBool;
+
 use crate::audio::AudioCapture;
 use crate::audio::capture::RecordingState;
 use crate::error::AppResult;
-use crate::transcription::engine::TranscriptionResult;
+use crate::transcription::engine::{SegmentEvent, TranscribeHooks, TranscriptionResult};
 use crate::transcription::{ModelCatalog, TranscriptionEngine, postprocess};
+
+/// Channels + abort handle for a streaming transcription (Whisper only). The UI
+/// drains `segments`/`progress` for live display and awaits `outcome` for the
+/// final, authoritative result.
+pub struct StreamingTranscription {
+    pub outcome: async_channel::Receiver<Result<DictationOutcome, String>>,
+    pub segments: async_channel::Receiver<SegmentEvent>,
+    pub progress: async_channel::Receiver<i32>,
+    pub abort: std::sync::Arc<AtomicBool>,
+}
 
 /// Which UI currently owns the recording session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +39,8 @@ pub enum RecordingOwner {
     None,
     Main,
     Mini,
+    /// A nested short capture for the "Voice edit" feature (spoken instruction).
+    VoiceEdit,
 }
 
 /// Output formatting mode for a dictation. v1 ships `Plain`; the richer modes
@@ -181,6 +195,8 @@ pub struct DictationParams {
     pub initial_prompt: Option<String>,
     pub selected_microphone: Option<String>,
     pub mode: DictationMode,
+    /// Personal-dictionary replacement rules applied after sanitization.
+    pub replacements: Vec<crate::config::DictReplacement>,
 }
 
 impl DictationParams {
@@ -204,9 +220,14 @@ impl DictationParams {
             beam_size: config.beam_size,
             temperature: config.temperature,
             translate: config.translate_to_english,
-            initial_prompt: config.initial_prompt.clone(),
+            initial_prompt: config.effective_initial_prompt(),
             selected_microphone: config.selected_microphone.clone(),
             mode: DictationMode::from_config_str(&config.dictation_mode),
+            replacements: if config.dictionary_enabled {
+                config.dictionary_replacements.clone()
+            } else {
+                Vec::new()
+            },
         }
     }
 }
@@ -223,6 +244,9 @@ pub struct DictationOutcome {
     pub segments: Vec<(i64, i64, String)>,
     /// Language Whisper picked, when auto-detect was used.
     pub detected_language: Option<String>,
+    /// Recording/clip length in seconds (mic time, or decoded length for files).
+    /// Used for words-per-minute stats and history.
+    pub duration_secs: f32,
 }
 
 /// Run the transcription core synchronously. Intended to be called from a
@@ -232,20 +256,41 @@ pub fn run_transcription(
     engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
     audio: &[f32],
     params: &DictationParams,
+    duration_secs: f32,
+) -> Result<DictationOutcome, String> {
+    run_transcription_hooked(engine, audio, params, duration_secs, &TranscribeHooks::default())
+}
+
+/// Like [`run_transcription`] but with live hooks (segment/progress/abort).
+/// Only the Whisper backend honors the hooks; the CLI sidecars run batch.
+pub fn run_transcription_hooked(
+    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
+    audio: &[f32],
+    params: &DictationParams,
+    duration_secs: f32,
+    hooks: &TranscribeHooks,
 ) -> Result<DictationOutcome, String> {
     if params.backend == "cohere" {
         if !crate::transcription::cohere::cohere_ready() {
             return Err("Cohere is not set up. Go to Settings → Model to download the runtime and model.".to_string());
         }
         match crate::transcription::cohere::transcribe_via_cli(audio, params.language_code.as_deref()) {
-            Ok(r) => Ok(build_outcome(r, params.mode)),
+            Ok(r) => Ok(build_outcome(r, params, duration_secs)),
+            Err(e) => Err(format!("{}", e)),
+        }
+    } else if params.backend == "qwen" {
+        if !crate::transcription::qwen::qwen_ready() {
+            return Err("Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.".to_string());
+        }
+        match crate::transcription::qwen::transcribe_via_cli(audio, params.language_code.as_deref()) {
+            Ok(r) => Ok(build_outcome(r, params, duration_secs)),
             Err(e) => Err(format!("{}", e)),
         }
     } else {
         match engine.lock() {
             Ok(guard) => {
                 if let Some(eng) = guard.as_ref() {
-                    match eng.transcribe(
+                    match eng.transcribe_with_hooks(
                         audio,
                         params.language_code.as_deref(),
                         params.n_threads,
@@ -253,8 +298,9 @@ pub fn run_transcription(
                         params.beam_size,
                         params.temperature,
                         params.initial_prompt.as_deref(),
+                        hooks,
                     ) {
-                        Ok(r) => Ok(build_outcome(r, params.mode)),
+                        Ok(r) => Ok(build_outcome(r, params, duration_secs)),
                         Err(e) => Err(format!("Transcription failed: {}", e)),
                     }
                 } else {
@@ -266,19 +312,27 @@ pub fn run_transcription(
     }
 }
 
-fn build_outcome(result: TranscriptionResult, mode: DictationMode) -> DictationOutcome {
+fn build_outcome(result: TranscriptionResult, params: &DictationParams, duration_secs: f32) -> DictationOutcome {
     let confidence = result.average_confidence.unwrap_or(0.0);
     let segments: Vec<(i64, i64, String)> = result.segments.iter()
         .map(|s| (s.start_ms.unwrap_or(0), s.end_ms.unwrap_or(0), s.text.clone()))
         .collect();
     let sanitized = postprocess::sanitize_transcript(&result.text, Some(confidence));
-    let cleaned_text = apply_mode(&sanitized, mode);
+    // Apply personal-dictionary "heard → correct" replacements on the raw ASR
+    // text before mode formatting (LLM variants are left untouched).
+    let corrected = if params.replacements.is_empty() {
+        sanitized
+    } else {
+        postprocess::apply_dictionary_replacements(&sanitized, &params.replacements)
+    };
+    let cleaned_text = apply_mode(&corrected, params.mode);
     DictationOutcome {
         raw_text: result.text,
         cleaned_text,
         confidence,
         segments,
         detected_language: result.detected_language,
+        duration_secs,
     }
 }
 
@@ -395,6 +449,14 @@ impl RecordingController {
             .unwrap_or(0.0)
     }
 
+    /// Non-destructive snapshot of the audio captured so far (mono 16 kHz), for
+    /// live transcription while recording continues.
+    pub fn live_snapshot(&self) -> Vec<f32> {
+        self.audio.lock()
+            .map(|c| c.snapshot_mono_16khz())
+            .unwrap_or_default()
+    }
+
     // --- transcription -------------------------------------------------------
 
     /// Spawn transcription on a worker thread; the returned receiver yields the
@@ -403,14 +465,41 @@ impl RecordingController {
         &self,
         audio: Vec<f32>,
         params: DictationParams,
+        duration_secs: f32,
     ) -> async_channel::Receiver<Result<DictationOutcome, String>> {
         let (sender, receiver) = async_channel::bounded(1);
         let engine = self.engine.clone();
         std::thread::spawn(move || {
-            let result = run_transcription(&engine, &audio, &params);
+            let result = run_transcription(&engine, &audio, &params, duration_secs);
             let _ = sender.send_blocking(result);
         });
         receiver
+    }
+
+    /// Like [`transcribe_async`] but with live streaming: the returned handles
+    /// carry incremental segments + real progress (Whisper only) and an abort
+    /// flag. The UI drains `segments`/`progress` while awaiting `outcome`.
+    pub fn transcribe_async_streaming(
+        &self,
+        audio: Vec<f32>,
+        params: DictationParams,
+        duration_secs: f32,
+    ) -> StreamingTranscription {
+        let (out_tx, out_rx) = async_channel::bounded(1);
+        let (seg_tx, seg_rx) = async_channel::unbounded::<SegmentEvent>();
+        let (prog_tx, prog_rx) = async_channel::unbounded::<i32>();
+        let abort = std::sync::Arc::new(AtomicBool::new(false));
+        let engine = self.engine.clone();
+        let hooks = TranscribeHooks {
+            segment_tx: Some(seg_tx),
+            progress_tx: Some(prog_tx),
+            abort: Some(abort.clone()),
+        };
+        std::thread::spawn(move || {
+            let result = run_transcription_hooked(&engine, &audio, &params, duration_secs, &hooks);
+            let _ = out_tx.send_blocking(result);
+        });
+        StreamingTranscription { outcome: out_rx, segments: seg_rx, progress: prog_rx, abort }
     }
 }
 

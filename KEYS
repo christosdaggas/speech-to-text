@@ -1,0 +1,16 @@
+Speech to Text — release signing key(s)
+=======================================
+
+This file will contain the ASCII-armored GPG public key used to sign release
+checksum manifests (`SHA256SUMS.asc`). Import it with:
+
+    gpg --import KEYS
+
+and verify a download with `scripts/verify-release.sh`.
+
+The key block and its fingerprint are added here when the first signed release
+(1.3.0) is cut. Until then, this file is a placeholder.
+
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+(to be published with the first signed release)
+-----END PGP PUBLIC KEY BLOCK-----

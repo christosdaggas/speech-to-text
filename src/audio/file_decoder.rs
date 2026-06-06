@@ -19,6 +19,17 @@ use super::capture::WHISPER_SAMPLE_RATE;
 
 /// Decode an audio file to mono 16kHz f32 PCM suitable for Whisper.
 pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
+    // Reject oversized files before decoding (DoS guard).
+    if let Ok(meta) = std::fs::metadata(path) {
+        if meta.len() > crate::limits::MAX_DROPPED_FILE_BYTES {
+            return Err(AppError::Audio(format!(
+                "Audio file is too large ({:.1} GB); the limit is {:.0} GB.",
+                meta.len() as f64 / 1e9,
+                crate::limits::MAX_DROPPED_FILE_BYTES as f64 / 1e9
+            )));
+        }
+    }
+
     let file = std::fs::File::open(path)
         .map_err(|e| AppError::Audio(format!("Cannot open file: {}", e)))?;
 
@@ -53,6 +64,7 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
     let mut audio_buffer = AudioBuffer::new(WHISPER_SAMPLE_RATE);
     audio_buffer.set_source_params(sample_rate, channels);
 
+    let mut decoded_samples: usize = 0;
     loop {
         let packet = match format.next_packet() {
             Ok(p) => p,
@@ -76,7 +88,17 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
         let mut sample_buf = SampleBuffer::<f32>::new(n_frames as u64, spec);
         sample_buf.copy_interleaved_ref(decoded);
 
-        audio_buffer.push_samples(sample_buf.samples());
+        let samples = sample_buf.samples();
+        decoded_samples = decoded_samples.saturating_add(samples.len());
+        if decoded_samples > crate::limits::MAX_DECODED_SAMPLES {
+            tracing::warn!(
+                "Decoded audio exceeded the safety cap ({} source samples); truncating.",
+                crate::limits::MAX_DECODED_SAMPLES
+            );
+            audio_buffer.push_samples(samples);
+            break;
+        }
+        audio_buffer.push_samples(samples);
     }
 
     let pcm = audio_buffer.get_mono_16khz();

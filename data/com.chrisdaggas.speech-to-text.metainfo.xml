@@ -12,14 +12,17 @@
 
   <description>
     <p>
-      Speech to Text is an offline speech transcription application for Linux.
-      It uses OpenAI's Whisper model to convert spoken audio into text, running
-      entirely on your machine — no internet connection required after
-      downloading the model. Your audio data never leaves your device.
+      Speech to Text is a local-first speech transcription application for Linux.
+      Transcription runs entirely on your machine (Whisper, Cohere or Qwen3-ASR);
+      your audio never leaves your device and no internet is needed after the
+      model is downloaded. Optional, clearly opt-in features use the network when
+      enabled: the "Improve with AI" / LLM integration sends transcript text to an
+      LLM endpoint you configure (which may be a cloud service), and the app can
+      check for updates.
     </p>
     <p>Features:</p>
     <ul>
-      <li>100% offline transcription — your audio never leaves your device</li>
+      <li>Local transcription — your audio never leaves your device</li>
       <li>Supports 99 languages with automatic detection</li>
       <li>GPU acceleration support (NVIDIA CUDA, AMD ROCm)</li>
       <li>Five Whisper model sizes from Tiny (75 MB) to Large v3 (3 GB)</li>
@@ -71,6 +74,20 @@
   </keywords>
 
   <releases>
+    <release version="1.3.0" date="2026-06-06">
+      <description>
+        <p>Security and distribution hardening release.</p>
+        <ul>
+          <li>Downloaded runtimes and models are verified against published hashes before use</li>
+          <li>API keys and tokens are masked and stored only in the system keyring</li>
+          <li>Config and history are written privately (0600) and atomically</li>
+          <li>The LLM endpoint requires HTTPS for non-local hosts; first-use consent shows the target host</li>
+          <li>Auto-paste is now off by default for new installs and can be revoked</li>
+          <li>Optional startup update check can be disabled in Settings</li>
+          <li>Clear-all history now asks for confirmation</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-06-05">
       <description>
         <p>Dictate anywhere and run in the background.</p>

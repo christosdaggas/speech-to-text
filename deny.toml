@@ -1,0 +1,54 @@
+# cargo-deny configuration — supply-chain policy enforced in CI.
+# Run locally with: cargo install cargo-deny && cargo deny check
+# (cargo-deny is not available in the build sandbox; it runs in GitHub Actions.)
+
+[graph]
+# Check the Linux target we ship; avoids noise from platform-specific deps.
+targets = [{ triple = "x86_64-unknown-linux-gnu" }]
+all-features = false
+
+[advisories]
+# Fail the build on any known security advisory or unmaintained/yanked crate.
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+# Add specific RUSTSEC IDs here only with a written justification if ever needed.
+ignore = []
+
+[licenses]
+# Allowlist of licenses acceptable for an MIT-licensed open-source distribution.
+# Anything not listed fails the build, so a new dependency with a surprising
+# (e.g. copyleft/strong-copyleft or unknown) license is caught before release.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "MPL-2.0",
+    "BSL-1.0",
+    "OpenSSL",
+]
+confidence-threshold = 0.9
+# Per-crate license clarifications go here if a crate ships an ambiguous license.
+exceptions = []
+
+[bans]
+# Warn on duplicate versions of the same crate (bloat / drift), deny nothing by
+# default so the build stays green; tighten to "deny" once the tree is clean.
+multiple-versions = "warn"
+wildcards = "allow"
+# Crates we never want pulled in (placeholder — add known-bad crates here).
+deny = []
+
+[sources]
+# Only crates.io and our own git sources are allowed; an unexpected registry or
+# git source (a common supply-chain attack vector) fails the build.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

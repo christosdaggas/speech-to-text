@@ -23,6 +23,8 @@ use crate::i18n::gettext;
 pub enum TrayAction {
     /// Start/stop global dictation (open the mini panel).
     Dictate,
+    /// Transform the current selection/clipboard with the active AI preset.
+    TransformSelection,
     /// Show the main window.
     Open,
     /// Quit the application.
@@ -65,6 +67,12 @@ impl Tray for SttTray {
             StandardItem {
                 label: gettext("Start Dictation"),
                 activate: Box::new(|t: &mut Self| t.emit(TrayAction::Dictate)),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: gettext("Transform Selection with AI"),
+                activate: Box::new(|t: &mut Self| t.emit(TrayAction::TransformSelection)),
                 ..Default::default()
             }
             .into(),

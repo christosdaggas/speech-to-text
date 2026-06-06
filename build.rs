@@ -2,9 +2,27 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// Log the version of a build-time tool to the cargo build output, for build
+/// provenance/reproducibility. Best-effort: a missing tool is reported, not
+/// fatal (the relevant feature degrades gracefully).
+fn log_tool_version(tool: &str, version_arg: &str) {
+    match Command::new(tool).arg(version_arg).output() {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let first = text.lines().next().unwrap_or("").trim();
+            println!("cargo:warning=build tool {tool}: {first}");
+        }
+        _ => println!("cargo:warning=build tool {tool}: not found"),
+    }
+}
+
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+
+    // Record the toolchain that produced the resource/locale assets.
+    log_tool_version("glib-compile-resources", "--version");
+    log_tool_version("msgfmt", "--version");
 
     let data_dir = manifest_dir.join("data").join("resources");
     let gresource_xml = data_dir.join("com.chrisdaggas.speech-to-text.gresource.xml");

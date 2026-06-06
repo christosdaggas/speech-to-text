@@ -19,12 +19,24 @@ const HALLUCINATION_PHRASES: &[&str] = &[
     "don't forget to subscribe",
     "subtitles by",
     "amara.org",
-    // Greek
+    // Greek — Whisper frequently appends a subtitle credit or a polite
+    // sign-off ("Σας ευχαριστούμε", "Υπότιτλοι ...") on silence/low audio.
     "ευχαριστώ που παρακολουθήσατε",
     "ευχαριστούμε που παρακολουθήσατε",
+    "σας ευχαριστώ για την παρακολούθηση",
+    "σας ευχαριστούμε πολύ",
+    "σας ευχαριστούμε",
+    "ευχαριστούμε πολύ",
+    "σας ευχαριστώ πολύ",
+    "σας ευχαριστώ",
+    "ευχαριστώ πολύ",
+    "ευχαριστούμε",
+    "καλή συνέχεια",
     "υπότιτλοι authorwave",
     "υπότιτλοι από",
-    "σας ευχαριστώ για την παρακολούθηση",
+    "απόδοση διαλόγων",
+    "επιμέλεια υποτίτλων",
+    "υπότιτλοι",
     // German
     "danke fürs zuschauen",
     "untertitel von",
@@ -71,13 +83,23 @@ fn strip_hallucinations(text: &str) -> String {
         }
     }
 
-    // Strip hallucination phrases that appear at the end of real text
+    // Strip hallucination phrases that appear at the end of real text.
+    // Check longest phrases first so e.g. "σας ευχαριστούμε" is removed whole
+    // instead of leaving an orphan "Σας" after stripping only "ευχαριστούμε".
+    let mut phrases_by_len: Vec<&&str> = HALLUCINATION_PHRASES.iter().collect();
+    phrases_by_len.sort_by(|a, b| b.len().cmp(&a.len()));
+
     let mut result = text.to_string();
-    for phrase in HALLUCINATION_PHRASES {
+    for phrase in phrases_by_len {
         let result_lower = result.to_lowercase();
-        if let Some(pos) = result_lower.rfind(phrase) {
-            // Only strip if it's near the end (within last 5 chars + phrase length)
-            if pos + phrase.len() + 5 >= result.len() {
+        if let Some(pos) = result_lower.rfind(*phrase) {
+            // Only strip if it's near the end (allow trailing punctuation/space
+            // after the phrase, e.g. "… Σας ευχαριστούμε!").
+            let tail = &result_lower[pos + phrase.len()..];
+            let tail_is_trailing = tail
+                .chars()
+                .all(|c| c.is_whitespace() || matches!(c, '.' | '!' | '?' | ',' | '…' | '"' | '»' | ')'));
+            if tail_is_trailing {
                 result.truncate(pos);
             }
         }
@@ -189,6 +211,60 @@ pub fn sanitize_transcript(text: &str, average_confidence: Option<f32>) -> Strin
     cleaned
 }
 
+/// Apply personal-dictionary "heard → correct" replacement rules, in order.
+///
+/// Each rule replaces occurrences of `from` with `to` in the current text
+/// (later rules see the output of earlier ones). Honors `whole_word` (the match
+/// must be bounded by non-alphanumeric characters) and `case_sensitive`
+/// (default: case-insensitive). UTF-8 safe; matching advances past each
+/// replacement so a rule never cascades onto its own output.
+pub fn apply_dictionary_replacements(text: &str, rules: &[crate::config::DictReplacement]) -> String {
+    let mut out = text.to_string();
+    for rule in rules {
+        if rule.from.trim().is_empty() {
+            continue;
+        }
+        out = replace_rule(&out, &rule.from, &rule.to, rule.whole_word, rule.case_sensitive);
+    }
+    out
+}
+
+/// Compare two chars, optionally case-insensitively (Unicode-aware lowercasing).
+fn char_matches(a: char, b: char, case_sensitive: bool) -> bool {
+    if case_sensitive {
+        a == b
+    } else {
+        a == b || a.to_lowercase().eq(b.to_lowercase())
+    }
+}
+
+fn replace_rule(text: &str, from: &str, to: &str, whole_word: bool, case_sensitive: bool) -> String {
+    let hay: Vec<char> = text.chars().collect();
+    let needle: Vec<char> = from.chars().collect();
+    let (n, m) = (hay.len(), needle.len());
+    if m == 0 || m > n {
+        return text.to_string();
+    }
+    let mut result = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < n {
+        let matches_here = i + m <= n
+            && (0..m).all(|k| char_matches(hay[i + k], needle[k], case_sensitive));
+        if matches_here {
+            let left_ok = !whole_word || i == 0 || !hay[i - 1].is_alphanumeric();
+            let right_ok = !whole_word || i + m == n || !hay[i + m].is_alphanumeric();
+            if left_ok && right_ok {
+                result.push_str(to);
+                i += m;
+                continue;
+            }
+        }
+        result.push(hay[i]);
+        i += 1;
+    }
+    result
+}
+
 /// Format a transcription result as SRT subtitle format.
 pub fn format_as_srt(segments: &[(i64, i64, &str)]) -> String {
     let mut srt = String::new();
@@ -220,6 +296,62 @@ fn format_srt_time(ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn repl(from: &str, to: &str, whole_word: bool, case_sensitive: bool) -> crate::config::DictReplacement {
+        crate::config::DictReplacement {
+            from: from.into(), to: to.into(), whole_word, case_sensitive,
+        }
+    }
+
+    #[test]
+    fn dictionary_basic_case_insensitive_replace() {
+        let rules = vec![repl("kubernetes", "Kubernetes", false, false)];
+        assert_eq!(
+            apply_dictionary_replacements("we deployed kubernetes and Kubernetes", &rules),
+            "we deployed Kubernetes and Kubernetes"
+        );
+    }
+
+    #[test]
+    fn dictionary_whole_word_respects_boundaries() {
+        let rules = vec![repl("cat", "dog", true, false)];
+        // "category" must NOT be touched; standalone "cat" is.
+        assert_eq!(
+            apply_dictionary_replacements("a cat in a category", &rules),
+            "a dog in a category"
+        );
+    }
+
+    #[test]
+    fn dictionary_case_sensitive_only_exact() {
+        let rules = vec![repl("API", "API", true, true)];
+        assert_eq!(
+            apply_dictionary_replacements("the api and the API", &rules),
+            "the api and the API"
+        );
+    }
+
+    #[test]
+    fn dictionary_no_self_cascade() {
+        // Replacing "a" with "aa" must not loop over its own output.
+        let rules = vec![repl("a", "aa", false, false)];
+        assert_eq!(apply_dictionary_replacements("a a", &rules), "aa aa");
+    }
+
+    #[test]
+    fn dictionary_greek_unicode() {
+        let rules = vec![repl("γεια", "Γεια", false, false)];
+        assert_eq!(
+            apply_dictionary_replacements("γεια σου", &rules),
+            "Γεια σου"
+        );
+    }
+
+    #[test]
+    fn dictionary_empty_from_is_ignored() {
+        let rules = vec![repl("", "x", false, false)];
+        assert_eq!(apply_dictionary_replacements("unchanged", &rules), "unchanged");
+    }
 
     #[test]
     fn test_cleanup_whitespace() {
@@ -255,6 +387,30 @@ mod tests {
     #[test]
     fn test_repetitive_real_text_is_kept_with_good_confidence() {
         assert_eq!(sanitize_transcript("please please please please", Some(0.9)), "Please please please please");
+    }
+
+    #[test]
+    fn test_greek_trailing_thanks_stripped_without_orphan() {
+        // The trailing "Σας ευχαριστούμε!" must be removed whole — not leave "Σας".
+        assert_eq!(
+            cleanup_transcript("Αυτό είναι το κείμενό μου. Σας ευχαριστούμε!"),
+            "Αυτό είναι το κείμενό μου."
+        );
+    }
+
+    #[test]
+    fn test_greek_whole_text_thanks_discarded() {
+        assert_eq!(cleanup_transcript("Σας ευχαριστούμε."), "");
+        assert_eq!(cleanup_transcript("Ευχαριστούμε"), "");
+    }
+
+    #[test]
+    fn test_greek_subtitle_credit_stripped() {
+        assert_eq!(cleanup_transcript("Υπότιτλοι AUTHORWAVE"), "");
+        assert_eq!(
+            cleanup_transcript("Καλημέρα σε όλους. Υπότιτλοι"),
+            "Καλημέρα σε όλους."
+        );
     }
 
     #[test]

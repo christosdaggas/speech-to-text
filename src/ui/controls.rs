@@ -38,6 +38,7 @@ mod imp {
         pub clear_btn: RefCell<Option<gtk::Button>>,
         pub save_btn: RefCell<Option<gtk::Button>>,
         pub translate_toggle: RefCell<Option<gtk::ToggleButton>>,
+        pub ai_toggle: RefCell<Option<gtk::ToggleButton>>,
     }
 
     #[glib::object_subclass]
@@ -65,9 +66,12 @@ glib::wrapper! {
 
 impl Controls {
     pub fn new() -> Self {
+        // NOTE: the `spacing` set here (a builder property) is the one that
+        // actually sticks — it is applied AFTER `constructed()`, so a later
+        // `set_spacing()` in `setup_ui` would be overridden. Set it here.
         glib::Object::builder()
             .property("orientation", gtk::Orientation::Horizontal)
-            .property("spacing", 0)
+            .property("spacing", 18)
             .build()
     }
 
@@ -77,94 +81,85 @@ impl Controls {
         self.add_css_class("controls-panel");
         self.set_margin_start(16);
         self.set_margin_end(16);
+        self.set_margin_top(4);
         self.set_margin_bottom(12);
+        // Centred row of buttons. Within-group spacing comes from the box
+        // `spacing` set in `new()` (18px); groups get an extra margin gap below.
         self.set_halign(gtk::Align::Center);
-        self.set_spacing(8);
+        self.set_spacing(18);
 
-        // === Recording controls (left group) ===
-        let rec_group = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        rec_group.add_css_class("linked");
+        /// Build a uniform icon + label button.
+        fn labelled(icon: &str, label: &str) -> gtk::Button {
+            let btn = gtk::Button::new();
+            let content = adw::ButtonContent::new();
+            content.set_icon_name(icon);
+            content.set_label(label);
+            btn.set_child(Some(&content));
+            btn
+        }
 
-        // Record button
-        let record_btn = gtk::Button::new();
-        let rec_content = adw::ButtonContent::new();
-        rec_content.set_icon_name("media-record-symbolic");
-        rec_content.set_label(gettext("Record").as_str());
-        record_btn.set_child(Some(&rec_content));
+        // ── Transport (Record · Pause · Stop · Cancel) ──
+        // Only Record is accent (blue) and only Cancel is destructive (red);
+        // Pause/Stop stay neutral.
+        let record_btn = labelled("media-record-symbolic", &gettext("Record"));
         record_btn.add_css_class("suggested-action");
         record_btn.set_tooltip_text(Some(gettext("Start recording (Ctrl+R)").as_str()));
 
-        // Pause button
-        let pause_btn = gtk::Button::from_icon_name("media-playback-pause-symbolic");
+        let pause_btn = labelled("media-playback-pause-symbolic", &gettext("Pause"));
         pause_btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
         pause_btn.set_sensitive(false);
 
-        // Stop button
-        let stop_btn = gtk::Button::from_icon_name("media-playback-stop-symbolic");
+        let stop_btn = labelled("media-playback-stop-symbolic", &gettext("Stop"));
         stop_btn.set_tooltip_text(Some(gettext("Stop recording and transcribe").as_str()));
-        stop_btn.add_css_class("stop-action");
         stop_btn.set_sensitive(false);
 
-        // Cancel button
-        let cancel_btn = gtk::Button::from_icon_name("process-stop-symbolic");
-        cancel_btn.set_tooltip_text(Some(gettext("Cancel recording and discard").as_str()));
+        let cancel_btn = labelled("process-stop-symbolic", &gettext("Cancel"));
         cancel_btn.add_css_class("destructive-action");
+        cancel_btn.set_tooltip_text(Some(gettext("Cancel recording and discard").as_str()));
         cancel_btn.set_sensitive(false);
 
-        rec_group.append(&record_btn);
-        rec_group.append(&pause_btn);
-        rec_group.append(&stop_btn);
-        rec_group.append(&cancel_btn);
-        self.append(&rec_group);
+        self.append(&record_btn);
+        self.append(&pause_btn);
+        self.append(&stop_btn);
+        self.append(&cancel_btn);
 
-        // === Separator ===
-        let sep = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep.set_margin_start(12);
-        sep.set_margin_end(12);
-        self.append(&sep);
-
-        // === Translate toggle ===
+        // ── Modes (Translate · Improve with AI), as toggles ──
         let translate_toggle = gtk::ToggleButton::new();
         let translate_content = adw::ButtonContent::new();
         translate_content.set_icon_name("preferences-desktop-locale-symbolic");
         translate_content.set_label(gettext("Translate").as_str());
         translate_toggle.set_child(Some(&translate_content));
         translate_toggle.set_tooltip_text(Some(gettext("Translate to English").as_str()));
-        translate_toggle.add_css_class("flat");
+        translate_toggle.add_css_class("translate-toggle"); // vivid bg when active
+        translate_toggle.set_margin_start(16); // extra gap between groups (adds to box spacing)
         self.append(&translate_toggle);
 
-        // === Separator ===
-        let sep2 = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep2.set_margin_start(12);
-        sep2.set_margin_end(12);
-        self.append(&sep2);
+        // Improve with AI: when active, the NEXT transcriptions are auto-improved
+        // with the active LLM preset. Hidden until the LLM integration is enabled.
+        let ai_toggle = gtk::ToggleButton::new();
+        let ai_content = adw::ButtonContent::new();
+        ai_content.set_icon_name("com.chrisdaggas.speech-to-text-ai");
+        ai_content.set_label(gettext("Improve with AI").as_str());
+        ai_toggle.set_child(Some(&ai_content));
+        ai_toggle.set_tooltip_text(Some(gettext("Improve the next transcriptions with the LLM (active preset)").as_str()));
+        ai_toggle.add_css_class("ai-toggle"); // vivid bg when active
+        ai_toggle.set_visible(false);
+        self.append(&ai_toggle);
 
-        // === Action buttons (right group) ===
-        let action_group = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-
-        // Copy button
+        // ── Actions (Copy · Clear · Save) — icon-only ──
         let copy_btn = gtk::Button::from_icon_name("edit-copy-symbolic");
         copy_btn.set_tooltip_text(Some(gettext("Copy transcript to clipboard").as_str()));
-        copy_btn.add_css_class("flat");
+        copy_btn.set_margin_start(16); // extra gap between groups (adds to box spacing)
 
-        // Clear button
         let clear_btn = gtk::Button::from_icon_name("edit-clear-all-symbolic");
         clear_btn.set_tooltip_text(Some(gettext("Clear transcript").as_str()));
-        clear_btn.add_css_class("flat");
 
-        // Save button
-        let save_btn = gtk::Button::new();
-        let save_content = adw::ButtonContent::new();
-        save_content.set_icon_name("document-save-symbolic");
-        save_content.set_label(gettext("Save").as_str());
-        save_btn.set_child(Some(&save_content));
-        save_btn.add_css_class("flat");
+        let save_btn = gtk::Button::from_icon_name("document-save-symbolic");
         save_btn.set_tooltip_text(Some(gettext("Save transcript to file").as_str()));
 
-        action_group.append(&copy_btn);
-        action_group.append(&clear_btn);
-        action_group.append(&save_btn);
-        self.append(&action_group);
+        self.append(&copy_btn);
+        self.append(&clear_btn);
+        self.append(&save_btn);
 
         // Store references
         *imp.record_btn.borrow_mut() = Some(record_btn);
@@ -175,6 +170,33 @@ impl Controls {
         *imp.clear_btn.borrow_mut() = Some(clear_btn);
         *imp.save_btn.borrow_mut() = Some(save_btn);
         *imp.translate_toggle.borrow_mut() = Some(translate_toggle);
+        *imp.ai_toggle.borrow_mut() = Some(ai_toggle);
+    }
+
+    /// Whether "Improve with AI" is armed.
+    pub fn is_ai_active(&self) -> bool {
+        self.imp().ai_toggle.borrow().as_ref().map(|t| t.is_active()).unwrap_or(false)
+    }
+
+    /// Set the "Improve with AI" toggle state.
+    pub fn set_ai_active(&self, active: bool) {
+        if let Some(t) = self.imp().ai_toggle.borrow().as_ref() {
+            t.set_active(active);
+        }
+    }
+
+    /// Connect a callback for when the "Improve with AI" toggle changes.
+    pub fn connect_ai_toggled<F: Fn(bool) + 'static>(&self, callback: F) {
+        if let Some(t) = self.imp().ai_toggle.borrow().as_ref() {
+            t.connect_toggled(move |t| callback(t.is_active()));
+        }
+    }
+
+    /// Show/hide the "Improve with AI" button.
+    pub fn set_ai_visible(&self, visible: bool) {
+        if let Some(t) = self.imp().ai_toggle.borrow().as_ref() {
+            t.set_visible(visible);
+        }
     }
 
     /// Connect an action callback. Call this once from the parent.
@@ -228,15 +250,20 @@ impl Controls {
         }
     }
 
-    /// Set paused state — toggle pause/resume icon.
+    /// Set paused state — toggle the pause/resume icon + label on the button's
+    /// `ButtonContent` child.
     pub fn set_paused_state(&self, paused: bool) {
         if let Some(btn) = self.imp().pause_btn.borrow().as_ref() {
-            if paused {
-                btn.set_icon_name("media-playback-start-symbolic");
-                btn.set_tooltip_text(Some(gettext("Resume recording").as_str()));
-            } else {
-                btn.set_icon_name("media-playback-pause-symbolic");
-                btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
+            if let Some(content) = btn.child().and_downcast::<adw::ButtonContent>() {
+                if paused {
+                    content.set_icon_name("media-playback-start-symbolic");
+                    content.set_label(gettext("Resume").as_str());
+                    btn.set_tooltip_text(Some(gettext("Resume recording").as_str()));
+                } else {
+                    content.set_icon_name("media-playback-pause-symbolic");
+                    content.set_label(gettext("Pause").as_str());
+                    btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
+                }
             }
         }
     }
@@ -273,11 +300,13 @@ impl Controls {
         }
     }
 
-    /// Show or hide the translate toggle based on backend capabilities.
-    pub fn set_translate_visible(&self, visible: bool) {
+    /// Enable/disable the translate toggle based on backend capabilities. It
+    /// stays visible (greyed-out when disabled) rather than disappearing.
+    pub fn set_translate_enabled(&self, enabled: bool) {
         if let Some(toggle) = self.imp().translate_toggle.borrow().as_ref() {
-            toggle.set_visible(visible);
-            if !visible {
+            toggle.set_visible(true);
+            toggle.set_sensitive(enabled);
+            if !enabled {
                 toggle.set_active(false);
             }
         }

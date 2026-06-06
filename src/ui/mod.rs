@@ -10,6 +10,7 @@ mod sidebar;
 mod header;
 mod transcript_view;
 mod controls;
+pub mod result_state;
 pub mod history_page;
 mod help_page;
 mod welcome_wizard;

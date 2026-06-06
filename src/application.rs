@@ -21,10 +21,15 @@ use tracing::info;
 use crate::audio::capture::RecordingState;
 use crate::config::AppConfig;
 use crate::recording::{
-    DictationMode, DictationOutcome, DictationParams, RecordingController, RecordingOwner,
+    DictationOutcome, DictationParams, RecordingController, RecordingOwner,
 };
 use crate::ui::{MainWindow, MiniPanel, MiniPanelAction};
 use crate::{APP_ID, APP_NAME, VERSION};
+
+/// Set once at startup: true only when the process was launched with `--hidden`
+/// (used by the autostart entry). A manual launch leaves this false so the main
+/// window is always shown.
+pub static LAUNCH_HIDDEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// Global Tokio runtime for async operations (model downloads, etc.).
 pub static TOKIO_RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
@@ -55,6 +60,12 @@ mod imp {
         pub mini_panel: RefCell<Option<MiniPanel>>,
         /// Text of the most recent global dictation, for the panel's Copy/Paste.
         pub last_text: RefCell<String>,
+        /// The current global-dictation result (raw transcript + AI variants) for
+        /// the panel's transform chips and raw/polished selector.
+        pub last_result_state: RefCell<Option<crate::ui::result_state::ResultState>>,
+        /// Target text being edited by an in-progress Voice Edit (the spoken
+        /// instruction is captured, then applied to this text).
+        pub voice_edit_target: RefCell<Option<String>>,
         /// Whether the first `activate` has happened (so re-launch always shows
         /// the window even when `start_hidden` is set).
         pub started: std::cell::Cell<bool>,
@@ -93,16 +104,24 @@ mod imp {
                 MainWindow::new(&application, config)
             });
 
-            // Honor "start hidden" only on the very first activation; any later
-            // activation (re-launch, tray "Open") always shows the window.
-            let start_hidden = self.config.borrow()
-                .as_ref()
-                .map(|c| c.start_hidden)
-                .unwrap_or(false);
-            if self.started.get() || !start_hidden {
+            // Start hidden ONLY when launched with `--hidden` (autostart at
+            // login). A manual launch always shows the window, and any later
+            // activation (re-launch, tray "Open") does too.
+            let launch_hidden = *crate::application::LAUNCH_HIDDEN.get().unwrap_or(&false);
+            if self.started.get() || !launch_hidden {
                 window.present();
             }
             self.started.set(true);
+
+            // Diagnostic (inert unless STT_DEBUG_WIDTH is set): log the real
+            // allocated window width. Kept because the window's width comes from
+            // content sizing, not set_default_size — verify, never assume.
+            if std::env::var("STT_DEBUG_WIDTH").is_ok() {
+                let w = window.clone();
+                glib::timeout_add_local_once(std::time::Duration::from_millis(2500), move || {
+                    eprintln!("STT_WIN_WIDTH={}", w.width());
+                });
+            }
         }
 
         fn startup(&self) {
@@ -146,16 +165,31 @@ mod imp {
             // Register the global dictation shortcut via the portal. Best-effort:
             // failures are logged and the app keeps working with in-app controls.
             if config.mini_panel_enabled {
-                let (tx, rx) = async_channel::bounded::<()>(4);
+                use crate::portal::shortcuts::ShortcutKind;
+                let (tx, rx) = async_channel::bounded::<ShortcutKind>(4);
                 let trigger = config.global_shortcut.clone();
-                crate::application::tokio_runtime()
-                    .spawn(crate::portal::shortcuts::run_global_shortcuts(trigger, tx));
+                // The transform-selection shortcut is opt-in (Settings → LLM).
+                let transform_trigger = if config.llm_enabled && config.llm_selection_enabled {
+                    Some(config.llm_selection_shortcut.clone())
+                } else {
+                    None
+                };
+                crate::application::tokio_runtime().spawn(
+                    crate::portal::shortcuts::run_global_shortcuts(trigger, transform_trigger, tx),
+                );
 
                 let app_weak = self.obj().downgrade();
                 glib::spawn_future_local(async move {
-                    while rx.recv().await.is_ok() {
+                    while let Ok(kind) = rx.recv().await {
                         let Some(app) = app_weak.upgrade() else { break };
-                        app.activate_action("start-global-dictation", None);
+                        match kind {
+                            ShortcutKind::Dictation => {
+                                app.activate_action("start-global-dictation", None)
+                            }
+                            ShortcutKind::TransformSelection => {
+                                app.activate_action("transform-selection", None)
+                            }
+                        }
                     }
                 });
             }
@@ -245,6 +279,7 @@ impl Application {
         use crate::tray::TrayAction;
         match action {
             TrayAction::Dictate => self.toggle_global_dictation(),
+            TrayAction::TransformSelection => self.transform_selection(),
             TrayAction::Open => self.present_main_window(),
             TrayAction::Quit => self.quit(),
         }
@@ -262,19 +297,37 @@ impl Application {
                 app.on_mini_panel_action(action);
             }
         });
+        panel.set_keep_on_top(self.config_snapshot().mini_panel_always_on_top);
         *self.imp().mini_panel.borrow_mut() = Some(panel.clone());
         panel
     }
 
     fn on_mini_panel_action(&self, action: MiniPanelAction) {
         match action {
-            MiniPanelAction::Stop => self.stop_global_dictation(),
-            MiniPanelAction::Cancel => self.cancel_global_dictation(),
+            // Stop/Cancel are owner-aware: a Voice-edit capture is stopped/cancelled
+            // by its own path, not the global-dictation path.
+            MiniPanelAction::Stop => {
+                if self.controller().owner() == RecordingOwner::VoiceEdit {
+                    self.stop_voice_edit();
+                } else {
+                    self.stop_global_dictation();
+                }
+            }
+            MiniPanelAction::Cancel => {
+                if self.controller().owner() == RecordingOwner::VoiceEdit {
+                    self.cancel_voice_edit();
+                } else {
+                    self.cancel_global_dictation();
+                }
+            }
             // "New": start a fresh recording reusing the already-open panel.
             MiniPanelAction::Again => self.start_global_dictation(),
             MiniPanelAction::Paste => self.paste_preview_text(),
             MiniPanelAction::Copy => self.copy_preview_text(),
             MiniPanelAction::Close => self.close_mini_panel(),
+            MiniPanelAction::Chip(idx) => self.on_panel_chip(idx),
+            MiniPanelAction::Variant(idx) => self.on_panel_variant(idx),
+            MiniPanelAction::VoiceEdit => self.start_voice_edit(),
         }
     }
 
@@ -285,6 +338,9 @@ impl Application {
             RecordingOwner::Mini => self.stop_global_dictation(),
             RecordingOwner::Main => {
                 info!("Global shortcut ignored: main window is recording");
+            }
+            RecordingOwner::VoiceEdit => {
+                info!("Global shortcut ignored: a voice edit is in progress");
             }
             RecordingOwner::None => self.start_global_dictation(),
         }
@@ -297,9 +353,15 @@ impl Application {
         }
 
         let config = self.config_snapshot();
-        let mode = DictationMode::from_config_str(&config.dictation_mode);
+        let lang_label = panel_lang_label(&config);
         let panel = self.mini_panel();
-        panel.show_recording(&mode_display_label(mode));
+        // Re-apply each run so toggling the setting takes effect without restart.
+        panel.set_keep_on_top(config.mini_panel_always_on_top);
+        // Show the LLM indicator only when auto-improve will actually run on this
+        // dictation (integration enabled AND auto-apply on) — not merely when an
+        // LLM connection is configured.
+        panel.set_llm_active(config.llm_enabled && config.llm_auto_apply);
+        panel.show_recording(&lang_label);
         panel.present();
 
         let (waveform_tx, waveform_rx) = async_channel::bounded::<Vec<f32>>(32);
@@ -317,7 +379,8 @@ impl Application {
                 // Tick the timer until recording stops.
                 let app_weak = self.downgrade();
                 let panel_weak = panel.downgrade();
-                glib::timeout_add_seconds_local(1, move || {
+                // 100ms tick so the timer can show centiseconds.
+                glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
                     let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade()) else {
                         return glib::ControlFlow::Break;
                     };
@@ -327,7 +390,7 @@ impl Application {
                     {
                         return glib::ControlFlow::Break;
                     }
-                    panel.set_timer(controller.recording_duration_secs() as u64);
+                    panel.set_timer(controller.recording_duration_secs() as f64);
                     glib::ControlFlow::Continue
                 });
 
@@ -346,6 +409,9 @@ impl Application {
             return;
         }
 
+        // Capture mic duration before stop() drains the buffer (for WPM stats).
+        let duration_secs = controller.recording_duration_secs();
+
         let audio = match controller.stop() {
             Ok(a) => a,
             Err(e) => {
@@ -361,18 +427,71 @@ impl Application {
             panel.show_error(&crate::i18n::gettext("No clear speech detected — try again"));
             return;
         }
-        panel.show_transcribing();
-
         let config = self.config_snapshot();
+        panel.show_transcribing(&panel_model_label(&config), &panel_lang_label(&config));
         if config.backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
             panel.show_error(&crate::i18n::gettext(
                 "Cohere is not set up. Go to Settings → Model to download the runtime and model.",
             ));
             return;
         }
+        if config.backend == "qwen" && !crate::transcription::qwen::qwen_ready() {
+            panel.show_error(&crate::i18n::gettext(
+                "Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.",
+            ));
+            return;
+        }
 
         let params = DictationParams::from_config(&config);
-        let receiver = controller.transcribe_async(audio, params);
+
+        // Live streaming (Whisper only, when enabled): show a read-along preview +
+        // real progress in the pop-up as the decode runs. Delivery is unchanged —
+        // the final, authoritative text is still pasted/shown once.
+        if config.live_transcription && config.backend == "whisper" {
+            let stream = controller.transcribe_async_streaming(audio, params, duration_secs);
+            let app_weak = self.downgrade();
+            let seg_rx = stream.segments.clone();
+            glib::spawn_future_local(async move {
+                let mut acc = String::new();
+                while let Ok(ev) = seg_rx.recv().await {
+                    let t = ev.text.trim();
+                    if t.is_empty() {
+                        continue;
+                    }
+                    if !acc.is_empty() {
+                        acc.push(' ');
+                    }
+                    acc.push_str(t);
+                    let Some(app) = app_weak.upgrade() else { break };
+                    app.mini_panel().set_partial_text(&acc);
+                }
+            });
+            let app_weak = self.downgrade();
+            let prog_rx = stream.progress.clone();
+            glib::spawn_future_local(async move {
+                while let Ok(p) = prog_rx.recv().await {
+                    let Some(app) = app_weak.upgrade() else { break };
+                    app.mini_panel().set_decode_progress(p);
+                }
+            });
+            let app_weak = self.downgrade();
+            let out_rx = stream.outcome.clone();
+            glib::spawn_future_local(async move {
+                let result = out_rx.recv().await;
+                let Some(app) = app_weak.upgrade() else { return };
+                if app.controller().owner() == RecordingOwner::Mini {
+                    return;
+                }
+                match result {
+                    Ok(Ok(outcome)) => app.finish_global_dictation(outcome),
+                    Ok(Err(msg)) => app.mini_panel().show_error(&msg),
+                    Err(_) => {}
+                }
+            });
+            return;
+        }
+
+        let receiver = controller.transcribe_async(audio, params, duration_secs);
 
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
@@ -400,25 +519,344 @@ impl Application {
             return;
         }
 
-        // Clipboard is always set — the reliable fallback.
-        if let Some(display) = gtk::gdk::Display::default() {
-            display.clipboard().set_text(&cleaned);
-        }
-        *self.imp().last_text.borrow_mut() = cleaned.clone();
+        // History always keeps the raw transcript (auto-improve adds a variant; it
+        // doesn't replace what's recorded).
         self.record_global_history(&cleaned, &outcome);
 
-        if self.config_snapshot().auto_paste {
-            // Hide so focus returns to the previous app, paste into it, then
-            // re-show the panel so the user can immediately dictate again ("New").
-            panel.set_visible(false);
-            self.spawn_autopaste_then_reshow(cleaned.clone());
+        // Build the current result (raw + stats + segments) for the chips and the
+        // raw/polished selector.
+        let state = crate::ui::result_state::ResultState::new(
+            cleaned.clone(),
+            outcome.duration_secs,
+            outcome.detected_language.clone(),
+            outcome.segments.clone(),
+        );
+        *self.imp().last_result_state.borrow_mut() = Some(state);
+
+        let config = self.config_snapshot();
+        if config.llm_enabled && config.llm_auto_apply && !config.llm_presets.is_empty() {
+            // Improve the transcript with the active preset before delivering it.
+            let idx = config.llm_active_preset.min(config.llm_presets.len() - 1);
+            let preset = config.llm_presets[idx].clone();
+            let llm_cfg = resolve_llm_cfg(&config, &preset);
+            panel.show_improving();
+            let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), cleaned.clone());
+            let app_weak = self.downgrade();
+            let label = preset.name.clone();
+            glib::spawn_future_local(async move {
+                let res = rx.recv().await;
+                let Some(app) = app_weak.upgrade() else { return };
+                // Drop stale results if a new dictation has started meanwhile.
+                if app.controller().owner() == RecordingOwner::Mini {
+                    return;
+                }
+                // On success, add the improved text as the active variant; on any
+                // error fall back to the raw transcript (active stays 0).
+                if let Ok(Ok(improved)) = &res {
+                    if !improved.trim().is_empty() {
+                        if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
+                            st.push_variant(label, improved.trim().to_string());
+                        }
+                    }
+                }
+                app.deliver_active_result();
+            });
         } else {
-            panel.show_result(&cleaned, true);
+            self.deliver_active_result();
         }
         info!(
             "Global dictation complete ({:.0}% confidence)",
             outcome.confidence * 100.0
         );
+    }
+
+    /// Deliver the current result state's active text (clipboard + auto-paste or
+    /// result view), honoring the auto-paste setting. Used for the initial result.
+    fn deliver_active_result(&self) {
+        let text = self
+            .imp()
+            .last_result_state
+            .borrow()
+            .as_ref()
+            .map(|s| s.active_text().to_string())
+            .unwrap_or_default();
+        self.deliver_global_result(text);
+    }
+
+    /// Re-show the active result in the panel WITHOUT auto-pasting (used after a
+    /// chip or raw/polished switch, when the user is interacting with the panel).
+    fn show_active_result(&self) {
+        let text = self
+            .imp()
+            .last_result_state
+            .borrow()
+            .as_ref()
+            .map(|s| s.active_text().to_string())
+            .unwrap_or_default();
+        *self.imp().last_text.borrow_mut() = text.clone();
+        let panel = self.mini_panel();
+        if let Some(display) = gtk::gdk::Display::default() {
+            display.clipboard().set_text(&text);
+            display.flush();
+        }
+        panel.show_result(&text, true);
+        self.render_panel_result_extras();
+    }
+
+    /// Populate the panel's transform chips, stats line, and raw/polished selector
+    /// from the current result state + LLM config.
+    fn render_panel_result_extras(&self) {
+        let panel = self.mini_panel();
+        let cfg = self.config_snapshot();
+        let names: Vec<String> = cfg.llm_presets.iter().map(|p| p.name.clone()).collect();
+        panel.set_chip_presets(&names);
+        panel.set_chips_visible(cfg.llm_enabled);
+        panel.set_chips_sensitive(true);
+        panel.set_voice_edit_visible(cfg.llm_enabled);
+        let state = self.imp().last_result_state.borrow();
+        if let Some(st) = state.as_ref() {
+            panel.set_result_stats(st.stats.words, st.stats.wpm);
+            let labels = st.selector_labels(&crate::i18n::gettext("Raw"));
+            panel.set_variant_selector(&labels, st.active);
+        }
+    }
+
+    /// Handle a transform chip in the panel: run preset `idx` on the active text
+    /// and add the result as a new active variant (no auto-paste).
+    fn on_panel_chip(&self, idx: usize) {
+        let source = self
+            .imp()
+            .last_result_state
+            .borrow()
+            .as_ref()
+            .map(|s| s.active_text().trim().to_string())
+            .unwrap_or_default();
+        if source.is_empty() {
+            return;
+        }
+        let config = self.config_snapshot();
+        let Some(preset) = config.llm_presets.get(idx).cloned() else {
+            return;
+        };
+        let llm_cfg = resolve_llm_cfg(&config, &preset);
+        self.mini_panel().set_chips_sensitive(false);
+        let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), source);
+        let app_weak = self.downgrade();
+        let label = preset.name.clone();
+        glib::spawn_future_local(async move {
+            let res = rx.recv().await;
+            let Some(app) = app_weak.upgrade() else { return };
+            app.mini_panel().set_chips_sensitive(true);
+            if let Ok(Ok(improved)) = &res {
+                if !improved.trim().is_empty() {
+                    if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
+                        st.push_variant(label, improved.trim().to_string());
+                    }
+                    app.show_active_result();
+                }
+            }
+        });
+    }
+
+    /// Handle the panel's raw/polished selector change.
+    fn on_panel_variant(&self, idx: usize) {
+        if let Some(st) = self.imp().last_result_state.borrow_mut().as_mut() {
+            st.set_active(idx);
+        }
+        self.show_active_result();
+    }
+
+    /// Begin a Voice Edit: capture a short spoken instruction to transform the
+    /// current result's active text. Reuses the single recording controller under
+    /// a dedicated `VoiceEdit` owner so it can't collide with global dictation.
+    fn start_voice_edit(&self) {
+        let target = self
+            .imp()
+            .last_result_state
+            .borrow()
+            .as_ref()
+            .map(|s| s.active_text().trim().to_string())
+            .unwrap_or_default();
+        let panel = self.mini_panel();
+        if target.is_empty() {
+            panel.show_error(&crate::i18n::gettext("No text to edit."));
+            return;
+        }
+        let config = self.config_snapshot();
+        if !config.llm_enabled {
+            panel.show_error(&crate::i18n::gettext(
+                "Enable the LLM in Settings → LLM to use Voice edit.",
+            ));
+            return;
+        }
+        let controller = self.controller();
+        if !controller.try_acquire(RecordingOwner::VoiceEdit) {
+            return; // something else is recording
+        }
+        *self.imp().voice_edit_target.borrow_mut() = Some(target);
+
+        panel.show_recording(&crate::i18n::gettext("Speak your edit"));
+        panel.present();
+
+        let (waveform_tx, waveform_rx) = async_channel::bounded::<Vec<f32>>(32);
+        match controller.start(config.selected_microphone.as_deref(), waveform_tx) {
+            Ok(()) => {
+                let panel_weak = panel.downgrade();
+                glib::spawn_future_local(async move {
+                    while let Ok(amps) = waveform_rx.recv().await {
+                        let Some(p) = panel_weak.upgrade() else { break };
+                        p.update_waveform(amps);
+                    }
+                });
+                let app_weak = self.downgrade();
+                let panel_weak = panel.downgrade();
+                glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                    let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade()) else {
+                        return glib::ControlFlow::Break;
+                    };
+                    let controller = app.controller();
+                    if controller.owner() != RecordingOwner::VoiceEdit
+                        || controller.state() == RecordingState::Idle
+                    {
+                        return glib::ControlFlow::Break;
+                    }
+                    panel.set_timer(controller.recording_duration_secs() as f64);
+                    glib::ControlFlow::Continue
+                });
+            }
+            Err(e) => {
+                controller.release();
+                *self.imp().voice_edit_target.borrow_mut() = None;
+                panel.show_error(&format!("Couldn't start recording: {e}"));
+            }
+        }
+    }
+
+    /// Stop the Voice-edit capture and transcribe the spoken instruction.
+    fn stop_voice_edit(&self) {
+        let controller = self.controller();
+        if controller.owner() != RecordingOwner::VoiceEdit {
+            return;
+        }
+        let duration_secs = controller.recording_duration_secs();
+        let audio = match controller.stop() {
+            Ok(a) => a,
+            Err(e) => {
+                controller.release();
+                self.mini_panel().show_error(&format!("Error stopping recording: {e}"));
+                return;
+            }
+        };
+        controller.release();
+
+        let panel = self.mini_panel();
+        if audio.is_empty() {
+            panel.show_error(&crate::i18n::gettext("Didn't catch an instruction."));
+            self.show_active_result();
+            return;
+        }
+        let config = self.config_snapshot();
+        panel.show_transcribing(&panel_model_label(&config), &panel_lang_label(&config));
+
+        let params = DictationParams::from_config(&config);
+        let receiver = controller.transcribe_async(audio, params, duration_secs);
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let result = receiver.recv().await;
+            let Some(app) = app_weak.upgrade() else { return };
+            match result {
+                Ok(Ok(outcome)) => app.run_voice_edit_llm(outcome.cleaned_text),
+                Ok(Err(msg)) => app.mini_panel().show_error(&msg),
+                Err(_) => {}
+            }
+        });
+    }
+
+    /// Cancel a Voice-edit capture and restore the previous result view.
+    fn cancel_voice_edit(&self) {
+        let controller = self.controller();
+        if controller.owner() == RecordingOwner::VoiceEdit {
+            controller.cancel();
+            controller.release();
+        }
+        *self.imp().voice_edit_target.borrow_mut() = None;
+        self.show_active_result();
+    }
+
+    /// Apply the spoken instruction to the target text via the LLM and add the
+    /// result as a new "Voice edit" variant.
+    fn run_voice_edit_llm(&self, instruction: String) {
+        let instruction = instruction.trim().to_string();
+        let target = self.imp().voice_edit_target.borrow().clone().unwrap_or_default();
+        *self.imp().voice_edit_target.borrow_mut() = None;
+        let panel = self.mini_panel();
+        if instruction.is_empty() {
+            panel.show_error(&crate::i18n::gettext("Didn't catch an instruction."));
+            self.show_active_result();
+            return;
+        }
+        if target.is_empty() {
+            self.show_active_result();
+            return;
+        }
+        let config = self.config_snapshot();
+        let llm_cfg = crate::llm::LlmConfig {
+            api_url: config.llm_api_url.clone(),
+            api_key: None,
+            model: config.llm_model.clone(),
+            temperature: config.llm_temperature,
+        };
+        let system = "You are editing the user's text. Apply the user's spoken instruction to \
+                      the TARGET TEXT and reply with ONLY the edited text, preserving the original \
+                      language. Do not add explanations or quotes.";
+        let user = format!("Apply this instruction: {instruction}\n\nText:\n{target}");
+        panel.show_improving();
+        let rx = crate::llm::improve_async(llm_cfg, system.to_string(), user);
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let res = rx.recv().await;
+            let Some(app) = app_weak.upgrade() else { return };
+            match res {
+                Ok(Ok(edited)) if !edited.trim().is_empty() => {
+                    if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
+                        st.push_variant(crate::i18n::gettext("Voice edit"), edited.trim().to_string());
+                    }
+                    app.show_active_result();
+                }
+                Ok(Ok(_)) => {
+                    app.mini_panel().show_error(&crate::i18n::gettext("AI returned an empty result"));
+                }
+                Ok(Err(e)) => app.mini_panel().show_error(&e),
+                Err(_) => {}
+            }
+        });
+    }
+
+    /// Put the final text on the clipboard and either auto-paste it (re-showing
+    /// the panel afterwards) or show it in the result state.
+    fn deliver_global_result(&self, text: String) {
+        *self.imp().last_text.borrow_mut() = text.clone();
+
+        let panel = self.mini_panel();
+        if self.config_snapshot().auto_paste {
+            // Auto-paste path: the clipboard MUST be set while the panel surface
+            // holds keyboard focus. On Wayland, Mutter rejects a set_selection from
+            // an unfocused surface, so setting it here — when the user may have
+            // clicked into their editor mid-recording — silently keeps the
+            // *previous* clipboard and pastes stale text. The reshow task
+            // re-acquires focus, sets the clipboard, hides, then pastes.
+            self.spawn_autopaste_then_reshow(text);
+        } else {
+            // Non-auto-paste: the panel stays visible and focused (its preceding
+            // transcribing/improving state was presented), so the set succeeds and
+            // the manual Copy/Paste buttons can read from it.
+            if let Some(display) = gtk::gdk::Display::default() {
+                display.clipboard().set_text(&text);
+                display.flush();
+            }
+            panel.show_result(&text, true);
+            self.render_panel_result_extras();
+        }
     }
 
     fn record_global_history(&self, text: &str, outcome: &DictationOutcome) {
@@ -442,18 +880,61 @@ impl Application {
             title: ellipsize_chars(text, 60),
             text: text.to_string(),
             language: lang_name,
-            duration_secs: 0,
+            duration_secs: outcome.duration_secs.round() as u64,
             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
             model,
+            word_count: Some(crate::ui::result_state::word_count(text) as u32),
+            ..Default::default()
         };
 
         // Route through the live HistoryPage when the main window is open
         // (keeps memory + disk in sync); otherwise append to disk directly.
+        let entry_id = entry.id.clone();
         if let Some(win) = self.main_window() {
             win.add_history_entry(entry);
         } else {
             crate::ui::history_page::append_entry_to_disk(&entry);
         }
+
+        // LLM auto-title (best effort; updates the entry once it returns).
+        self.auto_title(entry_id, text.to_string());
+    }
+
+    /// When the LLM is enabled, generate a short (≤6 word) title for a saved
+    /// transcript and update the history entry once it comes back.
+    pub fn auto_title(&self, id: String, raw_text: String) {
+        let config = self.config_snapshot();
+        // Only contact the LLM automatically when auto-improve is enabled — with
+        // it off, no automatic requests are sent (titling included).
+        if !config.llm_enabled || !config.llm_auto_apply || raw_text.trim().is_empty() {
+            return;
+        }
+        let llm_cfg = crate::llm::LlmConfig {
+            api_url: config.llm_api_url.clone(),
+            api_key: None,
+            model: config.llm_model.clone(),
+            temperature: 0.2,
+        };
+        let prompt = "Give a concise title of at most 6 words for the following text. \
+                      Reply with only the title — no quotes, no trailing punctuation."
+            .to_string();
+        let rx = crate::llm::improve_async(llm_cfg, prompt, raw_text);
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            if let Ok(Ok(title)) = rx.recv().await {
+                let title = title.trim().trim_matches('"').trim().to_string();
+                if title.is_empty() {
+                    return;
+                }
+                let title = ellipsize_chars(&title, 60);
+                let Some(app) = app_weak.upgrade() else { return };
+                if let Some(win) = app.main_window() {
+                    win.history_update_title(&id, &title);
+                } else {
+                    crate::ui::history_page::update_title_on_disk(&id, &title);
+                }
+            }
+        });
     }
 
     fn cancel_global_dictation(&self) {
@@ -465,6 +946,81 @@ impl Application {
         self.close_mini_panel();
     }
 
+    /// System-wide "Transform selection with AI": read the PRIMARY selection
+    /// (falling back to the clipboard), run the active preset, put the result on
+    /// the clipboard and paste it back into the focused app.
+    ///
+    /// On Wayland we can't read an arbitrary app's live selection API, so this
+    /// uses the PRIMARY selection / clipboard text the user already highlighted
+    /// or copied.
+    fn transform_selection(&self) {
+        let config = self.config_snapshot();
+        if !config.llm_enabled || config.llm_presets.is_empty() {
+            self.mini_panel().show_error(&crate::i18n::gettext(
+                "Enable the LLM in Settings → LLM to use Transform selection.",
+            ));
+            self.mini_panel().present();
+            return;
+        }
+        let idx = config.llm_active_preset.min(config.llm_presets.len() - 1);
+        let preset = config.llm_presets[idx].clone();
+        let llm_cfg = resolve_llm_cfg(&config, &preset);
+
+        let Some(display) = gtk::gdk::Display::default() else { return };
+        let primary = display.primary_clipboard();
+        let clipboard = display.clipboard();
+
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            // Read PRIMARY first (highlighted text), then fall back to clipboard.
+            let mut text = primary
+                .read_text_future()
+                .await
+                .ok()
+                .flatten()
+                .map(|g| g.to_string())
+                .unwrap_or_default();
+            if text.trim().is_empty() {
+                text = clipboard
+                    .read_text_future()
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|g| g.to_string())
+                    .unwrap_or_default();
+            }
+            let text = text.trim().to_string();
+            let Some(app) = app_weak.upgrade() else { return };
+            if text.is_empty() {
+                let panel = app.mini_panel();
+                panel.show_error(&crate::i18n::gettext(
+                    "No selected or copied text found to transform.",
+                ));
+                panel.present();
+                return;
+            }
+
+            // Show progress on the mini panel.
+            let panel = app.mini_panel();
+            panel.set_llm_active(true);
+            panel.show_improving();
+            panel.present();
+
+            let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), text);
+            let res = rx.recv().await;
+            let Some(app) = app_weak.upgrade() else { return };
+            match res {
+                Ok(Ok(improved)) if !improved.trim().is_empty() => {
+                    app.deliver_global_result(improved.trim().to_string());
+                }
+                Ok(Err(e)) => app.mini_panel().show_error(&e),
+                _ => app
+                    .mini_panel()
+                    .show_error(&crate::i18n::gettext("AI transform failed.")),
+            }
+        });
+    }
+
     fn paste_preview_text(&self) {
         // The clipboard already holds the text; hide to return focus, then paste.
         self.close_mini_panel();
@@ -472,12 +1028,20 @@ impl Application {
     }
 
     fn copy_preview_text(&self) {
-        let text = self.imp().last_text.borrow().clone();
-        if !text.is_empty() {
-            if let Some(display) = gtk::gdk::Display::default() {
-                display.clipboard().set_text(&text);
-            }
+        // Copy exactly what's shown in the result panel; fall back to last_text.
+        let panel = self.mini_panel();
+        let mut text = panel.transcript_text();
+        if text.trim().is_empty() {
+            text = self.imp().last_text.borrow().clone();
         }
+        if text.is_empty() {
+            return;
+        }
+        if let Some(display) = gtk::gdk::Display::default() {
+            display.clipboard().set_text(&text);
+        }
+        // Give visible feedback that the copy happened.
+        panel.show_copied_badge();
     }
 
     fn close_mini_panel(&self) {
@@ -486,41 +1050,129 @@ impl Application {
         }
     }
 
-    /// Hide the panel, then (after a short delay so focus returns to the target
-    /// app) attempt a best-effort auto-paste on the Tokio runtime.
+    /// Wait until the freshly-set clipboard content is actually live, then a
+    /// short focus-settle delay, so a synthesized Ctrl+V reads the *current*
+    /// transcript and not the previously-owned clipboard content (Wayland sets
+    /// the selection asynchronously).
+    async fn await_clipboard_ready() {
+        if let Some(display) = gtk::gdk::Display::default() {
+            // Round-trip read forces GTK to process the pending set_selection.
+            let _ = display.clipboard().read_text_future().await;
+        }
+        // Give the compositor time to return focus to the target app after the
+        // panel unmapped before we inject the paste keystroke.
+        glib::timeout_future(std::time::Duration::from_millis(250)).await;
+    }
+
+    /// Hide the panel, then auto-paste the (already-set) clipboard into the
+    /// now-focused app on the Tokio runtime.
     fn spawn_autopaste(&self) {
-        glib::timeout_add_local_once(std::time::Duration::from_millis(120), || {
+        glib::spawn_future_local(async {
+            Self::await_clipboard_ready().await;
             crate::application::tokio_runtime().spawn(async {
                 let _ = crate::portal::paste::try_autopaste().await;
             });
         });
     }
 
-    /// Hide the panel, paste into the now-focused app, then re-present the panel
-    /// in the result state so the user can immediately dictate again — the
-    /// "dictate → paste → stay open → repeat" loop.
+    /// Hide the panel so keyboard focus returns to the target app, deliver the
+    /// transcript into it, then re-present the panel in the result state so the
+    /// user can immediately dictate again — the "dictate → paste → stay open →
+    /// repeat" loop.
+    ///
+    /// Primary path: the Clipboard portal owns the system selection
+    /// focus-independently (see
+    /// [`crate::portal::paste::paste_text_via_remote_desktop`]), so the *current*
+    /// transcript is pasted even when the panel never held focus — including when
+    /// the user clicked into another window mid-transcription. Fallback (compositor
+    /// without the Clipboard portal): set the GTK clipboard while the panel is
+    /// focused, then inject Ctrl+V.
     fn spawn_autopaste_then_reshow(&self, text: String) {
-        let (done_tx, done_rx) = async_channel::bounded::<()>(1);
-        // Short delay so focus returns to the target window before we paste.
-        glib::timeout_add_local_once(std::time::Duration::from_millis(120), move || {
-            crate::application::tokio_runtime().spawn(async move {
-                let _ = crate::portal::paste::try_autopaste().await;
-                let _ = done_tx.send(()).await;
-            });
-        });
-        // Once the paste finishes, bring the panel back showing the transcript.
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
-            let _ = done_rx.recv().await;
             let Some(app) = app_weak.upgrade() else { return };
-            // Don't clobber a new recording the user may have started meanwhile.
+            let panel = app.mini_panel();
+
+            // Hide so the compositor hands keyboard focus back to the previously
+            // focused app — the injected Ctrl+V must land there, not on the panel.
+            // We deliberately do NOT try to (re)focus the panel: the portal sets
+            // the clipboard without focus, which is what makes the
+            // click-into-another-window case work.
+            panel.set_visible(false);
+            glib::timeout_future(std::time::Duration::from_millis(300)).await;
+
+            // Primary: Clipboard portal + Ctrl+V on one RemoteDesktop session.
+            let (tx, rx) = async_channel::bounded::<bool>(1);
+            let portal_text = text.clone();
+            crate::application::tokio_runtime().spawn(async move {
+                let ok = crate::portal::paste::paste_text_via_remote_desktop(portal_text).await;
+                let _ = tx.send(ok).await;
+            });
+            let pasted = rx.recv().await.unwrap_or(false);
+
+            // Fallback when the compositor has no Clipboard portal: set the GTK
+            // clipboard while the panel holds focus, then inject Ctrl+V.
+            if !pasted {
+                if let Some(app) = app_weak.upgrade() {
+                    let panel = app.mini_panel();
+                    panel.set_visible(true);
+                    panel.present();
+                    Self::wait_for_panel_active(&panel, 600).await;
+                    if let Some(display) = gtk::gdk::Display::default() {
+                        display.clipboard().set_text(&text);
+                        display.flush();
+                        let _ = display.clipboard().read_text_future().await;
+                    }
+                    panel.set_visible(false);
+                    glib::timeout_future(std::time::Duration::from_millis(300)).await;
+                    let (done_tx, done_rx) = async_channel::bounded::<()>(1);
+                    crate::application::tokio_runtime().spawn(async move {
+                        let _ = crate::portal::paste::try_autopaste().await;
+                        let _ = done_tx.send(()).await;
+                    });
+                    let _ = done_rx.recv().await;
+                }
+            }
+
+            // Re-present the panel showing the transcript, unless the user has
+            // already started a new recording in the meantime.
+            let Some(app) = app_weak.upgrade() else { return };
             if app.controller().owner() == RecordingOwner::Mini {
                 return;
             }
             let panel = app.mini_panel();
+            panel.set_visible(true);
             panel.present();
             panel.show_result(&text, true);
+            app.render_panel_result_extras();
         });
+    }
+
+    /// Wait until the mini panel surface is active (has keyboard focus), up to
+    /// `timeout_ms`. Signal-driven via `notify::is-active` (present() grants focus
+    /// on the compositor's own clock, so polling would race it) with a timeout
+    /// fallback so the paste flow is never blocked indefinitely.
+    async fn wait_for_panel_active(panel: &MiniPanel, timeout_ms: u64) {
+        if panel.is_active() {
+            return;
+        }
+        let (tx, rx) = async_channel::bounded::<()>(1);
+        let handler = panel.connect_is_active_notify({
+            let tx = tx.clone();
+            move |p| {
+                if p.is_active() {
+                    let _ = tx.try_send(());
+                }
+            }
+        });
+        glib::timeout_add_local_once(
+            std::time::Duration::from_millis(timeout_ms),
+            move || {
+                let _ = tx.try_send(());
+            },
+        );
+        let _ = rx.recv().await;
+        panel.disconnect(handler);
     }
 
     fn load_css(&self) {
@@ -596,7 +1248,14 @@ impl Application {
             })
             .build();
 
-        self.add_action_entries([action_quit, action_about, action_whats_new, action_dictation]);
+        // Transform selection/clipboard with the active AI preset.
+        let action_transform = gio::ActionEntry::builder("transform-selection")
+            .activate(|app: &Self, _, _| {
+                app.transform_selection();
+            })
+            .build();
+
+        self.add_action_entries([action_quit, action_about, action_whats_new, action_dictation, action_transform]);
     }
 
     fn show_about(&self) {
@@ -705,15 +1364,39 @@ impl Application {
     }
 }
 
-/// Human-readable label for a dictation mode chip.
-fn mode_display_label(mode: DictationMode) -> String {
-    use crate::i18n::gettext;
-    match mode {
-        DictationMode::Plain => gettext("Plain"),
-        DictationMode::Message => gettext("Message"),
-        DictationMode::Email => gettext("Email"),
-        DictationMode::Note => gettext("Note"),
-        DictationMode::CodePrompt => gettext("Code Prompt"),
+/// Short language label for the mini panel meta ("Auto" or the configured code).
+fn panel_lang_label(config: &AppConfig) -> String {
+    if config.auto_detect_language {
+        crate::i18n::gettext("Auto")
+    } else {
+        config.language.clone().unwrap_or_else(|| crate::i18n::gettext("Auto"))
+    }
+}
+
+/// Build the LLM connection config for a preset, applying its per-preset
+/// model/temperature overrides over the global connection settings.
+///
+/// Canonical resolver, shared with the main window (see
+/// `MainWindow::resolve_llm_config_for_preset`).
+pub(crate) fn resolve_llm_cfg(config: &AppConfig, preset: &crate::config::LlmPreset) -> crate::llm::LlmConfig {
+    crate::llm::LlmConfig {
+        api_url: config.llm_api_url.clone(),
+        api_key: None, // loaded from the keyring inside improve_async
+        model: preset
+            .model
+            .clone()
+            .filter(|m| !m.trim().is_empty())
+            .unwrap_or_else(|| config.llm_model.clone()),
+        temperature: preset.temperature.unwrap_or(config.llm_temperature),
+    }
+}
+
+/// Model label for the mini panel meta (the active engine/model).
+fn panel_model_label(config: &AppConfig) -> String {
+    match config.backend.as_str() {
+        "cohere" => "Cohere Transcribe".to_string(),
+        "qwen" => "Qwen3-ASR".to_string(),
+        _ => config.selected_model.clone(),
     }
 }
 

@@ -1,0 +1,8 @@
+# Formatting configuration for `cargo fmt`.
+# Only stable options are used so `cargo fmt --check` works on stable toolchains
+# in CI. Run `rustup component add rustfmt` if the command is missing.
+
+edition = "2021"
+max_width = 100
+use_small_heuristics = "Default"
+newline_style = "Unix"

@@ -64,13 +64,22 @@ pub struct AppConfig {
     /// Whether to prefer quantized (q5) model variants over full models.
     pub use_quantized: bool,
 
-    /// HuggingFace token for downloading the Cohere Transcribe model (gated).
-    #[serde(default)]
+    /// Legacy plaintext HuggingFace token. Kept only so old configs can be read
+    /// and migrated into the system keyring on startup; `skip_serializing` means
+    /// it is never written back to disk in plaintext again. New code stores the
+    /// token via [`crate::secrets`].
+    #[serde(default, skip_serializing)]
     pub cohere_hf_token: Option<String>,
 
     /// Whether the floating mini panel + global dictation shortcut are enabled.
     #[serde(default = "default_true")]
     pub mini_panel_enabled: bool,
+
+    /// Best-effort "keep the mini panel above other windows". On GNOME/Mutter
+    /// Wayland no client can force always-on-top, so this only re-raises the
+    /// panel when it loses focus; it has full effect on wlroots compositors.
+    #[serde(default)]
+    pub mini_panel_always_on_top: bool,
 
     /// Preferred global shortcut trigger. This is only a *suggestion*: on
     /// GNOME/Wayland the desktop owns the real binding via the GlobalShortcuts
@@ -99,6 +108,125 @@ pub struct AppConfig {
     /// Applies to both the main window and the mini panel / global dictation.
     #[serde(default)]
     pub translate_to_english: bool,
+
+    // ── LLM integration ──────────────────────────────────────────────
+    /// Whether the LLM "Improve with AI" integration is enabled.
+    #[serde(default)]
+    pub llm_enabled: bool,
+
+    /// Set once the user has acknowledged the privacy consent for sending
+    /// transcript text to the configured LLM endpoint. Prevents re-prompting.
+    #[serde(default)]
+    pub llm_consent_given: bool,
+
+    /// OpenAI-compatible base URL (e.g. http://localhost:1234/v1).
+    #[serde(default = "default_llm_url")]
+    pub llm_api_url: String,
+
+    /// Selected model id (from the server's /models list, or typed manually).
+    #[serde(default)]
+    pub llm_model: String,
+
+    /// Default sampling temperature for LLM requests.
+    #[serde(default = "default_llm_temperature")]
+    pub llm_temperature: f32,
+
+    /// Auto-improve the transcript after every dictation (uses the active preset).
+    #[serde(default)]
+    pub llm_auto_apply: bool,
+
+    /// Index of the active preset in `llm_presets`.
+    #[serde(default)]
+    pub llm_active_preset: usize,
+
+    /// Editable prompt presets.
+    #[serde(default = "default_llm_presets")]
+    pub llm_presets: Vec<LlmPreset>,
+
+    /// Preferred global shortcut for "transform selection/clipboard with AI".
+    #[serde(default = "default_selection_shortcut")]
+    pub llm_selection_shortcut: String,
+
+    /// Whether the transform-selection global shortcut is registered.
+    #[serde(default)]
+    pub llm_selection_enabled: bool,
+
+    /// Selected Qwen3-ASR model size ("0.6B" = small/fast, "1.7B" = full).
+    #[serde(default = "default_qwen_model_size")]
+    pub qwen_model_size: String,
+
+    /// Whether to check GitHub for a newer release at startup. This is the only
+    /// automatic network request the app makes on its own (it leaks IP/timing/
+    /// version to GitHub), so it is exposed as a setting. Defaults to on to
+    /// preserve existing behaviour; users can disable it in Settings.
+    #[serde(default = "default_true")]
+    pub update_check_enabled: bool,
+
+    /// Personal-dictionary vocabulary hints (names, jargon, acronyms). Fed into
+    /// Whisper's initial prompt to bias recognition toward these terms.
+    #[serde(default)]
+    pub dictionary_terms: Vec<String>,
+
+    /// Personal-dictionary "heard → correct" replacement pairs, applied to the
+    /// transcript after recognition (e.g. consistent spelling of names).
+    #[serde(default)]
+    pub dictionary_replacements: Vec<DictReplacement>,
+
+    /// Master switch for the personal dictionary (terms + replacements).
+    #[serde(default = "default_true")]
+    pub dictionary_enabled: bool,
+
+    /// Show transcription text live as it decodes (Whisper only). Off by default;
+    /// the final result is always the full-context decode.
+    #[serde(default)]
+    pub live_transcription: bool,
+}
+
+/// One personal-dictionary replacement rule: replace `from` with `to`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DictReplacement {
+    pub from: String,
+    pub to: String,
+    /// Only replace whole words (token must be bounded by non-alphanumerics).
+    #[serde(default)]
+    pub whole_word: bool,
+    /// Match case-sensitively (default: case-insensitive).
+    #[serde(default)]
+    pub case_sensitive: bool,
+}
+
+/// An editable LLM prompt preset (with optional per-preset overrides).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmPreset {
+    pub name: String,
+    pub prompt: String,
+    /// Per-preset model override (None = use the global model).
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Per-preset temperature override (None = use the global temperature).
+    #[serde(default)]
+    pub temperature: Option<f32>,
+    /// When `Some(lang)`, this is a translate preset; the prompt is generated.
+    #[serde(default)]
+    pub translate_to: Option<String>,
+}
+
+impl LlmPreset {
+    /// The effective system prompt. For translate presets the editable `prompt`
+    /// is used as a template with `{lang}` substituted from `translate_to`
+    /// (falling back to a built-in template when the prompt is empty).
+    pub fn system_prompt(&self) -> String {
+        if let Some(lang) = self.translate_to.as_deref() {
+            let base = if self.prompt.trim().is_empty() {
+                "Translate the following text to {lang}. Reply with only the translation, no notes."
+            } else {
+                self.prompt.as_str()
+            };
+            base.replace("{lang}", lang)
+        } else {
+            self.prompt.clone()
+        }
+    }
 }
 
 impl Default for AppConfig {
@@ -122,12 +250,73 @@ impl Default for AppConfig {
             use_quantized: false,
             cohere_hf_token: None,
             mini_panel_enabled: true,
+            mini_panel_always_on_top: false,
             global_shortcut: default_global_shortcut(),
-            auto_paste: true,
+            // New installs default to clipboard-only. Auto-typing into the focused
+            // app needs the RemoteDesktop portal permission, so it is opt-in (with
+            // a consent prompt on enable). Existing users keep their saved setting:
+            // the field is already present in their config, so this default does
+            // not override it, and configs predating the field keep auto-paste on
+            // via `default_true` (their prior behaviour).
+            auto_paste: false,
             dictation_mode: default_dictation_mode(),
             start_hidden: false,
             translate_to_english: false,
+            llm_enabled: false,
+            llm_consent_given: false,
+            llm_api_url: default_llm_url(),
+            llm_model: String::new(),
+            llm_temperature: default_llm_temperature(),
+            llm_auto_apply: false,
+            llm_active_preset: 0,
+            llm_presets: default_llm_presets(),
+            llm_selection_shortcut: default_selection_shortcut(),
+            llm_selection_enabled: false,
+            qwen_model_size: default_qwen_model_size(),
+            update_check_enabled: true,
+            dictionary_terms: Vec::new(),
+            dictionary_replacements: Vec::new(),
+            dictionary_enabled: true,
+            live_transcription: false,
         }
+    }
+}
+
+impl AppConfig {
+    /// The Whisper initial prompt to use, merging the user's free-text
+    /// `initial_prompt` with the personal-dictionary terms (when enabled). The
+    /// result is capped to keep within Whisper's ~224 prompt-token budget
+    /// (roughly 800 characters); extra terms are dropped.
+    pub fn effective_initial_prompt(&self) -> Option<String> {
+        // ~3.5 chars/token × 224 tokens, with headroom for the user's own prompt.
+        const MAX_PROMPT_CHARS: usize = 800;
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(p) = self.initial_prompt.as_ref() {
+            let p = p.trim();
+            if !p.is_empty() {
+                parts.push(p.to_string());
+            }
+        }
+        if self.dictionary_enabled {
+            let terms: Vec<&str> = self
+                .dictionary_terms
+                .iter()
+                .map(|t| t.trim())
+                .filter(|t| !t.is_empty())
+                .collect();
+            if !terms.is_empty() {
+                parts.push(terms.join(", "));
+            }
+        }
+        if parts.is_empty() {
+            return None;
+        }
+        let mut combined = parts.join(" ");
+        if combined.chars().count() > MAX_PROMPT_CHARS {
+            combined = combined.chars().take(MAX_PROMPT_CHARS).collect();
+            tracing::warn!("Initial prompt + dictionary terms exceeded the prompt budget; truncated.");
+        }
+        Some(combined)
     }
 }
 
@@ -154,6 +343,48 @@ fn default_global_shortcut() -> String {
 /// Default dictation mode for serde deserialization of old configs.
 fn default_dictation_mode() -> String {
     "plain".to_string()
+}
+
+/// Default OpenAI-compatible base URL (LM Studio's default).
+fn default_llm_url() -> String {
+    "http://localhost:1234/v1".to_string()
+}
+
+/// Default LLM sampling temperature.
+fn default_llm_temperature() -> f32 {
+    0.3
+}
+
+/// Default global shortcut for transform-selection.
+fn default_selection_shortcut() -> String {
+    "<Ctrl><Alt>i".to_string()
+}
+
+/// Default Qwen3-ASR model size (the small/fast 0.6B model).
+fn default_qwen_model_size() -> String {
+    "0.6B".to_string()
+}
+
+/// Built-in prompt presets shipped with the app.
+fn default_llm_presets() -> Vec<LlmPreset> {
+    let p = |name: &str, prompt: &str| LlmPreset {
+        name: name.to_string(),
+        prompt: prompt.to_string(),
+        model: None,
+        temperature: None,
+        translate_to: None,
+    };
+    vec![
+        p("Clean up", "You are cleaning up a raw speech-to-text transcript that may contain mis-heard words, wrong homophones, missing or wrong punctuation, and run-on sentences. Fix grammar, punctuation, capitalization and spacing, and where a word or phrase clearly does not fit, infer what the speaker most likely meant and correct it. Preserve the original language, meaning and tone. Reply with only the corrected text."),
+        p("Key points", "Rewrite the following into a short list of key points, in the same language. Reply with only the bullet points."),
+        p("Formal", "Rewrite the following in a clear, formal tone, preserving the original language and meaning. Reply with only the rewritten text."),
+        p("Short", "Rewrite the following to be as short as possible while keeping the essential meaning, in the same language. Reply with only the shortened text."),
+        p("Long", "Expand the following into a more detailed, well-developed version, preserving the original language and intent without inventing facts. Reply with only the expanded text."),
+        p("Professional email", "Rewrite the following as a clear, polite, professional email. Keep the original language. Reply with only the email body."),
+        p("Summary (bullets)", "Summarize the following into concise bullet points, in the same language. Reply with only the summary."),
+        LlmPreset { name: "Translate".into(), prompt: "Translate the following text to {lang}. Reply with only the translation, no notes.".into(), model: None, temperature: None, translate_to: Some("English".into()) },
+        p("Code prompt", "Turn the following into a concise, well-structured coding instruction. Remove filler words. Reply with only the instruction."),
+    ]
 }
 
 
@@ -187,8 +418,15 @@ impl AppConfig {
             match std::fs::read_to_string(&config_path) {
                 Ok(contents) => {
                     match serde_json::from_str::<AppConfig>(&contents) {
-                        Ok(config) => {
+                        Ok(mut config) => {
                             info!("Loaded configuration from {:?}", config_path);
+                            // One-time migration of the built-in prompt presets to
+                            // their newer defaults (only if still unedited).
+                            if config.migrate_builtin_presets() {
+                                if let Ok(json) = serde_json::to_string_pretty(&config) {
+                                    let _ = crate::fsio::write_private(&config_path, json.as_bytes());
+                                }
+                            }
                             return config;
                         }
                         Err(e) => {
@@ -213,40 +451,68 @@ impl AppConfig {
         *CONFIG_CACHE.write().unwrap_or_else(|e| e.into_inner()) = Some(self.clone());
         let config_path = Self::config_file_path();
 
-        if let Some(parent) = config_path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                warn!("Failed to create config directory: {}", e);
-                return;
-            }
-
-            // Set directory permissions (Unix only)
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
-            }
-        }
-
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
-                if let Err(e) = std::fs::write(&config_path, &json) {
+                // Atomic, private (0600) write into a 0700 directory — the config
+                // can hold an endpoint URL / model name and should not be readable
+                // by other local users, and a crash mid-write must not corrupt it.
+                if let Err(e) = crate::fsio::write_private(&config_path, json.as_bytes()) {
                     warn!("Failed to write config file: {}", e);
                     return;
                 }
-
-                // Set file permissions (Unix only)
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o600));
-                }
-
                 info!("Saved configuration to {:?}", config_path);
             }
             Err(e) => {
                 warn!("Failed to serialize config: {}", e);
             }
         }
+    }
+
+    /// Update the built-in "Clean up" and "Translate" presets to their newer
+    /// default prompts, but only when the user hasn't edited them (the stored
+    /// prompt still matches the old default / is empty for Translate). Returns
+    /// `true` if anything changed. This brings existing configs in line with the
+    /// improved defaults without clobbering user customizations.
+    fn migrate_builtin_presets(&mut self) -> bool {
+        const OLD_CLEANUP: &str = "Clean up the following transcribed text: fix grammar, punctuation and capitalization. Keep the meaning and the original language. Reply with only the corrected text.";
+        let defaults = default_llm_presets();
+        let new_cleanup = defaults.iter().find(|p| p.name == "Clean up").map(|p| p.prompt.clone());
+        let new_translate = defaults
+            .iter()
+            .find(|p| p.translate_to.is_some())
+            .map(|p| p.prompt.clone());
+
+        let mut changed = false;
+        for p in self.llm_presets.iter_mut() {
+            // "Clean up": replace the old stock prompt with the improved one.
+            if p.name == "Clean up" && p.prompt == OLD_CLEANUP {
+                if let Some(np) = new_cleanup.as_ref() {
+                    p.prompt = np.clone();
+                    changed = true;
+                }
+            }
+            // Translate presets that have no editable prompt yet: seed the
+            // editable "{lang}" template so it shows in the settings UI.
+            if p.translate_to.is_some() && p.prompt.trim().is_empty() {
+                if let Some(np) = new_translate.as_ref() {
+                    p.prompt = np.clone();
+                    changed = true;
+                }
+            }
+        }
+
+        // Append the newer one-tap "chip" presets (Key points / Formal / Short /
+        // Long) to configs created before they existed, so the transform chips
+        // include them. Appended (not inserted) to preserve existing indices.
+        for name in ["Key points", "Formal", "Short", "Long"] {
+            if !self.llm_presets.iter().any(|p| p.name == name) {
+                if let Some(def) = defaults.iter().find(|p| p.name == name) {
+                    self.llm_presets.push(def.clone());
+                    changed = true;
+                }
+            }
+        }
+        changed
     }
 
     /// Path to the configuration file.
@@ -257,23 +523,30 @@ impl AppConfig {
     /// Configuration directory (~/.config/speech-to-text/).
     pub fn config_dir() -> PathBuf {
         dirs::config_dir()
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("/tmp"))
-                    .join(".config")
-            })
+            .or_else(|| dirs::home_dir().map(|h| h.join(".config")))
+            .unwrap_or_else(Self::private_fallback_base)
             .join("speech-to-text")
     }
 
     /// Data directory for models (~/.local/share/speech-to-text/).
     pub fn data_dir() -> PathBuf {
         dirs::data_dir()
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("/tmp"))
-                    .join(".local/share")
-            })
+            .or_else(|| dirs::home_dir().map(|h| h.join(".local/share")))
+            .unwrap_or_else(Self::private_fallback_base)
             .join("speech-to-text")
+    }
+
+    /// Last-resort base directory when no XDG/HOME directory can be determined.
+    /// Never `/tmp`: that is world-writable and predictable, so another local
+    /// user could pre-create our paths and read transcripts/secrets. Prefer the
+    /// per-user `$XDG_RUNTIME_DIR` (already mode 0700); otherwise a private
+    /// directory under the current working directory. `fsio::write_private`
+    /// further enforces 0700 on whatever directory we end up using.
+    fn private_fallback_base() -> PathBuf {
+        if let Some(rt) = std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty()) {
+            return PathBuf::from(rt);
+        }
+        PathBuf::from(".speech-to-text")
     }
 
     /// Directory where Whisper models are stored.
@@ -361,6 +634,85 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dictionary_fields_round_trip_and_legacy_loads() {
+        // Old config without the dictionary fields must still deserialize.
+        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+        value.as_object_mut().unwrap().remove("dictionary_terms");
+        value.as_object_mut().unwrap().remove("dictionary_replacements");
+        value.as_object_mut().unwrap().remove("dictionary_enabled");
+        let raw = serde_json::to_string(&value).unwrap();
+        let cfg: AppConfig = serde_json::from_str(&raw).expect("legacy deserialize");
+        assert!(cfg.dictionary_enabled, "missing field defaults to enabled");
+        assert!(cfg.dictionary_terms.is_empty());
+
+        // Round-trip with content.
+        let mut cfg = AppConfig::default();
+        cfg.dictionary_terms = vec!["Kubernetes".into(), "Daggas".into()];
+        cfg.dictionary_replacements = vec![DictReplacement {
+            from: "cube".into(), to: "Kube".into(), whole_word: true, case_sensitive: false,
+        }];
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.dictionary_terms.len(), 2);
+        assert_eq!(back.dictionary_replacements[0].to, "Kube");
+        assert!(back.dictionary_replacements[0].whole_word);
+    }
+
+    #[test]
+    fn effective_initial_prompt_merges_and_caps() {
+        let mut cfg = AppConfig::default();
+        cfg.initial_prompt = Some("My meeting notes.".into());
+        cfg.dictionary_terms = vec!["Kubernetes".into(), "Daggas".into()];
+        let p = cfg.effective_initial_prompt().unwrap();
+        assert!(p.contains("My meeting notes."));
+        assert!(p.contains("Kubernetes") && p.contains("Daggas"));
+
+        // Disabling the dictionary drops the terms.
+        cfg.dictionary_enabled = false;
+        let p = cfg.effective_initial_prompt().unwrap();
+        assert!(!p.contains("Kubernetes"));
+
+        // No prompt + no terms → None.
+        let empty = AppConfig { initial_prompt: None, dictionary_terms: vec![], ..AppConfig::default() };
+        assert!(empty.effective_initial_prompt().is_none());
+
+        // Cap is enforced.
+        let cfg = AppConfig {
+            initial_prompt: None,
+            dictionary_terms: vec!["x".repeat(2000)],
+            ..AppConfig::default()
+        };
+        assert!(cfg.effective_initial_prompt().unwrap().chars().count() <= 800);
+    }
+
+    #[test]
+    fn legacy_token_is_read_but_never_serialized() {
+        // An old config with a plaintext token must still parse (so we can
+        // migrate it into the keyring) but must never be written back out.
+        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+        value["cohere_hf_token"] = serde_json::Value::String("hf_secretvalue".into());
+        let raw = serde_json::to_string(&value).unwrap();
+
+        let cfg: AppConfig = serde_json::from_str(&raw).expect("deserialize legacy");
+        assert_eq!(cfg.cohere_hf_token.as_deref(), Some("hf_secretvalue"));
+
+        let json = serde_json::to_string(&cfg).expect("serialize");
+        assert!(
+            !json.contains("cohere_hf_token") && !json.contains("hf_secretvalue"),
+            "legacy plaintext token was re-serialized: {json}"
+        );
+    }
+
+    #[test]
+    fn new_install_defaults_are_privacy_preserving() {
+        let cfg = AppConfig::default();
+        assert!(!cfg.auto_paste, "auto-paste should be off for new installs");
+        assert!(!cfg.llm_enabled);
+        assert!(!cfg.llm_consent_given);
+        assert!(cfg.update_check_enabled, "update check defaults on (documented)");
+    }
+
+    #[test]
     fn serde_round_trip_preserves_performance_fields() {
         let mut config = AppConfig::default();
         config.use_gpu = true;
@@ -405,17 +757,28 @@ mod tests {
         assert!(config.auto_detect_language); // default_true
         // Mini panel fields must also default cleanly for pre-existing configs.
         assert!(config.mini_panel_enabled);
+        assert!(!config.mini_panel_always_on_top);
         assert_eq!(config.global_shortcut, "<Ctrl><Alt>space");
         assert!(config.auto_paste); // type-into-app on by default
         assert_eq!(config.dictation_mode, "plain");
         assert!(!config.start_hidden);
         assert!(!config.translate_to_english);
+        // LLM fields default cleanly for pre-existing configs.
+        assert!(!config.llm_enabled);
+        assert_eq!(config.llm_api_url, "http://localhost:1234/v1");
+        assert_eq!(config.llm_model, "");
+        assert!((config.llm_temperature - 0.3).abs() < f32::EPSILON);
+        assert!(!config.llm_auto_apply);
+        assert_eq!(config.llm_active_preset, 0);
+        assert!(!config.llm_presets.is_empty()); // built-in presets
+        assert!(!config.llm_selection_enabled);
     }
 
     #[test]
     fn serde_round_trip_preserves_mini_panel_fields() {
         let mut config = AppConfig::default();
         config.mini_panel_enabled = false;
+        config.mini_panel_always_on_top = true;
         config.global_shortcut = "<Super>d".into();
         config.auto_paste = false;
         config.dictation_mode = "email".into();
@@ -424,8 +787,77 @@ mod tests {
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize");
 
         assert!(!restored.mini_panel_enabled);
+        assert!(restored.mini_panel_always_on_top);
         assert_eq!(restored.global_shortcut, "<Super>d");
         assert!(!restored.auto_paste);
         assert_eq!(restored.dictation_mode, "email");
+    }
+
+    #[test]
+    fn serde_round_trip_preserves_llm_fields() {
+        let mut config = AppConfig::default();
+        config.llm_enabled = true;
+        config.llm_api_url = "http://localhost:11434/v1".into();
+        config.llm_model = "llama3.1:8b".into();
+        config.llm_temperature = 0.7;
+        config.llm_auto_apply = true;
+        config.llm_active_preset = 2;
+        config.llm_selection_enabled = true;
+        config.llm_presets = vec![crate::config::LlmPreset {
+            name: "T".into(),
+            prompt: "Translate the following text to {lang}.".into(),
+            model: Some("m".into()),
+            temperature: Some(0.1),
+            translate_to: Some("French".into()),
+        }];
+
+        let json = serde_json::to_string(&config).expect("serialize");
+        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize");
+
+        assert!(restored.llm_enabled);
+        assert_eq!(restored.llm_api_url, "http://localhost:11434/v1");
+        assert_eq!(restored.llm_model, "llama3.1:8b");
+        assert!((restored.llm_temperature - 0.7).abs() < f32::EPSILON);
+        assert!(restored.llm_auto_apply);
+        assert_eq!(restored.llm_active_preset, 2);
+        assert!(restored.llm_selection_enabled);
+        assert_eq!(restored.llm_presets.len(), 1);
+        assert_eq!(restored.llm_presets[0].translate_to.as_deref(), Some("French"));
+        assert_eq!(restored.llm_presets[0].model.as_deref(), Some("m"));
+        // Translate preset substitutes {lang} from translate_to into the prompt.
+        assert!(restored.llm_presets[0].system_prompt().contains("French"));
+        assert!(!restored.llm_presets[0].system_prompt().contains("{lang}"));
+    }
+
+    #[test]
+    fn migration_updates_old_builtin_presets_only() {
+        let mut c = AppConfig::default();
+        c.llm_presets = vec![
+            // Old stock "Clean up" prompt.
+            LlmPreset {
+                name: "Clean up".into(),
+                prompt: "Clean up the following transcribed text: fix grammar, punctuation and capitalization. Keep the meaning and the original language. Reply with only the corrected text.".into(),
+                model: None, temperature: None, translate_to: None,
+            },
+            // Old Translate preset with an empty (locked) prompt.
+            LlmPreset {
+                name: "Translate".into(),
+                prompt: String::new(),
+                model: None, temperature: None, translate_to: Some("English".into()),
+            },
+            // A user-customized preset — must be left untouched.
+            LlmPreset {
+                name: "Clean up".into(),
+                prompt: "my own edited prompt".into(),
+                model: None, temperature: None, translate_to: None,
+            },
+        ];
+
+        assert!(c.migrate_builtin_presets());
+        assert!(c.llm_presets[0].prompt.contains("speech-to-text")); // improved Clean up
+        assert!(c.llm_presets[1].prompt.contains("{lang}")); // translate template seeded
+        assert_eq!(c.llm_presets[2].prompt, "my own edited prompt"); // untouched
+        // Idempotent: a second run changes nothing.
+        assert!(!c.migrate_builtin_presets());
     }
 }

@@ -54,14 +54,33 @@ pub fn cohere_ready() -> bool {
     is_runtime_installed() && is_model_downloaded()
 }
 
+/// Delete the downloaded Cohere runtime (binary + libraries) from disk.
+pub fn delete_runtime() -> AppResult<()> {
+    let dir = cohere_runtime_dir();
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    Ok(())
+}
+
+/// Delete the downloaded Cohere model weights from disk.
+pub fn delete_model() -> AppResult<()> {
+    let dir = cohere_model_dir();
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    Ok(())
+}
+
 /// Download and extract the Cohere runtime (~123 MB).
+#[tracing::instrument(name = "download.cohere_runtime", skip_all)]
 pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
     let dir = cohere_runtime_dir();
     std::fs::create_dir_all(&dir)?;
 
     let zip_path = dir.join("runtime.zip");
 
-    let client = reqwest::Client::new();
+    let client = super::download_client();
     let resp = client
         .get(RUNTIME_URL)
         .send()
@@ -85,12 +104,44 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
             .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
+        if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {
+            drop(file);
+            let _ = std::fs::remove_file(&zip_path);
+            return Err(AppError::ModelDownloadFailed(
+                "Runtime download exceeded the maximum allowed size.".into(),
+            ));
+        }
         progress(downloaded, total);
     }
     file.flush().await?;
     drop(file);
 
-    extract_zip(&zip_path, &dir)?;
+    // Verify the runtime archive against GitHub's published digest before we
+    // extract and execute anything from it. Fail closed on mismatch.
+    match super::verify::github_asset_sha256(
+        &client,
+        "second-state",
+        "cohere_transcribe_rs",
+        "v0.1.1",
+        "transcribe-linux-x86_64.zip",
+    )
+    .await
+    {
+        Some(sha) => super::verify::verify_file(&zip_path, &sha)?,
+        None => tracing::warn!(
+            "No published checksum available for the Cohere runtime; extracting without integrity verification."
+        ),
+    }
+
+    // Extraction is CPU/IO-bound and uses blocking std::fs — run it off the
+    // async runtime so it can't stall other tasks.
+    {
+        let zip_c = zip_path.clone();
+        let dir_c = dir.clone();
+        tokio::task::spawn_blocking(move || extract_zip(&zip_c, &dir_c))
+            .await
+            .map_err(|e| AppError::ModelDownloadFailed(format!("extraction task failed: {e}")))??;
+    }
 
     #[cfg(unix)]
     {
@@ -115,11 +166,12 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
 }
 
 /// Download Cohere model weights from HuggingFace (~4.1 GB, requires token).
+#[tracing::instrument(name = "download.cohere_model", skip_all)]
 pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppResult<()> {
     let dir = cohere_model_dir();
     std::fs::create_dir_all(&dir)?;
 
-    let client = reqwest::Client::new();
+    let client = super::download_client();
 
     // model.safetensors (~4.1 GB) — reports progress, skip if already exists
     let safetensors = dir.join("model.safetensors");
@@ -196,9 +248,21 @@ pub fn transcribe_via_cli(
         ));
     }
 
-    let wav_data = encode_wav_16bit(audio, 16000);
-    let temp_wav = std::env::temp_dir().join(format!("stt-cohere-{}.wav", std::process::id()));
-    std::fs::write(&temp_wav, &wav_data)?;
+    let wav_data = super::encode_wav_16bit(audio, 16000);
+    // Exclusive, random-named, 0600 temp file (RAII cleanup); kept alive until
+    // the sidecar exits.
+    let mut tmp = tempfile::Builder::new()
+        .prefix("stt-cohere-")
+        .suffix(".wav")
+        .tempfile()
+        .map_err(|e| AppError::Transcription(format!("Failed to create temp file: {e}")))?;
+    {
+        use std::io::Write;
+        tmp.write_all(&wav_data)
+            .and_then(|_| tmp.flush())
+            .map_err(|e| AppError::Transcription(format!("Failed to write temp audio: {e}")))?;
+    }
+    let temp_wav = tmp.path().to_path_buf();
 
     let binary = cohere_runtime_dir().join("transcribe");
     let model_dir = cohere_model_dir();
@@ -222,7 +286,7 @@ pub fn transcribe_via_cli(
         .output()
         .map_err(|e| AppError::Transcription(format!("Failed to run transcribe binary: {}", e)))?;
 
-    let _ = std::fs::remove_file(&temp_wav);
+    drop(tmp); // RAII removes the temp WAV
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -292,6 +356,13 @@ async fn download_hf_file(
             .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
+        if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {
+            drop(file);
+            let _ = tokio::fs::remove_file(&partial).await;
+            return Err(AppError::ModelDownloadFailed(
+                "Download exceeded the maximum allowed size.".into(),
+            ));
+        }
         progress(downloaded, total);
     }
     file.flush().await?;
@@ -318,31 +389,8 @@ async fn download_hf_file(
 }
 
 fn extract_zip(zip_path: &Path, dest: &Path) -> AppResult<()> {
-    let file = std::fs::File::open(zip_path)?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to open zip: {}", e)))?;
-
-    for i in 0..archive.len() {
-        let mut entry = archive
-            .by_index(i)
-            .map_err(|e| AppError::ModelDownloadFailed(format!("Zip read error: {}", e)))?;
-
-        let name = entry.name().replace('\\', "/");
-        if name.contains("..") || name.starts_with('/') {
-            continue;
-        }
-
-        let out_path = dest.join(&name);
-        if entry.is_dir() {
-            std::fs::create_dir_all(&out_path)?;
-        } else {
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let mut out_file = std::fs::File::create(&out_path)?;
-            std::io::copy(&mut entry, &mut out_file)?;
-        }
-    }
+    // Hardened extraction (path-traversal/zip-bomb/symlink safe).
+    super::archive::safe_extract_zip(zip_path, dest)?;
 
     // If the binary ended up in a subdirectory, flatten it
     if !dest.join("transcribe").exists() {
@@ -379,40 +427,4 @@ fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
         }
     }
     None
-}
-
-/// Encode f32 PCM samples as a 16-bit WAV file in memory.
-fn encode_wav_16bit(samples: &[f32], sample_rate: u32) -> Vec<u8> {
-    let num_samples = samples.len();
-    let data_size = (num_samples * 2) as u32;
-    let file_size = 36 + data_size;
-
-    let mut buf = Vec::with_capacity(file_size as usize + 8);
-
-    // RIFF header
-    buf.extend_from_slice(b"RIFF");
-    buf.extend_from_slice(&file_size.to_le_bytes());
-    buf.extend_from_slice(b"WAVE");
-
-    // fmt chunk
-    buf.extend_from_slice(b"fmt ");
-    buf.extend_from_slice(&16u32.to_le_bytes());
-    buf.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    buf.extend_from_slice(&1u16.to_le_bytes()); // mono
-    buf.extend_from_slice(&sample_rate.to_le_bytes());
-    buf.extend_from_slice(&(sample_rate * 2).to_le_bytes()); // byte rate
-    buf.extend_from_slice(&2u16.to_le_bytes()); // block align
-    buf.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-
-    // data chunk
-    buf.extend_from_slice(b"data");
-    buf.extend_from_slice(&data_size.to_le_bytes());
-
-    for &sample in samples {
-        let clamped = sample.clamp(-1.0, 1.0);
-        let val = (clamped * 32767.0) as i16;
-        buf.extend_from_slice(&val.to_le_bytes());
-    }
-
-    buf
 }

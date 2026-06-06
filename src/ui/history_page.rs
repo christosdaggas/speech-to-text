@@ -12,10 +12,14 @@ use gtk4 as gtk;
 use libadwaita as adw;
 use adw::subclass::prelude::*;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// A single history entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// Newer optional fields use `#[serde(default)]` so history files written by
+/// older builds (which lacked them) still deserialize cleanly.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub id: String,
     pub title: String,
@@ -24,6 +28,15 @@ pub struct HistoryEntry {
     pub duration_secs: u64,
     pub timestamp: String,
     pub model: String,
+    /// Word count of the raw transcript (for the session-stats display).
+    #[serde(default)]
+    pub word_count: Option<u32>,
+    /// The AI-polished version, when the user produced one ("Improve"/chips).
+    #[serde(default)]
+    pub polished_text: Option<String>,
+    /// LLM summary of long file transcripts, when generated.
+    #[serde(default)]
+    pub summary: Option<String>,
 }
 
 mod imp {
@@ -35,6 +48,8 @@ mod imp {
         pub search_entry: RefCell<Option<gtk::SearchEntry>>,
         pub empty_status: RefCell<Option<adw::StatusPage>>,
         pub entries: RefCell<Vec<HistoryEntry>>,
+        /// Map of entry id → its visible row (so titles can be updated in place).
+        pub rows: RefCell<HashMap<String, adw::ActionRow>>,
     }
 
     #[glib::object_subclass]
@@ -99,7 +114,7 @@ impl HistoryPage {
         let page_weak = self.downgrade();
         clear_all_btn.connect_clicked(move |_| {
             if let Some(page) = page_weak.upgrade() {
-                page.clear_all();
+                page.confirm_clear_all();
             }
         });
         header_box.append(&clear_all_btn);
@@ -167,6 +182,28 @@ impl HistoryPage {
         self.save_history();
     }
 
+    /// Ask for confirmation before clearing all history (it cannot be undone).
+    pub fn confirm_clear_all(&self) {
+        let dialog = adw::AlertDialog::new(
+            Some(gettext("Clear all history?").as_str()),
+            Some(gettext(
+                "This permanently deletes every saved transcription. This cannot be undone.",
+            ).as_str()),
+        );
+        dialog.add_response("cancel", gettext("Cancel").as_str());
+        dialog.add_response("clear", gettext("Clear All").as_str());
+        dialog.set_response_appearance("clear", adw::ResponseAppearance::Destructive);
+        dialog.set_default_response(Some("cancel"));
+        dialog.set_close_response("cancel");
+
+        let page = self.clone();
+        dialog.choose(self, gtk::gio::Cancellable::NONE, move |resp| {
+            if resp.as_str() == "clear" {
+                page.clear_all();
+            }
+        });
+    }
+
     /// Clear all history entries.
     pub fn clear_all(&self) {
         let imp = self.imp();
@@ -181,12 +218,20 @@ impl HistoryPage {
 
     /// Add a UI row for an entry (used by both add_entry and load_history).
     fn add_entry_row(&self, list_box: &gtk::ListBox, entry: &HistoryEntry) {
+        let mut subtitle = format!(
+            "{} • {} • {}",
+            entry.timestamp, entry.language, format_duration(entry.duration_secs)
+        );
+        // Word count (and words-per-minute when the clip is long enough).
+        if let Some(words) = entry.word_count {
+            subtitle.push_str(&format!(" • {} {}", words, gettext("words")));
+            if let Some(wpm) = crate::ui::result_state::wpm(words as usize, entry.duration_secs as f32) {
+                subtitle.push_str(&format!(" · {} wpm", wpm));
+            }
+        }
         let row = adw::ActionRow::builder()
             .title(&entry.title)
-            .subtitle(&format!(
-                "{} • {} • {}",
-                entry.timestamp, entry.language, format_duration(entry.duration_secs)
-            ))
+            .subtitle(&subtitle)
             .activatable(true)
             .build();
 
@@ -232,20 +277,37 @@ impl HistoryPage {
         row.add_suffix(&delete_btn);
 
         list_box.prepend(&row);
+        self.imp().rows.borrow_mut().insert(entry.id.clone(), row);
+    }
+
+    /// Update the title of an existing entry (in memory, on disk, and in the UI
+    /// row if visible). Used by the LLM auto-title feature.
+    pub fn update_entry_title(&self, id: &str, title: &str) {
+        let imp = self.imp();
+        let mut changed = false;
+        if let Some(e) = imp.entries.borrow_mut().iter_mut().find(|e| e.id == id) {
+            e.title = title.to_string();
+            changed = true;
+        }
+        if let Some(row) = imp.rows.borrow().get(id) {
+            row.set_title(title);
+        }
+        if changed {
+            self.save_history();
+        }
     }
 
     /// Persist history entries to disk as JSON.
     fn save_history(&self) {
+        let _guard = HISTORY_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let entries = self.imp().entries.borrow();
-        let history_dir = crate::config::AppConfig::history_dir();
-        if let Err(e) = std::fs::create_dir_all(&history_dir) {
-            tracing::warn!("Failed to create history dir: {}", e);
-            return;
-        }
-        let path = history_dir.join("history.json");
+        let path = crate::config::AppConfig::history_dir().join("history.json");
         match serde_json::to_string_pretty(&*entries) {
+            // Transcripts are personal data: write privately (0600 in a 0700 dir)
+            // and atomically so other local users can't read them and a crash
+            // can't corrupt the file.
             Ok(json) => {
-                if let Err(e) = std::fs::write(&path, &json) {
+                if let Err(e) = crate::fsio::write_private(&path, json.as_bytes()) {
                     tracing::warn!("Failed to write history: {}", e);
                 }
             }
@@ -284,6 +346,12 @@ impl HistoryPage {
     }
 }
 
+/// Serializes all history-file read-modify-write sequences so a background
+/// append (global dictation while the window is closed) and an auto-title update
+/// can't clobber each other's changes. Atomic writes prevent *corruption*; this
+/// prevents a *lost update*.
+static HISTORY_FILE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Append a single entry to the on-disk history file.
 ///
 /// Use this ONLY when no [`HistoryPage`] is loaded in memory (e.g. a global
@@ -292,12 +360,8 @@ impl HistoryPage {
 /// in-memory list and disk in sync — otherwise a later `save_history()` would
 /// overwrite a directly-appended entry.
 pub fn append_entry_to_disk(entry: &HistoryEntry) {
-    let history_dir = crate::config::AppConfig::history_dir();
-    if let Err(e) = std::fs::create_dir_all(&history_dir) {
-        tracing::warn!("Failed to create history dir: {}", e);
-        return;
-    }
-    let path = history_dir.join("history.json");
+    let _guard = HISTORY_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let path = crate::config::AppConfig::history_dir().join("history.json");
     let mut entries: Vec<HistoryEntry> = std::fs::read_to_string(&path)
         .ok()
         .and_then(|c| serde_json::from_str(&c).ok())
@@ -305,11 +369,41 @@ pub fn append_entry_to_disk(entry: &HistoryEntry) {
     entries.push(entry.clone());
     match serde_json::to_string_pretty(&entries) {
         Ok(json) => {
-            if let Err(e) = std::fs::write(&path, &json) {
+            if let Err(e) = crate::fsio::write_private(&path, json.as_bytes()) {
                 tracing::warn!("Failed to write history: {}", e);
             }
         }
         Err(e) => tracing::warn!("Failed to serialize history: {}", e),
+    }
+}
+
+/// Update the title of an entry directly on disk (used by LLM auto-title when
+/// the main window is closed). No-op if the entry id isn't found.
+pub fn update_title_on_disk(id: &str, title: &str) {
+    let _guard = HISTORY_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let path = crate::config::AppConfig::history_dir().join("history.json");
+    let mut entries: Vec<HistoryEntry> = match std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+    {
+        Some(e) => e,
+        None => return,
+    };
+    let mut changed = false;
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.title = title.to_string();
+            changed = true;
+            break;
+        }
+    }
+    if !changed {
+        return;
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&entries) {
+        if let Err(e) = crate::fsio::write_private(&path, json.as_bytes()) {
+            tracing::warn!("Failed to write history: {}", e);
+        }
     }
 }
 

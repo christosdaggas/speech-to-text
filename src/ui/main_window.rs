@@ -16,14 +16,14 @@ use std::sync::{Arc, Mutex};
 
 use crate::application::Application;
 use crate::audio::AudioCapture;
-use crate::config::AppConfig;
+use crate::config::{AppConfig, LlmPreset};
 use crate::recording::{DictationParams, DictationMode, RecordingController, RecordingOwner};
 use crate::transcription::{ModelCatalog, TranscriptionEngine};
 use crate::ui::{
     Controls, HeaderControls, HelpPage, HistoryPage, StatusBar, TranscriptView,
     WelcomeWizard, ControlAction,
 };
-use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, language_code_to_name};
+use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, language_code_to_name};
 use crate::ui::widgets::GpuStatusPanel;
 use crate::transcription::postprocess;
 use crate::i18n::gettext;
@@ -48,6 +48,8 @@ pub enum NavItem {
     Language,
     Performance,
     Dictation,
+    Dictionary,
+    Llm,
     Help,
 }
 
@@ -61,6 +63,8 @@ impl NavItem {
             Self::Language => "preferences-desktop-locale-symbolic",
             Self::Performance => "preferences-system-symbolic",
             Self::Dictation => "input-keyboard-symbolic",
+            Self::Dictionary => "accessories-dictionary-symbolic",
+            Self::Llm => "network-transmit-receive-symbolic",
             Self::Help => "help-about-symbolic",
         }
     }
@@ -74,13 +78,15 @@ impl NavItem {
             Self::Language => gettext("Language"),
             Self::Performance => gettext("Performance"),
             Self::Dictation => gettext("Dictation"),
+            Self::Dictionary => gettext("Dictionary"),
+            Self::Llm => gettext("LLM"),
             Self::Help => gettext("Help"),
         }
     }
 
     /// Whether this is a settings page (shown under "Settings" header).
     pub fn is_settings(&self) -> bool {
-        matches!(self, Self::Microphone | Self::Model | Self::Language | Self::Performance | Self::Dictation)
+        matches!(self, Self::Microphone | Self::Model | Self::Language | Self::Performance | Self::Dictation | Self::Dictionary | Self::Llm)
     }
 
     pub fn all() -> &'static [NavItem] {
@@ -92,6 +98,8 @@ impl NavItem {
             Self::Language,
             Self::Performance,
             Self::Dictation,
+            Self::Dictionary,
+            Self::Llm,
             Self::Help,
         ]
     }
@@ -103,6 +111,9 @@ mod imp {
     #[derive(Default)]
     pub struct MainWindow {
         pub toast_overlay: RefCell<Option<adw::ToastOverlay>>,
+        /// Top-of-content notification bar (themed, in-window) — replaces the
+        /// bottom OSD toasts so messages are easy to see and match the theme.
+        pub notification_banner: RefCell<Option<adw::Banner>>,
         pub sidebar_box: RefCell<Option<gtk::Box>>,
         pub sidebar_list: RefCell<Option<gtk::ListBox>>,
         pub content_stack: RefCell<Option<gtk::Stack>>,
@@ -120,6 +131,14 @@ mod imp {
         pub syncing_backend: Cell<bool>,
         pub syncing_dropdown: Cell<bool>,
         pub syncing_translate: Cell<bool>,
+        pub syncing_ai: Cell<bool>,
+        /// Guards the live (while-speaking) decode so ticks don't pile up.
+        pub live_decoding: Cell<bool>,
+        /// True while recording a Voice-edit instruction in the main window.
+        pub voice_editing: Cell<bool>,
+        /// Set when a live decode was too slow or failed; disables the live loop
+        /// for the rest of this recording so it can't flood a slow/VRAM-tight GPU.
+        pub live_too_slow: Cell<bool>,
 
         // Content pages
         pub transcript_view: RefCell<Option<TranscriptView>>,
@@ -132,6 +151,14 @@ mod imp {
         pub language_page: RefCell<Option<LanguagePage>>,
         pub performance_page: RefCell<Option<PerformancePage>>,
         pub dictation_page: RefCell<Option<DictationPage>>,
+        pub dictionary_page: RefCell<Option<DictionaryPage>>,
+        pub llm_page: RefCell<Option<LlmPage>>,
+        /// One result per dictation (raw transcript + AI variants). The transcript
+        /// view shows one selectable bubble per entry; `selected_message` is the
+        /// one the chips / Improve / Voice edit act on. Append-only + clear-all,
+        /// so indices stay in sync with the transcript view's bubbles.
+        pub messages: RefCell<Vec<crate::ui::result_state::ResultState>>,
+        pub selected_message: Cell<isize>,
 
         // App state
         pub config: RefCell<Option<Arc<AppConfig>>>,
@@ -173,8 +200,16 @@ glib::wrapper! {
 }
 
 impl MainWindow {
-    const WINDOW_WIDTH: i32 = 800;
+    // Widened so the transcript area on the right is wider while the sidebar
+    // stays at SIDEBAR_EXPANDED_WIDTH. Content = WINDOW_WIDTH - 280: at 968 the
+    // content is ~688px (two +15% steps over the original 800/520 layout).
+    const WINDOW_WIDTH: i32 = 1280;
     const WINDOW_HEIGHT: i32 = 750;
+    /// Minimum width of the right column (transcript area). The window is now
+    /// resizable, so `set_default_size` drives the initial 1100px width and this
+    /// is only the floor below which the right column won't shrink. Kept modest
+    /// so the user can also drag the window smaller; the sidebar stays fixed.
+    const CONTENT_MIN_WIDTH: i32 = 560;
     const SIDEBAR_EXPANDED_WIDTH: i32 = 280;
     const SIDEBAR_COLLAPSED_WIDTH: i32 = 50;
 
@@ -184,7 +219,10 @@ impl MainWindow {
             .build();
 
         window.set_default_size(Self::WINDOW_WIDTH, Self::WINDOW_HEIGHT);
-        window.set_resizable(false);
+        // Resizable + maximizable. The sidebar keeps a fixed width (hexpand=false
+        // + width_request), and only the content_box has hexpand=true, so all the
+        // extra width on resize/maximize goes to the right side.
+        window.set_resizable(true);
         window.set_title(Some(crate::APP_NAME));
 
         // Store config and borrow the shared recording state from the
@@ -200,7 +238,7 @@ impl MainWindow {
 
         // One-time migration: move any plaintext HF token from config into the
         // system keyring, then clear it from the (world-readable-ish) config file.
-        if let Some(token) = config.cohere_hf_token.clone() {
+        if let Some(token) = config.cohere_hf_token.clone().filter(|t| !t.trim().is_empty()) {
             crate::application::tokio_runtime().spawn(async move {
                 if crate::secrets::store_hf_token(&token).await.is_ok() {
                     let mut c = AppConfig::load();
@@ -228,6 +266,27 @@ impl MainWindow {
         } else {
             // Try to load the selected model in the background
             window.load_selected_model();
+        }
+
+        // Diagnostic (inert unless STT_DEBUG_WIDTH is set): log the real ALLOCATED
+        // widths after layout settles, so the sidebar width can be verified
+        // (width_request is only a minimum — content can force it wider).
+        if std::env::var("STT_DEBUG_WIDTH").is_ok() {
+            let w = window.downgrade();
+            glib::timeout_add_local_once(std::time::Duration::from_millis(2500), move || {
+                if let Some(win) = w.upgrade() {
+                    let imp = win.imp();
+                    let sidebar = imp.sidebar_box.borrow().as_ref().map(|b| b.width()).unwrap_or(-1);
+                    let collapsed = imp.sidebar_collapsed.get();
+                    eprintln!(
+                        "STT_SIDEBAR_WIDTH={} STT_SIDEBAR_REQUEST={} STT_WIN_WIDTH={} collapsed={}",
+                        sidebar,
+                        if collapsed { Self::SIDEBAR_COLLAPSED_WIDTH } else { Self::SIDEBAR_EXPANDED_WIDTH },
+                        win.width(),
+                        collapsed,
+                    );
+                }
+            });
         }
 
         window
@@ -339,11 +398,21 @@ impl MainWindow {
 
         // === CONTENT AREA ===
         let content_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        // hexpand=true is what makes the right column absorb all extra width when
+        // the window is resized/maximized, while the sidebar (hexpand=false) keeps
+        // its fixed width. CONTENT_MIN_WIDTH is just the floor for this column.
         content_box.set_hexpand(true);
+        content_box.set_width_request(Self::CONTENT_MIN_WIDTH);
 
         // Header with mic/model selectors
         let header_controls = HeaderControls::new();
         content_box.append(&header_controls);
+
+        // In-app notification bar (top of content, themed). Its single action
+        // button is used only for the "Undo" after an AI improvement.
+        let notification_banner = adw::Banner::new("");
+        notification_banner.set_revealed(false);
+        content_box.append(&notification_banner);
 
         // Content stack for pages
         let content_stack = gtk::Stack::new();
@@ -388,6 +457,12 @@ impl MainWindow {
         let dictation_page = DictationPage::new();
         content_stack.add_named(&dictation_page, Some("dictation"));
 
+        let dictionary_page = DictionaryPage::new();
+        content_stack.add_named(&dictionary_page, Some("dictionary"));
+
+        let llm_page = LlmPage::new();
+        content_stack.add_named(&llm_page, Some("llm"));
+
         // Help page
         let help_page = HelpPage::new();
         content_stack.add_named(&help_page, Some("help"));
@@ -411,6 +486,17 @@ impl MainWindow {
 
         // Store references
         *imp.toast_overlay.borrow_mut() = Some(toast_overlay);
+        *imp.notification_banner.borrow_mut() = Some(notification_banner.clone());
+
+        // The banner's action button is only ever the "Undo" after an AI improve
+        // (switch the result back to the raw transcript).
+        {
+            let window = self.clone();
+            notification_banner.connect_button_clicked(move |b| {
+                b.set_revealed(false);
+                window.select_variant(0);
+            });
+        }
         *imp.sidebar_box.borrow_mut() = Some(sidebar_box);
         *imp.sidebar_list.borrow_mut() = Some(sidebar_list.clone());
         *imp.content_stack.borrow_mut() = Some(content_stack);
@@ -425,6 +511,8 @@ impl MainWindow {
         *imp.language_page.borrow_mut() = Some(language_page);
         *imp.performance_page.borrow_mut() = Some(performance_page);
         *imp.dictation_page.borrow_mut() = Some(dictation_page);
+        *imp.dictionary_page.borrow_mut() = Some(dictionary_page);
+        *imp.llm_page.borrow_mut() = Some(llm_page);
         *imp.gpu_panel.borrow_mut() = Some(gpu_panel);
         *imp.nav_labels.borrow_mut() = nav_labels;
         *imp.nav_boxes.borrow_mut() = nav_boxes;
@@ -466,8 +554,503 @@ impl MainWindow {
         // Wire language changes to header
         self.setup_language_display();
 
+        // Wire the "Improve with AI" toggle
+        self.setup_ai_toggle();
+
+        // Wire transform chips + raw/polished variant selector
+        self.setup_transcript_extras();
+
         // Check for updates at startup
         self.check_for_updates();
+    }
+
+    /// Wire the "Improve with AI" toggle: arming it turns on auto-improve so the
+    /// next transcriptions are improved with the active preset (like Translate).
+    /// Kept in sync with the "Auto-improve after dictation" setting via config.
+    fn setup_ai_toggle(&self) {
+        let Some(controls) = self.imp().controls.borrow().as_ref().cloned() else {
+            return;
+        };
+        let window = self.clone();
+        controls.connect_ai_toggled(move |active| {
+            if window.imp().syncing_ai.get() {
+                return;
+            }
+            let mut c = AppConfig::load();
+            c.llm_auto_apply = active;
+            c.save();
+        });
+        self.refresh_ai_button();
+    }
+
+    /// Show/hide the "Improve with AI" toggle and sync its state with the current
+    /// `llm_enabled` / `llm_auto_apply` settings.
+    fn refresh_ai_button(&self) {
+        if let Some(controls) = self.imp().controls.borrow().as_ref() {
+            let cfg = AppConfig::load();
+            controls.set_ai_visible(cfg.llm_enabled);
+            self.imp().syncing_ai.set(true);
+            controls.set_ai_active(cfg.llm_auto_apply);
+            self.imp().syncing_ai.set(false);
+        }
+        // Keep the transform chips in sync with the (possibly edited) preset list.
+        self.refresh_chip_presets();
+    }
+
+    /// Wire chip / raw-polished selector / message-selection callbacks and
+    /// populate the chip presets from config.
+    fn setup_transcript_extras(&self) {
+        let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
+            return;
+        };
+        let window = self.clone();
+        tv.connect_chip_activated(move |idx| window.on_chip(idx));
+        let window = self.clone();
+        tv.connect_variant_changed(move |idx| window.select_variant(idx));
+        let window = self.clone();
+        tv.connect_message_selected(move |idx| window.select_message(idx));
+        let window = self.clone();
+        tv.connect_voice_edit(move || window.on_voice_edit());
+        self.imp().selected_message.set(-1);
+        self.refresh_chip_presets();
+    }
+
+    /// The currently-selected message index, if any.
+    fn selected_idx(&self) -> Option<usize> {
+        let s = self.imp().selected_message.get();
+        if s < 0 { None } else { Some(s as usize) }
+    }
+
+    /// Refresh the chip preset labels + visibility from the current LLM config.
+    fn refresh_chip_presets(&self) {
+        let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
+            return;
+        };
+        let cfg = AppConfig::load();
+        let names: Vec<String> = cfg.llm_presets.iter().map(|p| p.name.clone()).collect();
+        tv.set_chip_presets(&names);
+        let has_result = !self.imp().messages.borrow().is_empty();
+        tv.set_chips_visible(cfg.llm_enabled && has_result);
+    }
+
+    /// Append a finished transcription as a new selectable message and render it.
+    fn add_result_message(&self, state: crate::ui::result_state::ResultState, confidence: f64) {
+        let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
+            return;
+        };
+        tv.clear_live_preview();
+        let text = state.active_text().to_string();
+        let (words, wpm) = (state.stats.words, state.stats.wpm);
+        self.imp().messages.borrow_mut().push(state);
+        let idx = tv.add_message(&text); // append + auto-select
+        self.imp().selected_message.set(idx as isize);
+        tv.set_confidence(confidence);
+        tv.set_stats(words, wpm);
+        if let Some(display) = gtk::gdk::Display::default() {
+            display.clipboard().set_text(&text);
+        }
+        self.refresh_result_controls();
+    }
+
+    /// Rebuild the variant selector + stats + chip state from the SELECTED message.
+    fn refresh_result_controls(&self) {
+        let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
+            return;
+        };
+        let cfg = AppConfig::load();
+        let Some(sel) = self.selected_idx() else {
+            tv.hide_result_controls();
+            return;
+        };
+        let messages = self.imp().messages.borrow();
+        if let Some(st) = messages.get(sel) {
+            let labels = st.selector_labels(&gettext("Raw"));
+            tv.set_variant_selector(&labels, st.active);
+            tv.set_stats(st.stats.words, st.stats.wpm);
+            tv.set_chips_visible(cfg.llm_enabled);
+            tv.set_chips_sensitive(true);
+            tv.set_voice_edit_visible(cfg.llm_enabled);
+        }
+    }
+
+    /// Select a message (clicking its bubble): highlight it and point the
+    /// chips / selector / stats at it.
+    fn select_message(&self, idx: usize) {
+        if idx >= self.imp().messages.borrow().len() {
+            return;
+        }
+        self.imp().selected_message.set(idx as isize);
+        if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+            tv.set_selected_message(idx);
+        }
+        self.refresh_result_controls();
+    }
+
+    /// Switch the active variant of the SELECTED message (from the dropdown).
+    fn select_variant(&self, vidx: usize) {
+        let Some(sel) = self.selected_idx() else { return };
+        let active_text = {
+            let mut messages = self.imp().messages.borrow_mut();
+            let Some(st) = messages.get_mut(sel) else { return };
+            st.set_active(vidx);
+            st.active_text().to_string()
+        };
+        if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+            tv.update_message(sel, &active_text);
+        }
+        if let Some(display) = gtk::gdk::Display::default() {
+            display.clipboard().set_text(&active_text);
+        }
+    }
+
+    /// Handle a transform-chip click: run preset `idx` on the SELECTED message.
+    fn on_chip(&self, chip_idx: usize) {
+        let Some(sel) = self.selected_idx() else { return };
+        let cfg = AppConfig::load();
+        let Some(preset) = cfg.llm_presets.get(chip_idx).cloned() else {
+            return;
+        };
+        self.run_preset_on_message(sel, preset, false);
+    }
+
+    /// Run `preset` on message `msg_idx`'s active text and add the result as a new
+    /// (auto-activated) variant on THAT message only — other messages are untouched.
+    fn run_preset_on_message(&self, msg_idx: usize, preset: LlmPreset, show_undo: bool) {
+        let source = {
+            let messages = self.imp().messages.borrow();
+            match messages.get(msg_idx) {
+                Some(st) => st.active_text().trim().to_string(),
+                None => return,
+            }
+        };
+        if source.is_empty() {
+            return;
+        }
+        let llm_cfg = Self::resolve_llm_config_for_preset(&preset);
+        if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+            tv.set_chips_sensitive(false);
+        }
+        if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+            sb.set_recording_status(&gettext("Improving with AI…"));
+        }
+        let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), source);
+        let window = self.clone();
+        let label = preset.name.clone();
+        glib::spawn_future_local(async move {
+            let res = rx.recv().await;
+            if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                tv.set_chips_sensitive(true);
+            }
+            if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
+                sb.set_recording_status(&gettext("Ready"));
+            }
+            match res {
+                Ok(Ok(improved)) => {
+                    let improved = improved.trim().to_string();
+                    if improved.is_empty() {
+                        window.show_toast(&gettext("AI returned an empty result"));
+                        return;
+                    }
+                    let active_text = {
+                        let mut messages = window.imp().messages.borrow_mut();
+                        let Some(st) = messages.get_mut(msg_idx) else { return };
+                        st.push_variant(label, improved);
+                        st.active_text().to_string()
+                    };
+                    if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                        tv.update_message(msg_idx, &active_text);
+                    }
+                    // If this is the selected message, refresh its controls.
+                    if window.selected_idx() == Some(msg_idx) {
+                        window.refresh_result_controls();
+                        if let Some(display) = gtk::gdk::Display::default() {
+                            display.clipboard().set_text(&active_text);
+                        }
+                    }
+                    if show_undo {
+                        window.show_improve_undo_toast();
+                    }
+                }
+                Ok(Err(e)) => window.show_toast(&format!("{}: {}", gettext("AI error"), e)),
+                Err(_) => {}
+            }
+        });
+    }
+
+    /// Build the LLM connection config for a preset. Delegates to the canonical
+    /// resolver in `application` so the override logic lives in one place.
+    fn resolve_llm_config_for_preset(preset: &LlmPreset) -> crate::llm::LlmConfig {
+        crate::application::resolve_llm_cfg(&AppConfig::load(), preset)
+    }
+
+    /// Auto-improve: run the active preset on the most-recent message.
+    fn improve_with_preset(&self, preset_idx: usize, _source_text: String) {
+        let cfg = AppConfig::load();
+        let Some(preset) = cfg.llm_presets.get(preset_idx).cloned() else {
+            return;
+        };
+        let last = match self.imp().messages.borrow().len() {
+            0 => return,
+            n => n - 1,
+        };
+        self.run_preset_on_message(last, preset, true);
+    }
+
+    /// Voice edit (main window): toggle recording a spoken instruction for the
+    /// selected message.
+    fn on_voice_edit(&self) {
+        if self.imp().voice_editing.get() {
+            self.stop_voice_edit_main();
+        } else {
+            self.start_voice_edit_main();
+        }
+    }
+
+    fn start_voice_edit_main(&self) {
+        let Some(sel) = self.selected_idx() else {
+            self.show_toast(&gettext("Select a message first."));
+            return;
+        };
+        let has_text = self
+            .imp()
+            .messages
+            .borrow()
+            .get(sel)
+            .map(|s| !s.active_text().trim().is_empty())
+            .unwrap_or(false);
+        if !has_text {
+            self.show_toast(&gettext("No text to edit."));
+            return;
+        }
+        let cfg = AppConfig::load();
+        if !cfg.llm_enabled {
+            self.show_toast(&gettext("Enable the LLM in Settings → LLM to use Voice edit."));
+            return;
+        }
+        let Some(controller) = self.controller() else { return };
+        if !controller.try_acquire(RecordingOwner::VoiceEdit) {
+            self.show_toast(&gettext("Busy — finish the current recording first."));
+            return;
+        }
+        let (waveform_tx, _waveform_rx) = async_channel::bounded::<Vec<f32>>(32);
+        match controller.start(cfg.selected_microphone.as_deref(), waveform_tx) {
+            Ok(()) => {
+                self.imp().voice_editing.set(true);
+                if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+                    tv.set_voice_edit_recording(true);
+                }
+                if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+                    sb.set_recording_status(&gettext("Listening for your edit… click \"Stop edit\" when done"));
+                }
+            }
+            Err(e) => {
+                controller.release();
+                self.show_toast(&format!("Couldn't start recording: {e}"));
+            }
+        }
+    }
+
+    fn stop_voice_edit_main(&self) {
+        self.imp().voice_editing.set(false);
+        if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+            tv.set_voice_edit_recording(false);
+        }
+        let Some(controller) = self.controller() else { return };
+        if controller.owner() != RecordingOwner::VoiceEdit {
+            return;
+        }
+        let dur = controller.recording_duration_secs();
+        let audio = match controller.stop() {
+            Ok(a) => a,
+            Err(e) => {
+                controller.release();
+                self.show_toast(&format!("Error stopping recording: {e}"));
+                return;
+            }
+        };
+        controller.release();
+        if audio.is_empty() {
+            self.show_toast(&gettext("Didn't catch an instruction."));
+            if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+                sb.set_recording_status(&gettext("Ready"));
+            }
+            return;
+        }
+        let Some(sel) = self.selected_idx() else { return };
+        let target = self
+            .imp()
+            .messages
+            .borrow()
+            .get(sel)
+            .map(|s| s.active_text().to_string())
+            .unwrap_or_default();
+        if target.trim().is_empty() {
+            return;
+        }
+        if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+            sb.set_recording_status(&gettext("Applying your edit…"));
+        }
+        // Transcribe the spoken instruction (normal short dictation).
+        let params = self.build_dictation_params(self.active_backend());
+        let receiver = controller.transcribe_async(audio, params, dur);
+        let window = self.clone();
+        glib::spawn_future_local(async move {
+            let instruction = match receiver.recv().await {
+                Ok(Ok(o)) => o.cleaned_text.trim().to_string(),
+                _ => String::new(),
+            };
+            if instruction.is_empty() {
+                if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
+                    sb.set_recording_status(&gettext("Ready"));
+                }
+                window.show_toast(&gettext("Didn't catch an instruction."));
+                return;
+            }
+            // Apply the instruction to the target text via the LLM.
+            let cfg = AppConfig::load();
+            let llm_cfg = crate::llm::LlmConfig {
+                api_url: cfg.llm_api_url.clone(),
+                api_key: None,
+                model: cfg.llm_model.clone(),
+                temperature: cfg.llm_temperature,
+            };
+            let system = "You are editing the user's text. Apply the user's spoken instruction to \
+                          the TARGET TEXT and reply with ONLY the edited text, preserving the original \
+                          language. Do not add explanations or quotes.";
+            let user = format!("Apply this instruction: {instruction}\n\nText:\n{target}");
+            let rx = crate::llm::improve_async(llm_cfg, system.to_string(), user);
+            let res = rx.recv().await;
+            if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
+                sb.set_recording_status(&gettext("Ready"));
+            }
+            match res {
+                Ok(Ok(edited)) if !edited.trim().is_empty() => {
+                    let active_text = {
+                        let mut messages = window.imp().messages.borrow_mut();
+                        let Some(st) = messages.get_mut(sel) else { return };
+                        st.push_variant(gettext("Voice edit"), edited.trim().to_string());
+                        st.active_text().to_string()
+                    };
+                    if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                        tv.update_message(sel, &active_text);
+                    }
+                    if window.selected_idx() == Some(sel) {
+                        window.refresh_result_controls();
+                        if let Some(display) = gtk::gdk::Display::default() {
+                            display.clipboard().set_text(&active_text);
+                        }
+                    }
+                }
+                Ok(Ok(_)) => window.show_toast(&gettext("AI returned an empty result")),
+                Ok(Err(e)) => window.show_toast(&format!("{}: {}", gettext("AI error"), e)),
+                Err(_) => {}
+            }
+        });
+    }
+
+    /// Confirm an AI improvement in the top banner with an Undo button that
+    /// switches back to the raw transcript (non-destructive — the AI variant
+    /// stays available in the raw/polished selector).
+    fn show_improve_undo_toast(&self) {
+        self.show_banner(&gettext("Improved with AI"), true);
+    }
+
+    /// Show an in-app notification in the top banner (themed, not a bottom OSD
+    /// toast). When `with_undo` is set, the banner shows an "Undo" button wired
+    /// to revert the last AI improvement. Auto-hides after a few seconds.
+    fn show_banner(&self, message: &str, with_undo: bool) {
+        let Some(banner) = self.imp().notification_banner.borrow().clone() else {
+            return;
+        };
+        banner.set_title(&crate::error::redact_secrets(message));
+        let undo_label = gettext("Undo");
+        banner.set_button_label(if with_undo { Some(undo_label.as_str()) } else { None });
+        banner.set_revealed(true);
+        // Auto-hide; only hide if the banner still shows THIS message (so a newer
+        // notification isn't dismissed early).
+        let banner_weak = banner.downgrade();
+        let shown = crate::error::redact_secrets(message);
+        let secs = if with_undo { 6 } else { 4 };
+        glib::timeout_add_seconds_local_once(secs, move || {
+            if let Some(b) = banner_weak.upgrade() {
+                if b.title().as_str() == shown {
+                    b.set_revealed(false);
+                }
+            }
+        });
+    }
+
+    /// If auto-improve is enabled, run the active preset over `text`.
+    fn maybe_auto_improve(&self, text: &str) {
+        let cfg = AppConfig::load();
+        if cfg.llm_enabled && cfg.llm_auto_apply && !cfg.llm_presets.is_empty() {
+            let idx = cfg.llm_active_preset.min(cfg.llm_presets.len() - 1);
+            self.improve_with_preset(idx, text.to_string());
+        }
+    }
+
+    /// For long transcripts (files / long dictations), generate an LLM summary +
+    /// chapters and show them in the transcript view's "Summary & chapters"
+    /// section. Self-gates on the LLM being enabled and a length threshold.
+    fn maybe_generate_summary(&self, text: &str, duration_secs: f32) {
+        let cfg = AppConfig::load();
+        if !cfg.llm_enabled {
+            return;
+        }
+        let words = crate::ui::result_state::word_count(text);
+        if words < crate::limits::SUMMARY_MIN_WORDS && duration_secs < crate::limits::SUMMARY_MIN_SECS {
+            return;
+        }
+        let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
+            return;
+        };
+        let llm_cfg = crate::llm::LlmConfig {
+            api_url: cfg.llm_api_url.clone(),
+            api_key: None,
+            model: cfg.llm_model.clone(),
+            temperature: cfg.llm_temperature,
+        };
+        tv.set_summary_loading(true);
+
+        let rx_sum = crate::llm::improve_async(
+            llm_cfg.clone(),
+            crate::transcription::summary::SUMMARY_SYSTEM_PROMPT.to_string(),
+            text.to_string(),
+        );
+        let segments = self.imp().last_segments.borrow().clone();
+        let chap_input = crate::transcription::summary::build_chaptered_input(&segments);
+        let rx_chap = if chap_input.trim().is_empty() {
+            None
+        } else {
+            Some(crate::llm::improve_async(
+                llm_cfg,
+                crate::transcription::summary::CHAPTERS_SYSTEM_PROMPT.to_string(),
+                chap_input,
+            ))
+        };
+
+        let window = self.clone();
+        glib::spawn_future_local(async move {
+            let summary_text = match rx_sum.recv().await {
+                Ok(Ok(s)) => s.trim().to_string(),
+                _ => String::new(),
+            };
+            let chapters = if let Some(rx) = rx_chap {
+                match rx.recv().await {
+                    Ok(Ok(r)) => crate::transcription::summary::parse_chapters(&r),
+                    _ => Vec::new(),
+                }
+            } else {
+                Vec::new()
+            };
+            if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                if summary_text.is_empty() && chapters.is_empty() {
+                    tv.clear_summary();
+                } else {
+                    tv.set_summary(&summary_text, &chapters);
+                }
+            }
+        });
     }
 
     fn current_config_snapshot(&self) -> Option<AppConfig> {
@@ -501,6 +1084,16 @@ impl MainWindow {
         let mode = config.as_ref()
             .map(|c| DictationMode::from_config_str(&c.dictation_mode))
             .unwrap_or_default();
+        // Merge the user's initial prompt with the personal-dictionary terms, and
+        // collect the replacement rules (both via the shared config helper, so the
+        // widget path matches the global-dictation path).
+        let initial_prompt = config.as_ref()
+            .and_then(|c| c.effective_initial_prompt())
+            .or(whisper.initial_prompt);
+        let replacements = config.as_ref()
+            .filter(|c| c.dictionary_enabled)
+            .map(|c| c.dictionary_replacements.clone())
+            .unwrap_or_default();
         DictationParams {
             backend,
             language_code,
@@ -508,9 +1101,10 @@ impl MainWindow {
             beam_size: whisper.beam_size,
             temperature: whisper.temperature,
             translate: whisper.translate,
-            initial_prompt: whisper.initial_prompt,
+            initial_prompt,
             selected_microphone,
             mode,
+            replacements,
         }
     }
 
@@ -519,6 +1113,13 @@ impl MainWindow {
         self.current_config_snapshot()
             .map(|config| config.backend)
             .unwrap_or_else(|| "whisper".to_string())
+    }
+
+    /// Update the language display in the bottom status bar (Auto-detect / chosen).
+    fn set_language_display(&self, text: &str) {
+        if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+            sb.set_language(text);
+        }
     }
 
     fn ellipsize_chars(text: &str, max_chars: usize) -> String {
@@ -551,18 +1152,44 @@ impl MainWindow {
         }
 
         if let Some(header) = self.imp().header_controls.borrow().as_ref() {
+            // Guard the whole rebuild+restore. `update_models_for_backend` calls
+            // `set_selected(0)` internally, which fires the model-changed handler
+            // synchronously; without the guard it would clobber
+            // `config.selected_model` with the first entry in the list (e.g.
+            // "tiny") instead of the model the user actually chose.
+            self.imp().syncing_dropdown.set(true);
             header.update_models_for_backend(&config.backend, &downloaded);
 
             if config.auto_detect_language {
-                header.set_language_display("Auto-detect");
+                self.set_language_display("Auto-detect");
             } else if let Some(language) = config.language.as_deref() {
-                header.set_language_display(&language_code_to_name(language));
+                self.set_language_display(&language_code_to_name(language));
             }
 
-            self.imp().syncing_dropdown.set(true);
             if config.backend == "cohere" {
                 header.set_selected_model(0);
                 header.set_model_status(crate::transcription::cohere::cohere_ready(), "cohere-transcribe");
+            } else if config.backend == "qwen" {
+                // If the active size isn't downloaded but the other is, switch the
+                // active size to a downloaded one (so the dropdown + status agree).
+                let downloaded: Vec<String> = ["0.6B", "1.7B"]
+                    .into_iter()
+                    .filter(|s| crate::transcription::qwen::is_model_downloaded_size(s))
+                    .map(|s| s.to_string())
+                    .collect();
+                let active = if downloaded.iter().any(|s| s == &config.qwen_model_size) {
+                    config.qwen_model_size.clone()
+                } else if let Some(first) = downloaded.first() {
+                    let mut corrected = config.clone();
+                    corrected.qwen_model_size = first.clone();
+                    corrected.save();
+                    self.replace_config(corrected);
+                    first.clone()
+                } else {
+                    config.qwen_model_size.clone()
+                };
+                header.set_selected_model_by_id(&active);
+                header.set_model_status(crate::transcription::qwen::qwen_ready(), "qwen3-asr");
             } else {
                 let index = downloaded.iter()
                     .position(|(id, _)| id == &config.selected_model)
@@ -579,6 +1206,13 @@ impl MainWindow {
             if config.backend == "cohere" {
                 status_bar.set_model_name(&gettext("Cohere Transcribe"));
                 status_bar.set_recording_status(if crate::transcription::cohere::cohere_ready() {
+                    "Ready"
+                } else {
+                    "Setup Required"
+                });
+            } else if config.backend == "qwen" {
+                status_bar.set_model_name(&gettext("Qwen3-ASR"));
+                status_bar.set_recording_status(if crate::transcription::qwen::qwen_ready() {
                     "Ready"
                 } else {
                     "Setup Required"
@@ -740,9 +1374,13 @@ impl MainWindow {
 
         let backend = self.active_backend();
 
-        // Cohere readiness up front (matches the live path's UX).
+        // Backend readiness up front (matches the live path's UX).
         if backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
             self.show_toast(&gettext("Cohere is not set up. Go to Settings → Model to download the runtime and model."));
+            return;
+        }
+        if backend == "qwen" && !crate::transcription::qwen::qwen_ready() {
+            self.show_toast(&gettext("Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model."));
             return;
         }
 
@@ -751,6 +1389,11 @@ impl MainWindow {
         };
         let engine = controller.engine_arc();
         let params = self.build_dictation_params(backend);
+
+        // Show the decode-sweep animation while the file is transcribed.
+        if let Some(tv) = imp.transcript_view.borrow().as_ref() {
+            tv.start_transcribing_anim();
+        }
 
         let (sender, receiver) = async_channel::bounded::<Result<crate::recording::DictationOutcome, String>>(1);
 
@@ -763,15 +1406,24 @@ impl MainWindow {
                     return;
                 }
             };
-            let result = crate::recording::run_transcription(&engine, &audio_data, &params);
+            // No mic time for a file: derive duration from the decoded mono-16k length.
+            let duration_secs = audio_data.len() as f32 / 16_000.0;
+            let result = crate::recording::run_transcription(&engine, &audio_data, &params, duration_secs);
             let _ = sender.send_blocking(result);
         });
 
         let window = self.clone();
         glib::spawn_future_local(async move {
             if let Ok(result) = receiver.recv().await {
+                if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                    tv.stop_transcribing_anim();
+                }
                 match result {
                     Ok(outcome) => {
+                        let duration_secs = outcome.duration_secs;
+                        let confidence = outcome.confidence;
+                        let detected = outcome.detected_language.clone();
+                        let segments = outcome.segments;
                         let cleaned = outcome.cleaned_text;
                         if cleaned.is_empty() {
                             *window.imp().last_segments.borrow_mut() = Vec::new();
@@ -781,24 +1433,23 @@ impl MainWindow {
                             window.show_toast(&gettext("No clear speech detected in the audio"));
                             return;
                         }
-                        if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
-                            tv.append_text(&cleaned);
-                            tv.set_confidence(outcome.confidence as f64);
-                        }
                         if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
                             sb.set_recording_status(&gettext("Ready"));
                         }
-                        *window.imp().last_segments.borrow_mut() = outcome.segments;
+                        *window.imp().last_segments.borrow_mut() = segments.clone();
                         // Surface the auto-detected language (only set when auto-detect was used).
-                        if let Some(code) = outcome.detected_language.as_deref() {
-                            if let Some(h) = window.imp().header_controls.borrow().as_ref() {
-                                h.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
-                            }
+                        if let Some(code) = detected.as_deref() {
+                            window.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
                         }
-                        if let Some(display) = gtk::gdk::Display::default() {
-                            display.clipboard().set_text(&cleaned);
-                        }
+                        // Render as the current result (text + confidence + stats +
+                        // clipboard + chips/selector).
+                        let state = crate::ui::result_state::ResultState::new(
+                            cleaned.clone(), duration_secs, detected, segments,
+                        );
+                        window.add_result_message(state, confidence as f64);
                         window.show_toast(&gettext("File transcription complete"));
+                        window.maybe_generate_summary(&cleaned, duration_secs);
+                        window.maybe_auto_improve(&cleaned);
                     }
                     Err(msg) => {
                         window.show_toast(&msg);
@@ -817,11 +1468,16 @@ impl MainWindow {
         let imp = self.imp();
 
         // Initial sync of the header model list + capabilities from config.
+        // Guarded so the internal `set_selected(0)` never persists over the
+        // saved model (the model-changed handler may already be connected on
+        // later calls / reorderings).
         if let Some(config) = imp.config.borrow().as_ref() {
             let backend = config.backend.clone();
             if let Some(header) = imp.header_controls.borrow().as_ref() {
                 let downloaded = Self::downloaded_model_entries();
+                imp.syncing_dropdown.set(true);
                 header.update_models_for_backend(&backend, &downloaded);
+                imp.syncing_dropdown.set(false);
             }
             self.apply_backend_capabilities(&backend);
         }
@@ -843,20 +1499,22 @@ impl MainWindow {
                 window.replace_config(new_config);
             }
 
-            if backend == "cohere" {
+            if backend != "whisper" {
+                // Non-Whisper backends (Cohere, Qwen3-ASR) don't use the loaded
+                // Whisper engine — drop it to free memory.
                 if let Some(engine_arc) = window.imp().engine.borrow().as_ref().cloned() {
                     if let Ok(mut guard) = engine_arc.lock() {
                         *guard = None;
                     }
                 }
-                tracing::info!("Switched transcription engine to Cohere Transcribe");
+                tracing::info!("Switched transcription engine to {}", backend);
             } else {
                 tracing::info!("Switched transcription engine to Whisper");
             }
 
             window.sync_ui_from_config();
 
-            if backend != "cohere" {
+            if backend == "whisper" {
                 if let Some(config) = window.current_config_snapshot() {
                     window.load_model_by_id(&config.selected_model);
                 }
@@ -867,16 +1525,18 @@ impl MainWindow {
     /// Apply UI capability constraints based on the selected backend.
     fn apply_backend_capabilities(&self, backend: &str) {
         let imp = self.imp();
-        let is_whisper = backend != "cohere";
+        let is_whisper = backend == "whisper";
+        // Qwen3-ASR auto-detects the language; Cohere does not.
+        let supports_auto_detect = backend == "whisper" || backend == "qwen";
 
-        // Controls: translate toggle
+        // Controls: translate toggle (Whisper-only) — greyed out, not hidden.
         if let Some(controls) = imp.controls.borrow().as_ref() {
-            controls.set_translate_visible(is_whisper);
+            controls.set_translate_enabled(is_whisper);
         }
 
         // Language page: auto-detect and translation
         if let Some(page) = imp.language_page.borrow().as_ref() {
-            page.set_auto_detect_available(is_whisper);
+            page.set_auto_detect_available(supports_auto_detect);
             page.set_translation_available(is_whisper);
         }
 
@@ -926,18 +1586,34 @@ impl MainWindow {
                 return;
             }
 
-            // The model_id is already the resolved downloaded model ID
+            let backend = window
+                .current_config_snapshot()
+                .map(|c| c.backend)
+                .unwrap_or_else(|| "whisper".to_string());
+
+            // For Qwen the dropdown selects the model SIZE ("0.6B"/"1.7B").
+            if backend == "qwen" {
+                if let Some(mut cfg) = window.current_config_snapshot() {
+                    cfg.qwen_model_size = model_id.clone();
+                    cfg.save();
+                    window.replace_config(cfg);
+                }
+                // Refresh the ready/status indicator for the newly active size.
+                window.sync_ui_from_config();
+                return;
+            }
+
+            // Cohere has no selectable model.
+            if backend != "whisper" {
+                return;
+            }
+
+            // Whisper: the model_id is the resolved downloaded model ID.
             if let Some(mut new_config) = window.current_config_snapshot() {
                 new_config.selected_model = model_id.clone();
                 new_config.save();
                 window.replace_config(new_config);
             }
-
-            if window.current_config_snapshot().is_some_and(|config| config.backend == "cohere") {
-                return;
-            }
-
-            // Load the model directly — it's already known to be downloaded
             window.load_model_by_id(&model_id);
         });
     }
@@ -945,11 +1621,6 @@ impl MainWindow {
     /// Wire language settings changes to update the header language display.
     fn setup_language_display(&self) {
         let imp = self.imp();
-
-        let header = match imp.header_controls.borrow().as_ref() {
-            Some(h) => h.clone(),
-            None => return,
-        };
 
         let language_page = match imp.language_page.borrow().as_ref() {
             Some(p) => p.clone(),
@@ -959,16 +1630,16 @@ impl MainWindow {
         // Set initial language display from config
         if let Some(config) = imp.config.borrow().as_ref() {
             if config.auto_detect_language {
-                header.set_language_display("Auto-detect");
+                self.set_language_display("Auto-detect");
             } else if let Some(ref lang) = config.language {
-                header.set_language_display(&language_code_to_name(lang));
+                self.set_language_display(&language_code_to_name(lang));
             }
         }
 
         // Connect language page changes
-        let header_ref = header.clone();
+        let window = self.clone();
         language_page.connect_language_changed(move |lang_name| {
-            header_ref.set_language_display(&lang_name);
+            window.set_language_display(&lang_name);
         });
 
         // Sync translate toggle between controls and language page
@@ -1045,6 +1716,8 @@ impl MainWindow {
                 }
                 if let Some(tv) = imp.transcript_view.borrow().as_ref() {
                     tv.set_recording(true);
+                    // Hide the previous result's chips/selector while recording.
+                    tv.hide_result_controls();
                 }
                 if let Some(sb) = imp.status_bar.borrow().as_ref() {
                     sb.set_recording_status(&gettext("Recording…"));
@@ -1063,6 +1736,15 @@ impl MainWindow {
                     }
                 });
 
+                // Live (while-speaking) transcription: periodically re-decode the
+                // audio captured so far and show it as tentative text. Whisper
+                // only; the authoritative result is produced on Stop.
+                if AppConfig::load().live_transcription && self.active_backend() == "whisper" {
+                    self.imp().live_decoding.set(false);
+                    self.imp().live_too_slow.set(false);
+                    self.start_live_loop();
+                }
+
                 tracing::info!("Recording started");
             }
             Err(e) => {
@@ -1070,6 +1752,88 @@ impl MainWindow {
                 self.show_toast(&format!("Failed to start recording: {}", e));
             }
         }
+    }
+
+    /// Periodic live decode of the audio captured so far, shown as tentative text
+    /// while recording continues. Greedy (beam=1) + plain formatting for low
+    /// latency; never overlaps itself; stops when recording ends. The final,
+    /// authoritative result is produced by `on_stop`.
+    fn start_live_loop(&self) {
+        let window = self.downgrade();
+        glib::timeout_add_local(std::time::Duration::from_millis(2000), move || {
+            let Some(win) = window.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            let Some(controller) = win.controller() else {
+                return glib::ControlFlow::Break;
+            };
+            // Stop once recording ends (or another owner took over).
+            if controller.owner() != RecordingOwner::Main
+                || controller.state() == crate::audio::capture::RecordingState::Idle
+            {
+                return glib::ControlFlow::Break;
+            }
+            // Self-protect: if a previous live decode was too slow or failed, stop
+            // the loop so we never flood a slow / VRAM-tight GPU (e.g. large-v3).
+            // The final on-stop decode still produces the full transcript.
+            if win.imp().live_too_slow.get() {
+                return glib::ControlFlow::Break;
+            }
+            // Skip while a previous live decode is still running.
+            if win.imp().live_decoding.get() {
+                return glib::ControlFlow::Continue;
+            }
+            let mut snapshot = controller.live_snapshot();
+            // Need at least ~1s of conditioned audio to bother.
+            if snapshot.len() < 16_000 {
+                return glib::ControlFlow::Continue;
+            }
+            // Bound cost: decode only the most recent ~12s window. The final
+            // on-stop pass still decodes the whole take at full quality.
+            const LIVE_WINDOW: usize = 12 * 16_000;
+            if snapshot.len() > LIVE_WINDOW {
+                snapshot = snapshot.split_off(snapshot.len() - LIVE_WINDOW);
+            }
+            win.imp().live_decoding.set(true);
+            let mut params = DictationParams::from_config(&AppConfig::load());
+            params.beam_size = 1; // greedy: fast enough to keep up
+            params.mode = DictationMode::Plain; // show raw-ish text live
+            let dur = controller.recording_duration_secs();
+            let started = std::time::Instant::now();
+            let rx = controller.transcribe_async(snapshot, params, dur);
+            let win2 = win.downgrade();
+            glib::spawn_future_local(async move {
+                let res = rx.recv().await;
+                let Some(win) = win2.upgrade() else { return };
+                win.imp().live_decoding.set(false);
+                match res {
+                    Ok(Ok(outcome)) => {
+                        // If even a 12s greedy decode is slow, this hardware/model
+                        // can't keep up live — disable the loop for this recording.
+                        if started.elapsed().as_secs_f32() > 3.5 {
+                            win.imp().live_too_slow.set(true);
+                        }
+                        let still_recording = win
+                            .controller()
+                            .map(|c| c.owner() == RecordingOwner::Main)
+                            .unwrap_or(false);
+                        if !still_recording {
+                            return;
+                        }
+                        let text = outcome.cleaned_text;
+                        if !text.trim().is_empty() {
+                            if let Some(tv) = win.imp().transcript_view.borrow().as_ref() {
+                                tv.set_live_preview(&text);
+                            }
+                        }
+                    }
+                    // Any failure (e.g. "failed to encode" on a VRAM-tight GPU):
+                    // stop the live loop silently so it can't repeat.
+                    _ => win.imp().live_too_slow.set(true),
+                }
+            });
+            glib::ControlFlow::Continue
+        });
     }
 
     fn on_pause(&self) {
@@ -1108,6 +1872,11 @@ impl MainWindow {
             return;
         };
 
+        // Capture the mic duration BEFORE stopping (stop drains the buffer, and
+        // silence-trimming makes the conditioned sample count shorter than the
+        // real recording time). Needed for words-per-minute stats.
+        let duration_secs = controller.recording_duration_secs();
+
         // Stop recording and get audio data.
         let audio_data = match controller.stop() {
             Ok(data) => data,
@@ -1140,14 +1909,14 @@ impl MainWindow {
         let backend = self.active_backend();
 
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
-            sb.set_recording_status(if backend == "cohere" {
-                "Transcribing with Cohere…"
-            } else {
-                "Transcribing with Whisper…"
+            sb.set_recording_status(match backend.as_str() {
+                "cohere" => "Transcribing with Cohere…",
+                "qwen" => "Transcribing with Qwen3-ASR…",
+                _ => "Transcribing with Whisper…",
             });
         }
 
-        // Cohere readiness is checked up front so we can show the dedicated
+        // Backend readiness is checked up front so we can show the dedicated
         // "Setup Required" status (the controller also guards internally).
         if backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
             self.show_toast(&gettext("Cohere is not set up. Go to Settings → Model to download the runtime and model."));
@@ -1156,77 +1925,115 @@ impl MainWindow {
             }
             return;
         }
+        if backend == "qwen" && !crate::transcription::qwen::qwen_ready() {
+            self.show_toast(&gettext("Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model."));
+            if let Some(sb) = imp.status_bar.borrow().as_ref() {
+                sb.set_recording_status(&gettext("Setup Required"));
+            }
+            return;
+        }
 
         tracing::info!("Using {} backend for live transcription", backend);
+        // Show the decode-sweep animation while transcription runs.
+        if let Some(tv) = imp.transcript_view.borrow().as_ref() {
+            tv.start_transcribing_anim();
+        }
+        // Final, authoritative decode. (When live transcription is on, the live
+        // preview already ran *during* recording via the live loop; here we always
+        // use the clean batch path so the result + chips/toggle/stats render
+        // reliably — the previous on-stop streaming path could hide the chips with
+        // a late segment update.)
         let params = self.build_dictation_params(backend);
-        let receiver = controller.transcribe_async(audio_data, params);
-
+        let receiver = controller.transcribe_async(audio_data, params, duration_secs);
         let window = self.clone();
         glib::spawn_future_local(async move {
             if let Ok(result) = receiver.recv().await {
-                match result {
-                    Ok(outcome) => {
-                        let cleaned = outcome.cleaned_text;
-                        if cleaned.is_empty() {
-                            *window.imp().last_segments.borrow_mut() = Vec::new();
-                            if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
-                                sb.set_recording_status(&gettext("Ready"));
-                            }
-                            window.show_toast(&gettext("No clear speech detected — try again in a quieter environment"));
-                            return;
-                        }
-                        if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
-                            tv.append_text(&cleaned);
-                            tv.set_confidence(outcome.confidence as f64);
-                        }
-                        if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
-                            sb.set_recording_status(&gettext("Ready"));
-                        }
-                        // Store segments for SRT export
-                        *window.imp().last_segments.borrow_mut() = outcome.segments;
-                        // Surface the auto-detected language (only set when auto-detect was used).
-                        if let Some(code) = outcome.detected_language.as_deref() {
-                            if let Some(h) = window.imp().header_controls.borrow().as_ref() {
-                                h.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
-                            }
-                        }
-                        // Auto-copy to clipboard
-                        if let Some(display) = gtk::gdk::Display::default() {
-                            display.clipboard().set_text(&cleaned);
-                        }
-                        // Add to history
-                        if let Some(hp) = window.imp().history_page.borrow().as_ref() {
-                            let lang_name = window.imp().language_page.borrow()
-                                .as_ref()
-                                .map(|p| p.selected_language_name())
-                                .unwrap_or_else(|| "Auto-detect".to_string());
-                            let model_name = window.imp().header_controls.borrow()
-                                .as_ref()
-                                .map(|h| h.selected_model_id())
-                                .unwrap_or_else(|| "unknown".to_string());
-                            let title = Self::ellipsize_chars(&cleaned, 60);
-                            let entry = crate::ui::history_page::HistoryEntry {
-                                id: uuid::Uuid::new_v4().to_string(),
-                                title,
-                                text: cleaned.clone(),
-                                language: lang_name,
-                                duration_secs: 0,
-                                timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
-                                model: model_name,
-                            };
-                            hp.add_entry(entry);
-                        }
-                        tracing::info!("Transcription complete ({:.0}% confidence), copied to clipboard", outcome.confidence * 100.0);
-                    }
-                    Err(msg) => {
-                        window.show_toast(&msg);
-                        if let Some(sb) = window.imp().status_bar.borrow().as_ref() {
-                            sb.set_recording_status(&gettext("Error"));
-                        }
-                    }
-                }
+                window.apply_transcription_result(result);
             }
         });
+    }
+
+    /// Finalize a live transcription result: render it, save to history, and run
+    /// the summary / auto-improve passes. Shared by the streaming and batch paths.
+    fn apply_transcription_result(&self, result: Result<crate::recording::DictationOutcome, String>) {
+        if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+            tv.stop_transcribing_anim();
+        }
+        match result {
+            Ok(outcome) => {
+                let duration_secs = outcome.duration_secs;
+                let confidence = outcome.confidence;
+                let detected = outcome.detected_language.clone();
+                let segments = outcome.segments;
+                let cleaned = outcome.cleaned_text;
+                if cleaned.is_empty() {
+                    *self.imp().last_segments.borrow_mut() = Vec::new();
+                    if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+                        sb.set_recording_status(&gettext("Ready"));
+                    }
+                    self.show_toast(&gettext("No clear speech detected — try again in a quieter environment"));
+                    return;
+                }
+                if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+                    sb.set_recording_status(&gettext("Ready"));
+                }
+                // Store segments for SRT export
+                *self.imp().last_segments.borrow_mut() = segments.clone();
+                // Surface the auto-detected language (only set when auto-detect was used).
+                if let Some(code) = detected.as_deref() {
+                    self.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
+                }
+                // Render as the current result (text + confidence + stats +
+                // clipboard + chips/selector).
+                let state = crate::ui::result_state::ResultState::new(
+                    cleaned.clone(), duration_secs, detected, segments,
+                );
+                self.add_result_message(state, confidence as f64);
+                // Add to history
+                if let Some(hp) = self.imp().history_page.borrow().as_ref() {
+                    let lang_name = self.imp().language_page.borrow()
+                        .as_ref()
+                        .map(|p| p.selected_language_name())
+                        .unwrap_or_else(|| "Auto-detect".to_string());
+                    let model_name = self.imp().header_controls.borrow()
+                        .as_ref()
+                        .map(|h| h.selected_model_id())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let title = Self::ellipsize_chars(&cleaned, 60);
+                    let entry_id = uuid::Uuid::new_v4().to_string();
+                    let entry = crate::ui::history_page::HistoryEntry {
+                        id: entry_id.clone(),
+                        title,
+                        text: cleaned.clone(),
+                        language: lang_name,
+                        duration_secs: duration_secs.round() as u64,
+                        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+                        model: model_name,
+                        word_count: Some(crate::ui::result_state::word_count(&cleaned) as u32),
+                        ..Default::default()
+                    };
+                    hp.add_entry(entry);
+                    // LLM auto-title (best effort) via the Application.
+                    if let Some(app) = self
+                        .application()
+                        .and_downcast::<crate::application::Application>()
+                    {
+                        app.auto_title(entry_id, cleaned.clone());
+                    }
+                }
+                tracing::info!("Transcription complete ({:.0}% confidence), copied to clipboard", confidence * 100.0);
+                // Summarize long dictations; auto-improve with the active preset
+                // (adds a variant; the raw transcript stays available + in History).
+                self.maybe_generate_summary(&cleaned, duration_secs);
+                self.maybe_auto_improve(&cleaned);
+            }
+            Err(msg) => {
+                self.show_toast(&msg);
+                if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
+                    sb.set_recording_status(&gettext("Error"));
+                }
+            }
+        }
     }
 
     fn on_cancel(&self) {
@@ -1269,6 +2076,8 @@ impl MainWindow {
     }
 
     fn on_clear(&self) {
+        self.imp().messages.borrow_mut().clear();
+        self.imp().selected_message.set(-1);
         if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
             tv.clear();
         }
@@ -1392,6 +2201,8 @@ impl MainWindow {
             NavItem::Language => "language",
             NavItem::Performance => "performance",
             NavItem::Dictation => "dictation",
+            NavItem::Dictionary => "dictionary",
+            NavItem::Llm => "llm",
             NavItem::Help => "help",
         };
 
@@ -1400,6 +2211,20 @@ impl MainWindow {
         }
 
         imp.current_nav.set(Some(nav_item));
+
+        // The LLM enable switch may have changed; keep the AI button in sync.
+        self.refresh_ai_button();
+
+        // Returning to Transcription with a non-Whisper backend: re-sync so the
+        // model dropdown reflects any size just downloaded in Settings (Qwen).
+        if matches!(nav_item, NavItem::Transcription)
+            && self
+                .current_config_snapshot()
+                .map(|c| c.backend != "whisper")
+                .unwrap_or(false)
+        {
+            self.sync_ui_from_config();
+        }
     }
 
     fn setup_actions(&self) {
@@ -1430,6 +2255,8 @@ impl MainWindow {
                         "language" => NavItem::Language,
                         "performance" => NavItem::Performance,
                         "dictation" => NavItem::Dictation,
+                        "dictionary" => NavItem::Dictionary,
+                        "llm" => NavItem::Llm,
                         "help" => NavItem::Help,
                         _ => return,
                     };
@@ -1450,13 +2277,18 @@ impl MainWindow {
         }
     }
 
-    /// Show a toast notification.
-    pub fn show_toast(&self, message: &str) {
-        if let Some(overlay) = self.imp().toast_overlay.borrow().as_ref() {
-            let toast = adw::Toast::new(message);
-            toast.set_timeout(3);
-            overlay.add_toast(toast);
+    /// Update a history entry's title in place (used by LLM auto-title).
+    pub fn history_update_title(&self, id: &str, title: &str) {
+        if let Some(hp) = self.imp().history_page.borrow().as_ref() {
+            hp.update_entry_title(id, title);
         }
+    }
+
+    /// Show a toast notification. Messages are redacted (no secrets/home paths)
+    /// since some callers pass through error text.
+    pub fn show_toast(&self, message: &str) {
+        // Routed through the top in-app banner instead of a bottom OSD toast.
+        self.show_banner(message, false);
     }
 
     /// Try to load the currently selected model in a background thread.
@@ -1466,8 +2298,8 @@ impl MainWindow {
             None => return,
         };
 
-        if config.backend == "cohere" {
-            tracing::info!("Cohere backend is active; skipping Whisper model preload");
+        if config.backend != "whisper" {
+            tracing::info!("{} backend is active; skipping Whisper model preload", config.backend);
             return;
         }
 
@@ -1561,6 +2393,9 @@ impl MainWindow {
             .unwrap_or_else(|| self.current_config_snapshot().map(|c| c.cpu_fallback).unwrap_or(true));
 
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
+            // Show the selected model immediately so the status bar matches the
+            // header dropdown (not just after a slow/failed load finishes).
+            sb.set_model_name(model_id);
             sb.set_recording_status(&gettext("Loading model…"));
         }
 
@@ -1622,10 +2457,10 @@ impl MainWindow {
             .map(|config| config.backend)
             .unwrap_or_else(|| "whisper".to_string());
 
-        if backend == "cohere" {
+        if backend != "whisper" {
             tracing::info!(
-                "Whisper model '{}' finished loading, but Cohere is the active backend; leaving Cohere UI state unchanged",
-                model_id
+                "Whisper model '{}' finished loading, but {} is the active backend; leaving its UI state unchanged",
+                model_id, backend
             );
             return;
         }
@@ -1635,15 +2470,18 @@ impl MainWindow {
         if let Some(header) = self.imp().header_controls.borrow().as_ref() {
             header.set_model_status(true, model_id);
 
-            // Refresh the dropdown list (a new model may have just been downloaded)
+            // Refresh the dropdown list (a new model may have just been
+            // downloaded). Guard the rebuild so `update_models_for_backend`'s
+            // internal `set_selected(0)` doesn't fire the change handler and
+            // overwrite the freshly-loaded model with the first list entry.
             let downloaded = Self::downloaded_model_entries();
+            self.imp().syncing_dropdown.set(true);
             header.update_models_for_backend(&backend, &downloaded);
 
             // Find the model's index in the refreshed list
             let index = downloaded.iter()
                 .position(|(id, _)| id == model_id)
                 .unwrap_or(0) as u32;
-            self.imp().syncing_dropdown.set(true);
             header.set_selected_model(index);
             self.imp().syncing_dropdown.set(false);
         }
@@ -1691,6 +2529,12 @@ impl MainWindow {
 
     /// Check GitHub for a newer release and show the update banner if found.
     fn check_for_updates(&self) {
+        // Respect the user's choice: the startup update check is the only
+        // unprompted network request the app makes, so it can be disabled.
+        if !AppConfig::load().update_check_enabled {
+            return;
+        }
+
         let (sender, receiver) = async_channel::bounded::<Option<crate::version_check::UpdateInfo>>(1);
 
         // Spawn the async HTTP check on the Tokio runtime

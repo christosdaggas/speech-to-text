@@ -130,6 +130,18 @@ popover.stt-theme-menu > contents {
     outline-offset: -2px;
 }
 
+/* The selected message (chips / Improve / Voice edit act on this one). */
+.message-bubble.selected {
+    border-color: @accent_bg_color;
+    background-color: alpha(@accent_bg_color, 0.12);
+}
+
+/* Transient live-preview bubble shown while recording. */
+.message-bubble.live-preview {
+    border-style: dashed;
+    opacity: 0.75;
+}
+
 .bubble-text {
     font-size: 1.05em;
     line-height: 1.6;
@@ -213,6 +225,28 @@ popover.stt-theme-menu > contents {
 
 .controls-panel {
     background-color: @sidebar_bg_color;
+}
+
+/* Squarer corners on the control-bar buttons (smaller radius). */
+.controls-panel button {
+    border-radius: 6px;
+}
+
+/* Mode toggles get a vivid, colourful background when ACTIVE so it's obvious
+   they're on (Translate = accent blue, Improve with AI = purple). */
+.translate-toggle:checked {
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
+}
+.translate-toggle:checked:hover {
+    background-image: image(alpha(white, 0.08));
+}
+.ai-toggle:checked {
+    background-color: #9141ac;
+    color: #ffffff;
+}
+.ai-toggle:checked:hover {
+    background-image: image(alpha(white, 0.08));
 }
 
 /* ========================================
@@ -530,4 +564,106 @@ comborow popover listview row:selected {
     border: 1px solid alpha(@shade_color, 0.35);
     border-radius: 10px;
     padding: 10px 12px;
+}
+
+/* ── Mini Panel "instrument" redesign (Option M) ────────────────── */
+
+/* Header state dot (red recording / green ready) */
+.mp-dot {
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 999px;
+    background-color: @error_color;
+}
+.mp-dot.rec { background-color: @error_color; }
+.mp-dot.ok  { background-color: @success_color; }
+.mp-state { font-weight: 700; }
+
+/* Dim technical metadata */
+.mp-meta {
+    font-size: 12px;
+    color: alpha(@window_fg_color, 0.55);
+}
+
+/* Big tabular timer + centiseconds */
+.mp-timer {
+    font-size: 40px;
+    font-weight: 700;
+}
+.mp-cs {
+    font-size: 16px;
+    font-weight: 700;
+    color: alpha(@window_fg_color, 0.45);
+}
+.mp-title {
+    font-size: 22px;
+    font-weight: 700;
+}
+.mp-wave { background-color: transparent; }
+
+/* LED level meter (green → amber → red) */
+.mp-led {
+    min-width: 9px;
+    min-height: 9px;
+    border-radius: 2px;
+    background-color: alpha(@window_fg_color, 0.14);
+}
+.mp-led.on.g { background-color: @success_color; }
+.mp-led.on.y { background-color: @warning_color; }
+.mp-led.on.r { background-color: @error_color; }
+
+/* Indeterminate decode segments — follow the GNOME accent */
+.mp-seg {
+    min-width: 4px;
+    min-height: 13px;
+    border-radius: 3px;
+    background-color: alpha(@window_fg_color, 0.12);
+    transition: background-color 120ms ease-out;
+}
+.mp-seg.on { background-color: @accent_bg_color; }
+
+/* Transcript text inside a bordered card so the result page isn't empty */
+.mp-transcript { font-size: 15px; }
+.mp-transcript-box {
+    background-color: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@window_fg_color, 0.16);
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 84px;
+}
+
+/* "Copied" badge */
+.mp-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: @success_color;
+    background-color: alpha(@success_color, 0.16);
+    border: 1px solid alpha(@success_color, 0.35);
+    border-radius: 7px;
+    padding: 2px 8px;
+    margin: 2px;
+}
+
+/* Buttons: rounded; New=suggested(blue), Copy=success(green), Paste=destructive(red) */
+.mp-btn {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 7px 12px;
+}
+.mp-btn.mp-copy {
+    background-color: @success_bg_color;
+    color: @success_fg_color;
+}
+
+/* Body background matches the main window's sidebar colour */
+.mini-panel {
+    background-color: @sidebar_bg_color;
+}
+
+/* Top bar uses the same colour as the main window's header bar */
+.mini-panel headerbar {
+    background-color: @headerbar_bg_color;
+    background-image: none;
+    box-shadow: none;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
 }

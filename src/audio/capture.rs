@@ -150,9 +150,17 @@ impl AudioCapture {
         let paused = self.paused.clone();
         let waveform_sender = self.waveform_sender.clone();
 
+        // Cap a single live recording at MAX_RECORDING_SECS (raw source samples
+        // = secs × rate × channels). Independent of the buffer's memory backstop;
+        // applies only to live capture, not to decoded files.
+        let max_live_samples: usize = (crate::limits::MAX_RECORDING_SECS)
+            .saturating_mul(sample_rate as usize)
+            .saturating_mul(channels.max(1) as usize);
+
         // Build the input stream based on sample format
         let stream = match sample_format {
             SampleFormat::F32 => {
+                let max_live_samples = max_live_samples;
                 device.build_input_stream(
                     &config,
                     move |data: &[f32], _: &cpal::InputCallbackInfo| {
@@ -160,7 +168,9 @@ impl AudioCapture {
                             return;
                         }
                         if let Ok(mut buf) = buffer.lock() {
-                            buf.push_samples(data);
+                            if buf.raw_len() < max_live_samples {
+                                buf.push_samples(data);
+                            }
                         }
 
                         // Send waveform amplitude snapshot for UI (64 bins)
@@ -200,7 +210,9 @@ impl AudioCapture {
                             .map(|&s| s as f32 / i16::MAX as f32)
                             .collect();
                         if let Ok(mut buf) = buffer.lock() {
-                            buf.push_samples(&float_data);
+                            if buf.raw_len() < max_live_samples {
+                                buf.push_samples(&float_data);
+                            }
                         }
                         // Send waveform amplitude snapshot for UI (64 bins)
                         if let Some(ref sender) = waveform_sender {
@@ -276,6 +288,16 @@ impl AudioCapture {
 
         info!("Recording stopped: {} samples ({:.1}s)", audio.len(), audio.len() as f32 / WHISPER_SAMPLE_RATE as f32);
         Ok(audio)
+    }
+
+    /// Non-destructive snapshot of the audio captured so far as mono 16 kHz f32,
+    /// WITHOUT stopping recording or clearing the buffer. Used for live (while
+    /// speaking) transcription.
+    pub fn snapshot_mono_16khz(&self) -> Vec<f32> {
+        self.buffer
+            .lock()
+            .map(|b| b.get_mono_16khz())
+            .unwrap_or_default()
     }
 
     /// Get the current recording state.

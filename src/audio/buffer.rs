@@ -39,9 +39,26 @@ impl AudioBuffer {
         self.source_channels = channels;
     }
 
-    /// Push new samples into the buffer.
+    /// Push new samples into the buffer. Caps total length at
+    /// [`crate::limits::MAX_BUFFER_SAMPLES`] so a forgotten/runaway recording
+    /// can't grow memory without bound (extra samples are dropped).
     pub fn push_samples(&mut self, samples: &[f32]) {
-        self.raw_samples.extend_from_slice(samples);
+        let cap = crate::limits::MAX_BUFFER_SAMPLES;
+        if self.raw_samples.len() >= cap {
+            return;
+        }
+        let room = cap - self.raw_samples.len();
+        if samples.len() <= room {
+            self.raw_samples.extend_from_slice(samples);
+        } else {
+            self.raw_samples.extend_from_slice(&samples[..room]);
+            tracing::warn!("Audio buffer reached its safety cap; further audio is ignored.");
+        }
+    }
+
+    /// Number of raw (source-rate, interleaved) samples currently buffered.
+    pub fn raw_len(&self) -> usize {
+        self.raw_samples.len()
     }
 
     /// Clear the buffer for a new recording.

@@ -99,6 +99,9 @@ impl GpuStatusPanel {
         gpu_brand_label.add_css_class("caption-heading");
         gpu_brand_label.set_xalign(0.0);
         gpu_brand_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+        // Cap the natural width so a long GPU string can't widen the whole
+        // sidebar (ellipsize only bounds the *minimum*; this bounds the natural).
+        gpu_brand_label.set_max_width_chars(24);
         inner.append(&gpu_brand_label);
 
         // GPU model
@@ -106,6 +109,7 @@ impl GpuStatusPanel {
         gpu_model_label.add_css_class("caption");
         gpu_model_label.set_xalign(0.0);
         gpu_model_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+        gpu_model_label.set_max_width_chars(24);
         inner.append(&gpu_model_label);
 
         // VRAM bar
@@ -146,8 +150,49 @@ impl GpuStatusPanel {
         *imp.vram_label.borrow_mut() = Some(vram_label);
         *imp.vram_bar.borrow_mut() = Some(vram_bar);
 
-        // Detect GPU at startup
+        // Detect GPU at startup, then refresh VRAM usage periodically.
         self.detect_gpu();
+        self.start_auto_refresh();
+    }
+
+    /// Periodically re-read VRAM usage so the bar reflects the *current* state
+    /// (otherwise it's frozen at the startup reading — e.g. showing "full" long
+    /// after another app released the memory). Cheap AMD sysfs read when present;
+    /// otherwise a throttled nvidia-smi query.
+    fn start_auto_refresh(&self) {
+        let panel = self.downgrade();
+        glib::timeout_add_seconds_local(4, move || {
+            let Some(panel) = panel.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            // Only meaningful once a GPU with VRAM was detected.
+            let (tx, rx) = async_channel::bounded::<Option<(f64, f64)>>(1);
+            std::thread::spawn(move || {
+                let _ = tx.send_blocking(read_vram_usage());
+            });
+            let panel2 = panel.clone();
+            glib::spawn_future_local(async move {
+                if let Ok(Some((used, total))) = rx.recv().await {
+                    panel2.update_vram(used, total);
+                }
+            });
+            glib::ControlFlow::Continue
+        });
+    }
+
+    /// Update only the VRAM bar + label (leaves the GPU name/status intact).
+    pub fn update_vram(&self, vram_used_gb: f64, vram_total_gb: f64) {
+        let imp = self.imp();
+        if let Some(bar) = imp.vram_bar.borrow().as_ref() {
+            if vram_total_gb > 0.0 {
+                bar.set_value((vram_used_gb / vram_total_gb).clamp(0.0, 1.0));
+            }
+        }
+        if let Some(label) = imp.vram_label.borrow().as_ref() {
+            if vram_total_gb > 0.0 {
+                label.set_text(&format!("{:.1} / {:.1} GB", vram_used_gb, vram_total_gb));
+            }
+        }
     }
 
     /// Probe the system for GPU info.
@@ -340,6 +385,53 @@ fn get_lspci_gpu_name(vendor: &str) -> Option<String> {
         {
             if let Some(idx) = line.find(": ") {
                 return Some(line[idx + 2..].trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Read current (used, total) VRAM in GB. Tries the cheap AMD sysfs path first
+/// (no process spawn); falls back to an nvidia-smi query. None if unavailable.
+fn read_vram_usage() -> Option<(f64, f64)> {
+    if let (Some(used), Some(total)) = (read_amd_vram_used(), read_amd_vram_total()) {
+        if total > 0.0 {
+            return Some((used, total));
+        }
+    }
+    let output = std::process::Command::new("nvidia-smi")
+        .arg("--query-gpu=memory.used,memory.total")
+        .arg("--format=csv,noheader,nounits")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout.lines().next()?;
+    let parts: Vec<&str> = line.split(',').map(|p| p.trim()).collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let used_mb: f64 = parts[0].parse().ok()?;
+    let total_mb: f64 = parts[1].parse().ok()?;
+    Some((used_mb / 1024.0, total_mb / 1024.0))
+}
+
+/// Read AMD total VRAM in GB from sysfs.
+fn read_amd_vram_total() -> Option<f64> {
+    let drm_dir = std::path::Path::new("/sys/class/drm");
+    for entry in std::fs::read_dir(drm_dir).ok()? {
+        let entry = entry.ok()?;
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("card") || name_str.contains('-') {
+            continue;
+        }
+        let device_dir = entry.path().join("device");
+        if let Ok(s) = std::fs::read_to_string(device_dir.join("mem_info_vram_total")) {
+            if let Ok(bytes) = s.trim().parse::<u64>() {
+                return Some(bytes as f64 / (1024.0 * 1024.0 * 1024.0));
             }
         }
     }

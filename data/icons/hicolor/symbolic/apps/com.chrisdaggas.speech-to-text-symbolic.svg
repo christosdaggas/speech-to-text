@@ -1,13 +1,34 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="16" height="16" viewBox="0 0 24 24" version="1.1" color="#ffffff" xmlns="http://www.w3.org/2000/svg">
+<svg width="16" height="16" viewBox="-3 -8 257 257" version="1.1" color="#ffffff" xmlns="http://www.w3.org/2000/svg">
   <title>Speech to Text</title>
   <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color:#ffffff; }</style>
-  <!-- Audio-levels glyph (matches the app icon), monochrome, ~15% larger -->
-  <g class="ColorScheme-Text" fill="currentColor" transform="translate(12 12) scale(1.15) translate(-12 -12)">
-    <rect x="5.25"  y="9.11" width="1.5" height="5.78"  rx="0.75" ry="0.75"/>
-    <rect x="8.25"  y="7.68" width="1.5" height="8.64"  rx="0.75" ry="0.75"/>
-    <rect x="11.25" y="6.25" width="1.5" height="11.50" rx="0.75" ry="0.75"/>
-    <rect x="14.25" y="7.68" width="1.5" height="8.64"  rx="0.75" ry="0.75"/>
-    <rect x="17.25" y="9.11" width="1.5" height="5.78"  rx="0.75" ry="0.75"/>
+  <!-- Monochrome line-art of the app logo: the microphone body with its dotted
+       grille, the stand's two bars and the foot — taken from the logo geometry. -->
+  <g class="ColorScheme-Text" fill="currentColor">
+    <!-- Stand foot -->
+    <path d="M103.651,226.643h-9.687c-3.851,0-6.97,3.12-6.97,6.97l0,0c0,3.851,3.12,6.97,6.97,6.97h9.687c3.851,0,6.97-3.12,6.97-6.97l0,0C110.618,229.763,107.499,226.643,103.651,226.643z"/>
+    <!-- Microphone body outline + the two stand bars -->
+    <path d="M203.782,155.898h-7.012V38.372C196.77,17.269,179.501,0,158.398,0H79.217c-21.12,0-38.399,17.28-38.399,38.399v117.498h-7.039c-3.862,0-6.984,3.122-6.984,6.957v24.54c0,3.856,3.128,6.984,6.984,6.984h7.039v15.776c0,3.856,3.128,6.984,6.984,6.984h5.313V233.6c0,3.856,3.128,6.984,6.984,6.984h15.666c3.851,0,6.97-3.12,6.97-6.97l0,0c0-3.851-3.12-6.97-6.97-6.97h-8.682v-9.504h103.393v9.504h-48.634c-3.851,0-6.97,3.12-6.97,6.97l0,0c0,3.851,3.12,6.97,6.97,6.97h55.619c3.856,0,7.012-3.155,7.012-7.012v-16.433h5.286c3.856,0,7.012-3.155,7.012-7.012v-15.749h7.012c3.856,0,7.012-3.155,7.012-7.012v-24.513C210.793,159.02,207.643,155.898,203.782,155.898z M54.786,38.372c0-13.448,10.956-24.404,24.431-24.404h79.126c13.475,0,24.431,10.956,24.431,24.404v117.526H54.786C54.786,155.898,54.786,38.372,54.786,38.372z M182.774,203.171H54.786v-8.792h127.988V203.171z M196.797,180.411H40.763v-10.572h156.035v10.572H196.797z"/>
+    <!-- Staggered dot grid (the logo's text dots), r≈7.46 -->
+    <g>
+      <circle cx="170.449" cy="39.33"  r="7.46"/>
+      <circle cx="170.449" cy="88.001" r="7.46"/>
+      <circle cx="170.449" cy="136.643" r="7.46"/>
+      <circle cx="152.482" cy="63.789"  r="7.46"/>
+      <circle cx="152.482" cy="112.459" r="7.46"/>
+      <circle cx="136.323" cy="39.33"  r="7.46"/>
+      <circle cx="136.323" cy="88.001" r="7.46"/>
+      <circle cx="136.323" cy="136.643" r="7.46"/>
+      <circle cx="117.945" cy="63.789"  r="7.46"/>
+      <circle cx="117.945" cy="112.459" r="7.46"/>
+      <circle cx="101.786" cy="39.33"  r="7.46"/>
+      <circle cx="101.786" cy="88.001" r="7.46"/>
+      <circle cx="101.786" cy="136.643" r="7.46"/>
+      <circle cx="84.914"  cy="63.789"  r="7.46"/>
+      <circle cx="84.914"  cy="112.459" r="7.46"/>
+      <circle cx="68.755"  cy="39.33"  r="7.46"/>
+      <circle cx="68.755"  cy="88.001" r="7.46"/>
+      <circle cx="68.755"  cy="136.643" r="7.46"/>
+    </g>
   </g>
 </svg>

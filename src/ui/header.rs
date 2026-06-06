@@ -12,6 +12,7 @@ use gtk4::pango;
 use libadwaita as adw;
 use adw::subclass::prelude::*;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::ui::widgets::ThemePopover;
 
@@ -22,12 +23,14 @@ mod imp {
     pub struct HeaderControls {
         pub mic_dropdown: RefCell<Option<gtk::DropDown>>,
         pub model_dropdown: RefCell<Option<gtk::DropDown>>,
-        pub model_ids: RefCell<Vec<String>>,
+        // `Rc` so the `connect_model_changed` closure shares the SAME list (a
+        // bare `RefCell::clone()` would snapshot an independent — and stale/empty
+        // — copy, so genuine user selections would never resolve to a model id).
+        pub model_ids: Rc<RefCell<Vec<String>>>,
         pub status_label: RefCell<Option<gtk::Label>>,
         pub status_icon: RefCell<Option<gtk::Image>>,
         pub header_bar: RefCell<Option<adw::HeaderBar>>,
         pub theme_popover: RefCell<Option<ThemePopover>>,
-        pub language_label: RefCell<Option<gtk::Label>>,
     }
 
     #[glib::object_subclass]
@@ -57,7 +60,6 @@ impl HeaderControls {
     const MIC_DROPDOWN_WIDTH: i32 = 120;
     const MODEL_DROPDOWN_WIDTH: i32 = 120;
     const STATUS_LABEL_CHARS: i32 = 10;
-    const LANGUAGE_LABEL_CHARS: i32 = 10;
 
     pub fn new() -> Self {
         glib::Object::builder()
@@ -138,33 +140,14 @@ impl HeaderControls {
 
         header_bar.set_title_widget(Some(&center_box));
 
-        // === Right side: Language label + Hamburger menu ===
-        let lang_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        lang_box.set_margin_end(4);
-
-        let lang_icon = gtk::Image::from_icon_name("preferences-desktop-locale-symbolic");
-        lang_icon.set_pixel_size(16);
-        lang_box.append(&lang_icon);
-
-        let language_label = gtk::Label::new(Some(gettext("Auto-detect").as_str()));
-        language_label.add_css_class("caption");
-        language_label.add_css_class("dim-label");
-        language_label.set_width_chars(Self::LANGUAGE_LABEL_CHARS);
-        language_label.set_max_width_chars(Self::LANGUAGE_LABEL_CHARS);
-        language_label.set_ellipsize(pango::EllipsizeMode::End);
-        language_label.set_xalign(0.0);
-        lang_box.append(&language_label);
-
-        // Pack menu button first (rightmost, next to window buttons),
-        // then language box to its left
+        // === Right side: Hamburger menu ===
+        // (The language indicator now lives in the bottom status bar.)
         let menu_button = gtk::MenuButton::new();
         menu_button.set_icon_name("open-menu-symbolic");
         menu_button.set_tooltip_text(Some(gettext("Main menu").as_str()));
         let theme_popover = ThemePopover::new();
         menu_button.set_popover(Some(&theme_popover));
         header_bar.pack_end(&menu_button);
-
-        header_bar.pack_end(&lang_box);
 
         self.append(&header_bar);
 
@@ -175,7 +158,6 @@ impl HeaderControls {
         *imp.status_icon.borrow_mut() = Some(status_icon);
         *imp.header_bar.borrow_mut() = Some(header_bar);
         *imp.theme_popover.borrow_mut() = Some(theme_popover);
-        *imp.language_label.borrow_mut() = Some(language_label);
     }
 
     fn configure_fixed_width_dropdown(dropdown: &gtk::DropDown, width: i32, max_chars: i32) {
@@ -193,7 +175,9 @@ impl HeaderControls {
     fn fixed_width_factory(max_chars: i32) -> gtk::SignalListItemFactory {
         let factory = gtk::SignalListItemFactory::new();
         factory.connect_setup(move |_, item| {
-            let item = item.downcast_ref::<gtk::ListItem>().unwrap();
+            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                return;
+            };
             let label = gtk::Label::new(None);
             label.set_xalign(0.0);
             label.set_ellipsize(pango::EllipsizeMode::End);
@@ -202,9 +186,15 @@ impl HeaderControls {
             item.set_child(Some(&label));
         });
         factory.connect_bind(|_, item| {
-            let item = item.downcast_ref::<gtk::ListItem>().unwrap();
-            let string_object = item.item().and_downcast::<gtk::StringObject>().unwrap();
-            let label = item.child().and_downcast::<gtk::Label>().unwrap();
+            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                return;
+            };
+            let Some(string_object) = item.item().and_downcast::<gtk::StringObject>() else {
+                return;
+            };
+            let Some(label) = item.child().and_downcast::<gtk::Label>() else {
+                return;
+            };
             label.set_text(&string_object.string());
         });
         factory
@@ -251,6 +241,21 @@ impl HeaderControls {
         }
     }
 
+    /// Select the dropdown entry whose id matches `id` (falls back to the first
+    /// entry if not present).
+    pub fn set_selected_model_by_id(&self, id: &str) {
+        let imp = self.imp();
+        let idx = imp
+            .model_ids
+            .borrow()
+            .iter()
+            .position(|m| m == id)
+            .unwrap_or(0) as u32;
+        if let Some(dropdown) = imp.model_dropdown.borrow().as_ref() {
+            dropdown.set_selected(idx);
+        }
+    }
+
     /// Update the model dropdown items based on the selected backend.
     /// For Whisper, only shows models that are actually downloaded.
     /// `downloaded` is a list of (model_id, display_name) for downloaded models.
@@ -263,6 +268,32 @@ impl HeaderControls {
                 dropdown.set_selected(0);
                 dropdown.set_sensitive(false);
                 *imp.model_ids.borrow_mut() = vec!["cohere-transcribe".to_string()];
+            } else if backend == "qwen" {
+                // List only the DOWNLOADED Qwen3-ASR sizes, like the Whisper
+                // dropdown. ids are the size strings ("0.6B"/"1.7B").
+                let mut names: Vec<&str> = Vec::new();
+                let mut ids: Vec<String> = Vec::new();
+                if crate::transcription::qwen::is_model_downloaded_size("0.6B") {
+                    names.push("Qwen3 0.6B");
+                    ids.push("0.6B".to_string());
+                }
+                if crate::transcription::qwen::is_model_downloaded_size("1.7B") {
+                    names.push("Qwen3 1.7B");
+                    ids.push("1.7B".to_string());
+                }
+                if names.is_empty() {
+                    let model_list = gtk::StringList::new(&["No model downloaded"]);
+                    dropdown.set_model(Some(&model_list));
+                    dropdown.set_selected(0);
+                    dropdown.set_sensitive(false);
+                    *imp.model_ids.borrow_mut() = Vec::new();
+                } else {
+                    let model_list = gtk::StringList::new(&names);
+                    dropdown.set_model(Some(&model_list));
+                    dropdown.set_selected(0);
+                    dropdown.set_sensitive(true);
+                    *imp.model_ids.borrow_mut() = ids;
+                }
             } else if downloaded.is_empty() {
                 let model_list = gtk::StringList::new(&["No models downloaded"]);
                 dropdown.set_model(Some(&model_list));
@@ -304,13 +335,6 @@ impl HeaderControls {
                     callback(model_id.clone());
                 }
             });
-        }
-    }
-
-    /// Update the language display in the header.
-    pub fn set_language_display(&self, language: &str) {
-        if let Some(label) = self.imp().language_label.borrow().as_ref() {
-            label.set_text(language);
         }
     }
 }

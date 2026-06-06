@@ -20,6 +20,7 @@ mod imp {
         pub recording_label: RefCell<Option<gtk::Label>>,
         pub recording_icon: RefCell<Option<gtk::Image>>,
         pub model_label: RefCell<Option<gtk::Label>>,
+        pub language_label: RefCell<Option<gtk::Label>>,
         pub compute_label: RefCell<Option<gtk::Label>>,
         pub version_label: RefCell<Option<gtk::Label>>,
         pub update_box: RefCell<Option<gtk::Box>>,
@@ -83,25 +84,27 @@ impl StatusBar {
         sep1.set_margin_end(12);
         self.append(&sep1);
 
-        // === Model info ===
-        let model_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        // (Model indicator removed from the status bar.)
 
-        let model_icon = gtk::Image::from_icon_name("application-x-executable-symbolic");
-        model_icon.set_pixel_size(10);
-        model_box.append(&model_icon);
+        // === Language (Auto-detect or the chosen language) ===
+        let lang_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
 
-        let model_label = gtk::Label::new(Some(gettext("No model loaded").as_str()));
-        model_label.add_css_class("caption");
-        model_label.add_css_class("dim-label");
-        model_box.append(&model_label);
+        let lang_icon = gtk::Image::from_icon_name("preferences-desktop-locale-symbolic");
+        lang_icon.set_pixel_size(10);
+        lang_box.append(&lang_icon);
 
-        self.append(&model_box);
+        let language_label = gtk::Label::new(Some(gettext("Auto-detect").as_str()));
+        language_label.add_css_class("caption");
+        language_label.add_css_class("dim-label");
+        lang_box.append(&language_label);
+
+        self.append(&lang_box);
 
         // Separator
-        let sep2 = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep2.set_margin_start(12);
-        sep2.set_margin_end(12);
-        self.append(&sep2);
+        let sep_lang = gtk::Separator::new(gtk::Orientation::Vertical);
+        sep_lang.set_margin_start(12);
+        sep_lang.set_margin_end(12);
+        self.append(&sep_lang);
 
         // === Compute mode ===
         let compute_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
@@ -154,7 +157,7 @@ impl StatusBar {
         // Store references
         *imp.recording_label.borrow_mut() = Some(rec_label);
         *imp.recording_icon.borrow_mut() = Some(rec_icon);
-        *imp.model_label.borrow_mut() = Some(model_label);
+        *imp.language_label.borrow_mut() = Some(language_label);
         *imp.compute_label.borrow_mut() = Some(compute_label);
         *imp.version_label.borrow_mut() = Some(version_label);
         *imp.update_box.borrow_mut() = Some(update_box);
@@ -197,6 +200,13 @@ impl StatusBar {
     pub fn set_model_name(&self, name: &str) {
         if let Some(label) = self.imp().model_label.borrow().as_ref() {
             label.set_text(name);
+        }
+    }
+
+    /// Update the language display (e.g. "Auto-detect" or "Greek").
+    pub fn set_language(&self, language: &str) {
+        if let Some(label) = self.imp().language_label.borrow().as_ref() {
+            label.set_text(language);
         }
     }
 

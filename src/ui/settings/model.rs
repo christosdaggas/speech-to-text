@@ -64,21 +64,37 @@ impl ModelPage {
             .build()
     }
 
-    /// Set the engine combo from a backend id ("whisper" / "cohere").
+    /// Set the engine combo from a backend id ("whisper" / "cohere" / "qwen").
     pub fn set_engine(&self, backend: &str) {
         if let Some(combo) = self.imp().engine_combo.borrow().as_ref() {
-            combo.set_selected(if backend == "cohere" { 1 } else { 0 });
+            combo.set_selected(Self::backend_to_index(backend));
         }
     }
 
     /// Connect a callback fired when the engine selection changes
-    /// ("whisper" / "cohere").
+    /// ("whisper" / "cohere" / "qwen").
     pub fn connect_engine_changed<F: Fn(String) + 'static>(&self, callback: F) {
         if let Some(combo) = self.imp().engine_combo.borrow().as_ref() {
             combo.connect_selected_notify(move |c| {
-                let backend = if c.selected() == 1 { "cohere" } else { "whisper" };
-                callback(backend.to_string());
+                callback(Self::index_to_backend(c.selected()).to_string());
             });
+        }
+    }
+
+    /// Engine combo order: 0 = Whisper, 1 = Cohere, 2 = Qwen3-ASR.
+    fn backend_to_index(backend: &str) -> u32 {
+        match backend {
+            "cohere" => 1,
+            "qwen" => 2,
+            _ => 0,
+        }
+    }
+
+    fn index_to_backend(index: u32) -> &'static str {
+        match index {
+            1 => "cohere",
+            2 => "qwen",
+            _ => "whisper",
         }
     }
 
@@ -93,13 +109,13 @@ impl ModelPage {
         engine_group.set_description(Some(gettext(
             "Which transcription engine to use. Applies everywhere, including the mini panel.",
         ).as_str()));
-        let engine_list = gtk::StringList::new(&["Whisper", "Cohere Transcribe"]);
+        let engine_list = gtk::StringList::new(&["Whisper", "Cohere Transcribe", "Qwen3-ASR"]);
         let engine_combo = adw::ComboRow::builder()
             .title(gettext("Default Engine").as_str())
-            .subtitle(gettext("Whisper runs locally; Cohere Transcribe uses its own model.").as_str())
+            .subtitle(gettext("Whisper, Cohere Transcribe and Qwen3-ASR all run locally.").as_str())
             .model(&engine_list)
             .build();
-        engine_combo.set_selected(if AppConfig::load().backend == "cohere" { 1 } else { 0 });
+        engine_combo.set_selected(Self::backend_to_index(&AppConfig::load().backend));
         engine_group.add(&engine_combo);
         self.add(&engine_group);
         *imp.engine_combo.borrow_mut() = Some(engine_combo);
@@ -422,22 +438,41 @@ impl ModelPage {
                 .title(gettext("Select Models Directory").as_str())
                 .build();
 
-            let btn_weak = btn.downgrade();
             let storage_row_w = storage_row_weak.clone();
             if let Some(window) = btn.root().and_then(|r| r.downcast::<gtk::Window>().ok()) {
+                let window2 = window.clone();
                 dialog.select_folder(Some(&window), gtk::gio::Cancellable::NONE, move |result| {
-                    if let Ok(folder) = result {
-                        if let Some(path) = folder.path() {
-                            let path_str = path.to_string_lossy().to_string();
-                            let mut config = crate::config::AppConfig::load();
-                            config.model_directory = Some(path_str.clone());
-                            config.save();
-                            if let Some(row) = storage_row_w.upgrade() {
-                                row.set_subtitle(&path_str);
-                            }
+                    let Ok(folder) = result else { return };
+                    let Some(path) = folder.path() else { return };
+                    let path_str = path.to_string_lossy().to_string();
+
+                    // Warn before trusting a custom location: model files there
+                    // are loaded by the app, so it should be a private directory
+                    // the user controls (not shared/world-writable).
+                    let confirm = adw::AlertDialog::new(
+                        Some(gettext("Use this folder for models?").as_str()),
+                        Some(&gettext(
+                            "Model files will be stored in and loaded from:\n{path}\n\nChoose a private location you control — models read from a shared or world-writable directory could be replaced by another user.",
+                        ).replace("{path}", &path_str)),
+                    );
+                    confirm.add_response("cancel", gettext("Cancel").as_str());
+                    confirm.add_response("use", gettext("Use Folder").as_str());
+                    confirm.set_response_appearance("use", adw::ResponseAppearance::Suggested);
+                    confirm.set_default_response(Some("cancel"));
+                    confirm.set_close_response("cancel");
+
+                    let storage_row_w = storage_row_w.clone();
+                    confirm.choose(&window2, gtk::gio::Cancellable::NONE, move |resp| {
+                        if resp.as_str() != "use" {
+                            return;
                         }
-                    }
-                    let _ = btn_weak;
+                        let mut config = crate::config::AppConfig::load();
+                        config.model_directory = Some(path_str.clone());
+                        config.save();
+                        if let Some(row) = storage_row_w.upgrade() {
+                            row.set_subtitle(&path_str);
+                        }
+                    });
                 });
             }
         });
@@ -470,8 +505,8 @@ impl ModelPage {
              Requires a free HuggingFace account to download the model."
         ));
 
-        // Token entry
-        let token_entry = adw::EntryRow::builder()
+        // Token entry — masked (PasswordEntryRow) with a built-in reveal toggle.
+        let token_entry = adw::PasswordEntryRow::builder()
             .title(gettext("HuggingFace Token").as_str())
             .show_apply_button(true)
             .build();
@@ -492,14 +527,37 @@ impl ModelPage {
             });
         }
 
-        // Persist the token to the keyring (never to plaintext config).
+        // Persist the token to the keyring (never to plaintext config), and tell
+        // the user if the keyring rejected it instead of failing silently.
         token_entry.connect_apply(|entry| {
             let text = entry.text().to_string();
+            let (tx, rx) = async_channel::bounded::<Result<(), String>>(1);
             tokio_runtime().spawn(async move {
-                if text.is_empty() {
-                    let _ = crate::secrets::delete_hf_token().await;
-                } else if let Err(e) = crate::secrets::store_hf_token(&text).await {
-                    tracing::warn!("Could not store HuggingFace token in keyring: {}", e);
+                let res = if text.is_empty() {
+                    crate::secrets::delete_hf_token().await
+                } else {
+                    crate::secrets::store_hf_token(&text).await
+                };
+                let _ = tx.send(res.map_err(|e| e.to_string())).await;
+            });
+            let entry_weak = entry.downgrade();
+            glib::spawn_future_local(async move {
+                if let Ok(Err(err)) = rx.recv().await {
+                    tracing::warn!("Could not store HuggingFace token in keyring: {}", crate::error::redact_secrets(&err));
+                    if let Some(entry) = entry_weak.upgrade() {
+                        let dialog = adw::AlertDialog::new(
+                            Some(gettext("Keyring Error").as_str()),
+                            Some(&format!(
+                                "{}\n\n{}",
+                                gettext("Couldn't save the HuggingFace token to the system keyring, so it was not stored. Check that a keyring service (GNOME Keyring / KWallet) is running and unlocked."),
+                                crate::error::redact_secrets(&err)
+                            )),
+                        );
+                        dialog.add_response("ok", gettext("OK").as_str());
+                        dialog.set_default_response(Some("ok"));
+                        dialog.set_close_response("ok");
+                        dialog.present(Some(&entry));
+                    }
                 }
             });
         });
@@ -529,22 +587,25 @@ impl ModelPage {
         token_info_row.add_suffix(&get_token_btn);
         cohere_group.add(&token_info_row);
 
-        // Runtime download row
+        // Runtime download row — laid out exactly like the Whisper model rows:
+        // a dim size label, a trash button (shown only when installed), and the
+        // Download/Downloaded pill. No "Installed" status label.
         let runtime_row = adw::ActionRow::builder()
             .title(gettext("Runtime").as_str())
-            .subtitle(gettext("Transcription engine (~123 MB)").as_str())
+            .subtitle(&format!("~123 MB — {}", gettext("Transcription engine")))
             .build();
 
-        let runtime_status = gtk::Label::new(Some(
-            if crate::transcription::cohere::is_runtime_installed() {
-                "✅ Installed"
-            } else {
-                "❌ Not installed"
-            },
-        ));
-        runtime_status.add_css_class("dim-label");
-        runtime_status.add_css_class("caption");
-        runtime_row.add_suffix(&runtime_status);
+        let runtime_size = gtk::Label::new(Some("~123 MB"));
+        runtime_size.add_css_class("dim-label");
+        runtime_size.add_css_class("caption");
+        runtime_row.add_suffix(&runtime_size);
+
+        let runtime_delete = gtk::Button::from_icon_name("user-trash-symbolic");
+        runtime_delete.set_valign(gtk::Align::Center);
+        runtime_delete.add_css_class("flat");
+        runtime_delete.add_css_class("circular");
+        runtime_delete.set_tooltip_text(Some(gettext("Delete the runtime from disk").as_str()));
+        runtime_delete.set_visible(crate::transcription::cohere::is_runtime_installed());
 
         let runtime_btn = gtk::Button::new();
         runtime_btn.set_valign(gtk::Align::Center);
@@ -557,17 +618,18 @@ impl ModelPage {
             runtime_btn.set_label(gettext("Download").as_str());
         }
 
+        // Download
         {
             let page_weak = self.downgrade();
             let btn_clone = runtime_btn.clone();
-            let status_clone = runtime_status.clone();
+            let delete_w_for_dl = runtime_delete.downgrade();
             runtime_btn.connect_clicked(move |_| {
                 btn_clone.set_sensitive(false);
                 btn_clone.set_label(gettext("Downloading…").as_str());
 
                 let page_w = page_weak.clone();
                 let btn_w = btn_clone.downgrade();
-                let status_w = status_clone.downgrade();
+                let delete_w = delete_w_for_dl.clone();
 
                 let (progress_tx, progress_rx) = async_channel::bounded::<(u64, u64)>(64);
                 let (done_tx, done_rx) = async_channel::bounded::<Result<(), String>>(1);
@@ -608,8 +670,8 @@ impl ModelPage {
                                     btn.set_sensitive(false);
                                     btn.add_css_class("success");
                                 }
-                                if let Some(status) = status_w.upgrade() {
-                                    status.set_text("✅ Installed");
+                                if let Some(del) = delete_w.upgrade() {
+                                    del.set_visible(true);
                                 }
                                 if let Some(page) = page_w.upgrade() {
                                     page.set_download_progress(1.0, "Runtime download complete!");
@@ -630,25 +692,66 @@ impl ModelPage {
             });
         }
 
+        // Delete (with confirmation) — mirrors the Whisper rows.
+        {
+            let action_weak = runtime_btn.downgrade();
+            let delete_weak = runtime_delete.downgrade();
+            runtime_delete.connect_clicked(move |btn| {
+                let dialog = adw::AlertDialog::new(
+                    Some("Delete runtime?"),
+                    Some("This removes the Cohere runtime (~123 MB) from disk. You can re-download it anytime."),
+                );
+                dialog.add_response("cancel", "Cancel");
+                dialog.add_response("delete", "Delete");
+                dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+                dialog.set_default_response(Some("cancel"));
+                dialog.set_close_response("cancel");
+
+                let action_weak = action_weak.clone();
+                let delete_weak = delete_weak.clone();
+                dialog.choose(btn, gtk::gio::Cancellable::NONE, move |resp| {
+                    if resp.as_str() != "delete" {
+                        return;
+                    }
+                    match crate::transcription::cohere::delete_runtime() {
+                        Ok(()) => {
+                            if let Some(a) = action_weak.upgrade() {
+                                a.set_label(gettext("Download").as_str());
+                                a.set_sensitive(true);
+                                a.remove_css_class("success");
+                            }
+                            if let Some(d) = delete_weak.upgrade() {
+                                d.set_visible(false);
+                            }
+                        }
+                        Err(e) => tracing::warn!("Failed to delete Cohere runtime: {}", e),
+                    }
+                });
+            });
+        }
+
+        runtime_row.add_suffix(&runtime_delete);
         runtime_row.add_suffix(&runtime_btn);
         cohere_group.add(&runtime_row);
 
-        // Model download row
+        // Model download row — same layout as the Whisper rows (size label, trash
+        // button shown only when downloaded, Download/Downloaded pill).
         let model_row = adw::ActionRow::builder()
             .title(gettext("Model Weights").as_str())
-            .subtitle(gettext("Cohere Transcribe model (~4.1 GB)").as_str())
+            .subtitle(&format!("~4.1 GB — {}", gettext("Cohere Transcribe model")))
             .build();
 
-        let model_status = gtk::Label::new(Some(
-            if crate::transcription::cohere::is_model_downloaded() {
-                "✅ Downloaded"
-            } else {
-                "❌ Not downloaded"
-            },
-        ));
-        model_status.add_css_class("dim-label");
-        model_status.add_css_class("caption");
-        model_row.add_suffix(&model_status);
+        let model_size = gtk::Label::new(Some("~4.1 GB"));
+        model_size.add_css_class("dim-label");
+        model_size.add_css_class("caption");
+        model_row.add_suffix(&model_size);
+
+        let model_delete = gtk::Button::from_icon_name("user-trash-symbolic");
+        model_delete.set_valign(gtk::Align::Center);
+        model_delete.add_css_class("flat");
+        model_delete.add_css_class("circular");
+        model_delete.set_tooltip_text(Some(gettext("Delete the model weights from disk").as_str()));
+        model_delete.set_visible(crate::transcription::cohere::is_model_downloaded());
 
         let model_btn = gtk::Button::new();
         model_btn.set_valign(gtk::Align::Center);
@@ -661,10 +764,11 @@ impl ModelPage {
             model_btn.set_label(gettext("Download").as_str());
         }
 
+        // Download
         {
             let page_weak = self.downgrade();
             let btn_clone = model_btn.clone();
-            let status_clone = model_status.clone();
+            let delete_w_for_dl = model_delete.downgrade();
             let token_entry_weak = token_entry.downgrade();
             model_btn.connect_clicked(move |_| {
                 let token = token_entry_weak
@@ -691,7 +795,7 @@ impl ModelPage {
 
                 let page_w = page_weak.clone();
                 let btn_w = btn_clone.downgrade();
-                let status_w = status_clone.downgrade();
+                let delete_w = delete_w_for_dl.clone();
 
                 let (progress_tx, progress_rx) = async_channel::bounded::<(u64, u64)>(64);
                 let (done_tx, done_rx) = async_channel::bounded::<Result<(), String>>(1);
@@ -700,7 +804,7 @@ impl ModelPage {
                 rt.spawn(async move {
                     // Persist the token securely in the keyring (not plaintext config).
                     if let Err(e) = crate::secrets::store_hf_token(&token).await {
-                        tracing::warn!("Could not store HuggingFace token in keyring: {}", e);
+                        tracing::warn!("Could not store HuggingFace token in keyring: {}", crate::error::redact_secrets(&e.to_string()));
                     }
                     match crate::transcription::cohere::download_model(&token, move |dl, total| {
                         let _ = progress_tx.send_blocking((dl, total));
@@ -736,8 +840,8 @@ impl ModelPage {
                                     btn.set_sensitive(false);
                                     btn.add_css_class("success");
                                 }
-                                if let Some(status) = status_w.upgrade() {
-                                    status.set_text("✅ Downloaded");
+                                if let Some(del) = delete_w.upgrade() {
+                                    del.set_visible(true);
                                 }
                                 if let Some(page) = page_w.upgrade() {
                                     page.set_download_progress(1.0, "Model download complete!");
@@ -758,11 +862,283 @@ impl ModelPage {
             });
         }
 
+        // Delete (with confirmation) — mirrors the Whisper rows.
+        {
+            let action_weak = model_btn.downgrade();
+            let delete_weak = model_delete.downgrade();
+            model_delete.connect_clicked(move |btn| {
+                let dialog = adw::AlertDialog::new(
+                    Some("Delete model weights?"),
+                    Some("This removes the Cohere Transcribe model (~4.1 GB) from disk. You can re-download it anytime."),
+                );
+                dialog.add_response("cancel", "Cancel");
+                dialog.add_response("delete", "Delete");
+                dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+                dialog.set_default_response(Some("cancel"));
+                dialog.set_close_response("cancel");
+
+                let action_weak = action_weak.clone();
+                let delete_weak = delete_weak.clone();
+                dialog.choose(btn, gtk::gio::Cancellable::NONE, move |resp| {
+                    if resp.as_str() != "delete" {
+                        return;
+                    }
+                    match crate::transcription::cohere::delete_model() {
+                        Ok(()) => {
+                            if let Some(a) = action_weak.upgrade() {
+                                a.set_label(gettext("Download").as_str());
+                                a.set_sensitive(true);
+                                a.remove_css_class("success");
+                            }
+                            if let Some(d) = delete_weak.upgrade() {
+                                d.set_visible(false);
+                            }
+                        }
+                        Err(e) => tracing::warn!("Failed to delete Cohere model: {}", e),
+                    }
+                });
+            });
+        }
+
+        model_row.add_suffix(&model_delete);
         model_row.add_suffix(&model_btn);
         cohere_group.add(&model_row);
 
         self.add(&cohere_group);
         *imp.cohere_group.borrow_mut() = Some(cohere_group);
+
+        // ── Qwen3-ASR section (local, ungated — no token needed) ────────────
+        let qwen_group = adw::PreferencesGroup::new();
+        qwen_group.set_title(gettext("Qwen3-ASR").as_str());
+        qwen_group.set_description(Some(
+            "Local multilingual speech-to-text (30 languages incl. Greek). \
+             Runs offline; no account or token required.",
+        ));
+
+        // Runtime row
+        let q_runtime_row = adw::ActionRow::builder()
+            .title(gettext("Runtime").as_str())
+            .subtitle(&format!("~500 MB — {}", gettext("Engine + libtorch")))
+            .build();
+        let q_runtime_size = gtk::Label::new(Some("~500 MB"));
+        q_runtime_size.add_css_class("dim-label");
+        q_runtime_size.add_css_class("caption");
+        q_runtime_row.add_suffix(&q_runtime_size);
+
+        let q_runtime_delete = gtk::Button::from_icon_name("user-trash-symbolic");
+        q_runtime_delete.set_valign(gtk::Align::Center);
+        q_runtime_delete.add_css_class("flat");
+        q_runtime_delete.add_css_class("circular");
+        q_runtime_delete.set_tooltip_text(Some(gettext("Delete the runtime from disk").as_str()));
+        q_runtime_delete.set_visible(crate::transcription::qwen::is_runtime_installed());
+
+        let q_runtime_btn = gtk::Button::new();
+        q_runtime_btn.set_valign(gtk::Align::Center);
+        q_runtime_btn.add_css_class("pill");
+        if crate::transcription::qwen::is_runtime_installed() {
+            q_runtime_btn.set_label(gettext("Downloaded").as_str());
+            q_runtime_btn.set_sensitive(false);
+            q_runtime_btn.add_css_class("success");
+        } else {
+            q_runtime_btn.set_label(gettext("Download").as_str());
+        }
+        {
+            let page_weak = self.downgrade();
+            let btn_clone = q_runtime_btn.clone();
+            let delete_w_for_dl = q_runtime_delete.downgrade();
+            q_runtime_btn.connect_clicked(move |_| {
+                btn_clone.set_sensitive(false);
+                btn_clone.set_label(gettext("Downloading…").as_str());
+                let page_w = page_weak.clone();
+                let btn_w = btn_clone.downgrade();
+                let delete_w = delete_w_for_dl.clone();
+                let (progress_tx, progress_rx) = async_channel::bounded::<(u64, u64)>(64);
+                let (done_tx, done_rx) = async_channel::bounded::<Result<(), String>>(1);
+                let rt = crate::application::tokio_runtime();
+                rt.spawn(async move {
+                    match crate::transcription::qwen::download_runtime(move |dl, total| {
+                        let _ = progress_tx.send_blocking((dl, total));
+                    }).await {
+                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
+                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                    }
+                });
+                let page_w2 = page_w.clone();
+                glib::spawn_future_local(async move {
+                    while let Ok((downloaded, total)) = progress_rx.recv().await {
+                        if let Some(page) = page_w2.upgrade() {
+                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                            page.set_download_progress(frac, &format!("Runtime: {:.0} / {:.0} MB", downloaded as f64 / 1_000_000.0, total as f64 / 1_000_000.0));
+                        }
+                    }
+                });
+                glib::spawn_future_local(async move {
+                    if let Ok(result) = done_rx.recv().await {
+                        match result {
+                            Ok(()) => {
+                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Downloaded").as_str()); btn.set_sensitive(false); btn.add_css_class("success"); }
+                                if let Some(del) = delete_w.upgrade() { del.set_visible(true); }
+                                if let Some(page) = page_w.upgrade() { page.set_download_progress(1.0, "Runtime download complete!"); }
+                            }
+                            Err(e) => {
+                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Retry").as_str()); btn.set_sensitive(true); }
+                                if let Some(page) = page_w.upgrade() { page.set_download_progress(0.0, &format!("Error: {}", e)); }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+        {
+            let action_weak = q_runtime_btn.downgrade();
+            let delete_weak = q_runtime_delete.downgrade();
+            q_runtime_delete.connect_clicked(move |btn| {
+                let dialog = adw::AlertDialog::new(Some("Delete runtime?"), Some("This removes the Qwen3-ASR runtime from disk. You can re-download it anytime."));
+                dialog.add_response("cancel", "Cancel");
+                dialog.add_response("delete", "Delete");
+                dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+                dialog.set_default_response(Some("cancel"));
+                dialog.set_close_response("cancel");
+                let action_weak = action_weak.clone();
+                let delete_weak = delete_weak.clone();
+                dialog.choose(btn, gtk::gio::Cancellable::NONE, move |resp| {
+                    if resp.as_str() != "delete" { return; }
+                    match crate::transcription::qwen::delete_runtime() {
+                        Ok(()) => {
+                            if let Some(a) = action_weak.upgrade() { a.set_label(gettext("Download").as_str()); a.set_sensitive(true); a.remove_css_class("success"); }
+                            if let Some(d) = delete_weak.upgrade() { d.set_visible(false); }
+                        }
+                        Err(e) => tracing::warn!("Failed to delete Qwen runtime: {}", e),
+                    }
+                });
+            });
+        }
+        q_runtime_row.add_suffix(&q_runtime_delete);
+        q_runtime_row.add_suffix(&q_runtime_btn);
+        qwen_group.add(&q_runtime_row);
+
+        // One downloadable row per size (both can coexist on disk). The active
+        // size is chosen from the top-bar model dropdown, like Whisper.
+        let q_row_small = self.build_qwen_model_row("0.6B", "~0.9 GB");
+        qwen_group.add(&q_row_small);
+        let q_row_full = self.build_qwen_model_row("1.7B", "~2.4 GB");
+        qwen_group.add(&q_row_full);
+
+        self.add(&qwen_group);
+    }
+
+    /// Build a downloadable Qwen3-ASR model row for a specific size. Download and
+    /// delete operate on that size; progress is reported on the shared bar.
+    fn build_qwen_model_row(&self, size: &'static str, approx: &'static str) -> adw::ActionRow {
+        let row = adw::ActionRow::builder()
+            .title(&format!("{} — {}", gettext("Model Weights"), size))
+            .subtitle(&format!("{} — Qwen3-ASR-{} model", approx, size))
+            .build();
+
+        let size_label = gtk::Label::new(Some(approx));
+        size_label.add_css_class("dim-label");
+        size_label.add_css_class("caption");
+        row.add_suffix(&size_label);
+
+        let delete_btn = gtk::Button::from_icon_name("user-trash-symbolic");
+        delete_btn.set_valign(gtk::Align::Center);
+        delete_btn.add_css_class("flat");
+        delete_btn.add_css_class("circular");
+        delete_btn.set_tooltip_text(Some(gettext("Delete the model weights from disk").as_str()));
+        delete_btn.set_visible(crate::transcription::qwen::is_model_downloaded_size(size));
+
+        let action_btn = gtk::Button::new();
+        action_btn.set_valign(gtk::Align::Center);
+        action_btn.add_css_class("pill");
+        if crate::transcription::qwen::is_model_downloaded_size(size) {
+            action_btn.set_label(gettext("Downloaded").as_str());
+            action_btn.set_sensitive(false);
+            action_btn.add_css_class("success");
+        } else {
+            action_btn.set_label(gettext("Download").as_str());
+        }
+
+        // Download
+        {
+            let page_weak = self.downgrade();
+            let btn_clone = action_btn.clone();
+            let delete_w_for_dl = delete_btn.downgrade();
+            action_btn.connect_clicked(move |_| {
+                btn_clone.set_sensitive(false);
+                btn_clone.set_label(gettext("Downloading…").as_str());
+                let page_w = page_weak.clone();
+                let btn_w = btn_clone.downgrade();
+                let delete_w = delete_w_for_dl.clone();
+                let (progress_tx, progress_rx) = async_channel::bounded::<(u64, u64)>(64);
+                let (done_tx, done_rx) = async_channel::bounded::<Result<(), String>>(1);
+                let rt = crate::application::tokio_runtime();
+                rt.spawn(async move {
+                    match crate::transcription::qwen::download_model(size, move |dl, total| {
+                        let _ = progress_tx.send_blocking((dl, total));
+                    }).await {
+                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
+                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                    }
+                });
+                let page_w2 = page_w.clone();
+                glib::spawn_future_local(async move {
+                    while let Ok((downloaded, total)) = progress_rx.recv().await {
+                        if let Some(page) = page_w2.upgrade() {
+                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                            page.set_download_progress(frac, &format!("Model {}: {:.2} / {:.2} GB", size, downloaded as f64 / 1_000_000_000.0, total as f64 / 1_000_000_000.0));
+                        }
+                    }
+                });
+                glib::spawn_future_local(async move {
+                    if let Ok(result) = done_rx.recv().await {
+                        match result {
+                            Ok(()) => {
+                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Downloaded").as_str()); btn.set_sensitive(false); btn.add_css_class("success"); }
+                                if let Some(del) = delete_w.upgrade() { del.set_visible(true); }
+                                if let Some(page) = page_w.upgrade() { page.set_download_progress(1.0, "Model download complete!"); }
+                            }
+                            Err(e) => {
+                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Retry").as_str()); btn.set_sensitive(true); }
+                                if let Some(page) = page_w.upgrade() { page.set_download_progress(0.0, &format!("Error: {}", e)); }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        // Delete (with confirmation)
+        {
+            let action_weak = action_btn.downgrade();
+            let delete_weak = delete_btn.downgrade();
+            delete_btn.connect_clicked(move |btn| {
+                let dialog = adw::AlertDialog::new(
+                    Some("Delete model weights?"),
+                    Some(&format!("This removes the Qwen3-ASR {} model from disk. You can re-download it anytime.", size)),
+                );
+                dialog.add_response("cancel", "Cancel");
+                dialog.add_response("delete", "Delete");
+                dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+                dialog.set_default_response(Some("cancel"));
+                dialog.set_close_response("cancel");
+                let action_weak = action_weak.clone();
+                let delete_weak = delete_weak.clone();
+                dialog.choose(btn, gtk::gio::Cancellable::NONE, move |resp| {
+                    if resp.as_str() != "delete" { return; }
+                    match crate::transcription::qwen::delete_model(size) {
+                        Ok(()) => {
+                            if let Some(a) = action_weak.upgrade() { a.set_label(gettext("Download").as_str()); a.set_sensitive(true); a.remove_css_class("success"); }
+                            if let Some(d) = delete_weak.upgrade() { d.set_visible(false); }
+                        }
+                        Err(e) => tracing::warn!("Failed to delete Qwen model: {}", e),
+                    }
+                });
+            });
+        }
+
+        row.add_suffix(&delete_btn);
+        row.add_suffix(&action_btn);
+        row
     }
 
     /// Update download progress (0.0 - 1.0).
