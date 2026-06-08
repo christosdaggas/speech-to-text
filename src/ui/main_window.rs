@@ -1323,6 +1323,7 @@ impl MainWindow {
                 ControlAction::Resume => window.on_resume(),
                 ControlAction::Stop => window.on_stop(),
                 ControlAction::Cancel => window.on_cancel(),
+                ControlAction::OpenFile => window.on_open_file(),
                 ControlAction::Copy => window.on_copy(),
                 ControlAction::Clear => window.on_clear(),
                 ControlAction::Save => window.on_save(),
@@ -2091,6 +2092,44 @@ impl MainWindow {
         if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
             tv.clear();
         }
+    }
+
+    fn on_open_file(&self) {
+        if let Some(controller) = self.controller() {
+            if controller.is_recording() {
+                self.show_toast(&gettext("Stop the current recording first"));
+                return;
+            }
+        }
+
+        let audio_filter = gtk::FileFilter::new();
+        audio_filter.set_name(Some(gettext("Audio files").as_str()));
+        for pat in ["*.wav", "*.mp3", "*.flac", "*.ogg", "*.oga", "*.opus", "*.m4a"] {
+            audio_filter.add_pattern(pat);
+        }
+        let any_filter = gtk::FileFilter::new();
+        any_filter.set_name(Some(gettext("All files").as_str()));
+        any_filter.add_pattern("*");
+
+        let filters = gio::ListStore::new::<gtk::FileFilter>();
+        filters.append(&audio_filter);
+        filters.append(&any_filter);
+
+        let dialog = gtk::FileDialog::builder()
+            .title(gettext("Open Audio File").as_str())
+            .filters(&filters)
+            .default_filter(&audio_filter)
+            .modal(true)
+            .build();
+
+        let window = self.clone();
+        dialog.open(Some(&window.clone()), gtk::gio::Cancellable::NONE, move |result| {
+            if let Ok(file) = result {
+                if let Some(path) = file.path() {
+                    window.transcribe_file(path);
+                }
+            }
+        });
     }
 
     fn on_save(&self) {

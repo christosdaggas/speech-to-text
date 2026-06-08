@@ -23,6 +23,7 @@ pub enum ControlAction {
     Copy,
     Clear,
     Save,
+    OpenFile,
 }
 
 mod imp {
@@ -34,6 +35,7 @@ mod imp {
         pub pause_btn: RefCell<Option<gtk::Button>>,
         pub stop_btn: RefCell<Option<gtk::Button>>,
         pub cancel_btn: RefCell<Option<gtk::Button>>,
+        pub open_file_btn: RefCell<Option<gtk::Button>>,
         pub copy_btn: RefCell<Option<gtk::Button>>,
         pub clear_btn: RefCell<Option<gtk::Button>>,
         pub save_btn: RefCell<Option<gtk::Button>>,
@@ -97,6 +99,13 @@ impl Controls {
             btn.set_child(Some(&content));
             btn
         }
+
+        // ── Open file (alternative to recording) ──
+        let open_file_btn = labelled("document-open-symbolic", &gettext("Open File"));
+        open_file_btn.set_tooltip_text(Some(
+            gettext("Open an audio file (WAV, MP3, FLAC, OGG, Opus, M4A) and transcribe it").as_str()
+        ));
+        self.append(&open_file_btn);
 
         // ── Transport (Record · Pause · Stop · Cancel) ──
         // Only Record is accent (blue) and only Cancel is destructive (red);
@@ -166,6 +175,7 @@ impl Controls {
         *imp.pause_btn.borrow_mut() = Some(pause_btn);
         *imp.stop_btn.borrow_mut() = Some(stop_btn);
         *imp.cancel_btn.borrow_mut() = Some(cancel_btn);
+        *imp.open_file_btn.borrow_mut() = Some(open_file_btn);
         *imp.copy_btn.borrow_mut() = Some(copy_btn);
         *imp.clear_btn.borrow_mut() = Some(clear_btn);
         *imp.save_btn.borrow_mut() = Some(save_btn);
@@ -218,6 +228,10 @@ impl Controls {
         if let Some(btn) = imp.cancel_btn.borrow().as_ref() {
             let cb = callback.clone();
             btn.connect_clicked(move |_| cb(ControlAction::Cancel));
+        }
+        if let Some(btn) = imp.open_file_btn.borrow().as_ref() {
+            let cb = callback.clone();
+            btn.connect_clicked(move |_| cb(ControlAction::OpenFile));
         }
         if let Some(btn) = imp.copy_btn.borrow().as_ref() {
             let cb = callback.clone();
