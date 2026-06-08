@@ -5,8 +5,19 @@ All notable changes to this project are documented here. This project adheres to
 
 ## [1.4.0] — 2026-06-08
 
+### Added
+
+- Open File button in the controls row transcribes an existing audio file from
+  disk (WAV, MP3, FLAC, OGG, Opus, M4A) via the existing `transcribe_file`
+  path, so results, stats, segments, SRT export, and the Actions/Voice-edit
+  menu all behave as they do for a live recording. A toast guards against
+  picking a file while a recording is in progress.
+
 ### Fixed
 
+- The mini dictation panel no longer shows a second taskbar/dock entry: it is
+  now a transient child of the main window, so the app presents a single icon
+  while both windows are open.
 - Mini panel could fail mid-session with `Generic whisper error, code -6`
   (whisper.cpp "failed to encode") on Vulkan GPUs, especially with larger
   models or wider beam search. The mini panel now uses a clean batch decode

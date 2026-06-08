@@ -1242,6 +1242,7 @@ impl Application {
             .release_notes(
                 "<p>Version 1.4.0</p>\
                 <ul>\
+                    <li>New: an Open File button in the controls row transcribes an existing audio file from disk (WAV, MP3, FLAC, OGG, Opus, or M4A) — results, stats, segments, SRT export, and the Actions/Voice-edit menu all work as they do for a live recording.</li>\
                     <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
                     <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
                     <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
@@ -1307,6 +1308,7 @@ impl Application {
             .release_notes(
                 "<p>Version 1.4.0</p>\
                 <ul>\
+                    <li>New: an Open File button in the controls row transcribes an existing audio file from disk (WAV, MP3, FLAC, OGG, Opus, or M4A) — results, stats, segments, SRT export, and the Actions/Voice-edit menu all work as they do for a live recording.</li>\
                     <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
                     <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
                     <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
