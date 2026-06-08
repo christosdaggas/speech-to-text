@@ -291,6 +291,15 @@ impl Application {
             return panel.clone();
         }
         let panel = MiniPanel::new(self);
+        // Anchor the panel to the main window as a transient child. GTK4 has no
+        // skip-taskbar API, but window managers don't give transient children a
+        // separate taskbar/dock entry — so the app shows a single icon instead of
+        // two (main window + panel) while both are open. The main window object
+        // lives for the whole app lifetime (hide_on_close), so this stays valid
+        // even when it's hidden in the tray.
+        if let Some(main) = self.main_window() {
+            panel.set_transient_for(Some(&main));
+        }
         let app_weak = self.downgrade();
         panel.connect_action(move |action| {
             if let Some(app) = app_weak.upgrade() {
