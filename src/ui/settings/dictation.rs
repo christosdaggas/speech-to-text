@@ -220,10 +220,10 @@ impl DictationPage {
         let live_group = adw::PreferencesGroup::new();
         live_group.set_title(gettext("Live Transcription").as_str());
         live_group.set_description(Some(&gettext(
-            "Show the text as it is decoded, with a real progress bar (Whisper only). The final result is always the full-accuracy decode.",
+            "Show tentative text in the main window while you are still speaking (Whisper only). Does not apply to the mini panel — that always uses a clean batch decode. The final result is always the full-accuracy decode.",
         )));
         let live_transcription_switch = adw::SwitchRow::builder()
-            .title(gettext("Show text live while transcribing").as_str())
+            .title(gettext("Show text live while transcribing (main window only)").as_str())
             .active(false)
             .build();
         live_group.add(&live_transcription_switch);

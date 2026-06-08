@@ -15,23 +15,12 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use std::sync::atomic::AtomicBool;
 
 use crate::audio::AudioCapture;
 use crate::audio::capture::RecordingState;
 use crate::error::AppResult;
-use crate::transcription::engine::{SegmentEvent, TranscribeHooks, TranscriptionResult};
+use crate::transcription::engine::TranscriptionResult;
 use crate::transcription::{ModelCatalog, TranscriptionEngine, postprocess};
-
-/// Channels + abort handle for a streaming transcription (Whisper only). The UI
-/// drains `segments`/`progress` for live display and awaits `outcome` for the
-/// final, authoritative result.
-pub struct StreamingTranscription {
-    pub outcome: async_channel::Receiver<Result<DictationOutcome, String>>,
-    pub segments: async_channel::Receiver<SegmentEvent>,
-    pub progress: async_channel::Receiver<i32>,
-    pub abort: std::sync::Arc<AtomicBool>,
-}
 
 /// Which UI currently owns the recording session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,18 +247,6 @@ pub fn run_transcription(
     params: &DictationParams,
     duration_secs: f32,
 ) -> Result<DictationOutcome, String> {
-    run_transcription_hooked(engine, audio, params, duration_secs, &TranscribeHooks::default())
-}
-
-/// Like [`run_transcription`] but with live hooks (segment/progress/abort).
-/// Only the Whisper backend honors the hooks; the CLI sidecars run batch.
-pub fn run_transcription_hooked(
-    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
-    audio: &[f32],
-    params: &DictationParams,
-    duration_secs: f32,
-    hooks: &TranscribeHooks,
-) -> Result<DictationOutcome, String> {
     if params.backend == "cohere" {
         if !crate::transcription::cohere::cohere_ready() {
             return Err("Cohere is not set up. Go to Settings → Model to download the runtime and model.".to_string());
@@ -287,27 +264,65 @@ pub fn run_transcription_hooked(
             Err(e) => Err(format!("{}", e)),
         }
     } else {
-        match engine.lock() {
-            Ok(guard) => {
-                if let Some(eng) = guard.as_ref() {
-                    match eng.transcribe_with_hooks(
-                        audio,
-                        params.language_code.as_deref(),
-                        params.n_threads,
-                        params.translate,
-                        params.beam_size,
-                        params.temperature,
-                        params.initial_prompt.as_deref(),
-                        hooks,
-                    ) {
-                        Ok(r) => Ok(build_outcome(r, params, duration_secs)),
-                        Err(e) => Err(format!("Transcription failed: {}", e)),
+        let mut guard = match engine.lock() {
+            Ok(g) => g,
+            Err(e) => return Err(format!("Lock error: {}", e)),
+        };
+
+        // First attempt on the loaded engine (GPU if it was loaded with it).
+        // Capture what we'd need for a CPU reload, then drop the borrow so we can
+        // swap the engine in the shared slot below.
+        let (first, gpu_reload) = {
+            let Some(eng) = guard.as_ref() else {
+                return Err("No model loaded".to_string());
+            };
+            let reload = eng
+                .uses_gpu()
+                .then(|| (eng.model_path().to_path_buf(), eng.model_id().to_string()));
+            let res = eng.transcribe(
+                audio,
+                params.language_code.as_deref(),
+                params.n_threads,
+                params.translate,
+                params.beam_size,
+                params.temperature,
+                params.initial_prompt.as_deref(),
+            );
+            (res, reload)
+        };
+
+        match first {
+            Ok(r) => Ok(build_outcome(r, params, duration_secs)),
+            Err(e) => {
+                // A GPU encode can fail intermittently on some drivers (whisper
+                // returns "failed to encode" / -6), especially under GPU-memory
+                // pressure. Reload the model on CPU once, swap it into the shared
+                // slot so later transcriptions skip the doomed GPU path, and retry
+                // — the user gets a transcript instead of an error. Non-GPU
+                // failures are real, so surface them.
+                let Some((model_path, model_id)) = gpu_reload else {
+                    return Err(format!("Transcription failed: {}", e));
+                };
+                tracing::warn!("GPU transcription failed ({e}); reloading '{model_id}' on CPU and retrying");
+                match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false) {
+                    Ok(cpu_eng) => {
+                        let retry = cpu_eng.transcribe(
+                            audio,
+                            params.language_code.as_deref(),
+                            params.n_threads,
+                            params.translate,
+                            params.beam_size,
+                            params.temperature,
+                            params.initial_prompt.as_deref(),
+                        );
+                        *guard = Some(cpu_eng);
+                        retry
+                            .map(|r| build_outcome(r, params, duration_secs))
+                            .map_err(|e2| format!("Transcription failed: {}", e2))
                     }
-                } else {
-                    Err("No model loaded".to_string())
+                    Err(e2) => Err(format!("Transcription failed (GPU then CPU): {}", e2)),
                 }
             }
-            Err(e) => Err(format!("Lock error: {}", e)),
         }
     }
 }
@@ -476,31 +491,6 @@ impl RecordingController {
         receiver
     }
 
-    /// Like [`transcribe_async`] but with live streaming: the returned handles
-    /// carry incremental segments + real progress (Whisper only) and an abort
-    /// flag. The UI drains `segments`/`progress` while awaiting `outcome`.
-    pub fn transcribe_async_streaming(
-        &self,
-        audio: Vec<f32>,
-        params: DictationParams,
-        duration_secs: f32,
-    ) -> StreamingTranscription {
-        let (out_tx, out_rx) = async_channel::bounded(1);
-        let (seg_tx, seg_rx) = async_channel::unbounded::<SegmentEvent>();
-        let (prog_tx, prog_rx) = async_channel::unbounded::<i32>();
-        let abort = std::sync::Arc::new(AtomicBool::new(false));
-        let engine = self.engine.clone();
-        let hooks = TranscribeHooks {
-            segment_tx: Some(seg_tx),
-            progress_tx: Some(prog_tx),
-            abort: Some(abort.clone()),
-        };
-        std::thread::spawn(move || {
-            let result = run_transcription_hooked(&engine, &audio, &params, duration_secs, &hooks);
-            let _ = out_tx.send_blocking(result);
-        });
-        StreamingTranscription { outcome: out_rx, segments: seg_rx, progress: prog_rx, abort }
-    }
 }
 
 #[cfg(test)]

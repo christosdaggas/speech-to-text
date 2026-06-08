@@ -162,6 +162,17 @@ popover.stt-theme-menu > contents {
 }
 
 /* ========================================
+   Transform-action buttons (Actions dropdown + Voice edit)
+   Rounded rectangle like the HTML mockup, NOT a full pill.
+   App CSS loads at PRIORITY_APPLICATION, so this wins over libadwaita's .pill.
+   ======================================== */
+
+.transform-action,
+.transform-action > button {
+    border-radius: 12px;
+}
+
+/* ========================================
    Waveform Visualizer
    ======================================== */
 

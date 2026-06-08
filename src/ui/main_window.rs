@@ -23,7 +23,7 @@ use crate::ui::{
     Controls, HeaderControls, HelpPage, HistoryPage, StatusBar, TranscriptView,
     WelcomeWizard, ControlAction,
 };
-use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, language_code_to_name};
+use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, language_code_to_name, fill_preferences_width};
 use crate::ui::widgets::GpuStatusPanel;
 use crate::transcription::postprocess;
 use crate::i18n::gettext;
@@ -462,6 +462,17 @@ impl MainWindow {
 
         let llm_page = LlmPage::new();
         content_stack.add_named(&llm_page, Some("llm"));
+
+        // Settings pages use AdwPreferencesPage, which centres its content in a
+        // 600px clamp by default. Widen every page so the settings fill the full
+        // width of the content area instead of a narrow centred column.
+        fill_preferences_width(&microphone_page);
+        fill_preferences_width(&model_page);
+        fill_preferences_width(&language_page);
+        fill_preferences_width(&performance_page);
+        fill_preferences_width(&dictation_page);
+        fill_preferences_width(&dictionary_page);
+        fill_preferences_width(&llm_page);
 
         // Help page
         let help_page = HelpPage::new();
@@ -1796,7 +1807,6 @@ impl MainWindow {
             }
             win.imp().live_decoding.set(true);
             let mut params = DictationParams::from_config(&AppConfig::load());
-            params.beam_size = 1; // greedy: fast enough to keep up
             params.mode = DictationMode::Plain; // show raw-ish text live
             let dur = controller.recording_duration_secs();
             let started = std::time::Instant::now();

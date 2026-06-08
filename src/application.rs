@@ -444,53 +444,11 @@ impl Application {
 
         let params = DictationParams::from_config(&config);
 
-        // Live streaming (Whisper only, when enabled): show a read-along preview +
-        // real progress in the pop-up as the decode runs. Delivery is unchanged —
-        // the final, authoritative text is still pasted/shown once.
-        if config.live_transcription && config.backend == "whisper" {
-            let stream = controller.transcribe_async_streaming(audio, params, duration_secs);
-            let app_weak = self.downgrade();
-            let seg_rx = stream.segments.clone();
-            glib::spawn_future_local(async move {
-                let mut acc = String::new();
-                while let Ok(ev) = seg_rx.recv().await {
-                    let t = ev.text.trim();
-                    if t.is_empty() {
-                        continue;
-                    }
-                    if !acc.is_empty() {
-                        acc.push(' ');
-                    }
-                    acc.push_str(t);
-                    let Some(app) = app_weak.upgrade() else { break };
-                    app.mini_panel().set_partial_text(&acc);
-                }
-            });
-            let app_weak = self.downgrade();
-            let prog_rx = stream.progress.clone();
-            glib::spawn_future_local(async move {
-                while let Ok(p) = prog_rx.recv().await {
-                    let Some(app) = app_weak.upgrade() else { break };
-                    app.mini_panel().set_decode_progress(p);
-                }
-            });
-            let app_weak = self.downgrade();
-            let out_rx = stream.outcome.clone();
-            glib::spawn_future_local(async move {
-                let result = out_rx.recv().await;
-                let Some(app) = app_weak.upgrade() else { return };
-                if app.controller().owner() == RecordingOwner::Mini {
-                    return;
-                }
-                match result {
-                    Ok(Ok(outcome)) => app.finish_global_dictation(outcome),
-                    Ok(Err(msg)) => app.mini_panel().show_error(&msg),
-                    Err(_) => {}
-                }
-            });
-            return;
-        }
-
+        // The pop-up always uses a clean batch decode (no in-decode hooks).
+        // Whisper.cpp callbacks under Vulkan + GTK always-on-top compositing
+        // trip -6 here, and live-segment preview adds little UX value for the
+        // pop-up's short dictations. The live_transcription setting applies to
+        // the main window's live loop, not this path.
         let receiver = controller.transcribe_async(audio, params, duration_secs);
 
         let app_weak = self.downgrade();

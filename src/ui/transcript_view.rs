@@ -39,9 +39,10 @@ mod imp {
         pub timer_label: RefCell<Option<gtk::Label>>,
         pub stats_label: RefCell<Option<gtk::Label>>,
         pub is_recording: Cell<bool>,
-        // Transform chips + raw/polished variant selector (under the transcript)
+        // Transform actions (dropdown) + raw/polished variant selector (under the transcript)
         pub controls_row: RefCell<Option<gtk::Box>>,
-        pub chips_flow: RefCell<Option<gtk::FlowBox>>,
+        pub actions_btn: RefCell<Option<gtk::MenuButton>>,
+        pub actions_list: RefCell<Option<gtk::Box>>,
         pub chip_buttons: RefCell<Vec<gtk::Button>>,
         pub chip_callback: RefCell<Option<Box<dyn Fn(usize)>>>,
         pub variant_dropdown: RefCell<Option<gtk::DropDown>>,
@@ -137,7 +138,13 @@ impl TranscriptView {
 
         // === Message bubbles area ===
         let scrolled = gtk::ScrolledWindow::new();
-        scrolled.set_vexpand(true);
+        // Size to content (capped) instead of greedily expanding, so the controls
+        // row sits directly under the message block instead of being pushed to the
+        // window bottom. A vexpanding spacer (added below) keeps the waveform at the
+        // bottom; messages beyond the cap scroll.
+        scrolled.set_vexpand(false);
+        scrolled.set_propagate_natural_height(true);
+        scrolled.set_max_content_height(500);
         scrolled.set_hscrollbar_policy(gtk::PolicyType::Never);
         scrolled.set_margin_start(16);
         scrolled.set_margin_end(16);
@@ -159,23 +166,16 @@ impl TranscriptView {
         scrolled.set_child(Some(&bubble_list));
         self.append(&scrolled);
 
-        // === Transform chips + raw/polished selector (under the transcript) ===
-        // The row is always present; its children (chips / selector / voice-edit)
-        // manage their own visibility. (Do NOT toggle the row via is_visible()-
-        // based logic: is_visible() considers ancestors and deadlocks here.)
+        // === Transform actions + raw/polished selector (under the transcript) ===
+        // The row is always present; its children (Actions menu / selector /
+        // voice-edit) manage their own visibility. (Do NOT toggle the row via
+        // is_visible()-based logic: is_visible() considers ancestors and
+        // deadlocks here.) The variant selector sits on the left; the Actions
+        // dropdown and Voice edit are grouped together on the right.
         let controls_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         controls_row.set_margin_start(16);
         controls_row.set_margin_end(16);
         controls_row.set_margin_bottom(4);
-
-        let chips_flow = gtk::FlowBox::new();
-        chips_flow.set_selection_mode(gtk::SelectionMode::None);
-        chips_flow.set_max_children_per_line(8);
-        chips_flow.set_column_spacing(6);
-        chips_flow.set_row_spacing(6);
-        chips_flow.set_hexpand(true);
-        chips_flow.set_halign(gtk::Align::Start);
-        controls_row.append(&chips_flow);
 
         // Raw ↔ Polished selector (shown only once a variant exists).
         let variant_dropdown = gtk::DropDown::from_strings(&[]);
@@ -195,6 +195,40 @@ impl TranscriptView {
             }
         });
 
+        // Spacer pushes the Actions dropdown + Voice edit to the right edge.
+        let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        spacer.set_hexpand(true);
+        controls_row.append(&spacer);
+
+        // Actions: every transform preset collapsed into one dropdown so the row
+        // stays calm instead of a wall of chips. Items are (re)built by
+        // `set_chip_presets`; clicking one fires `chip_callback(index)`.
+        let actions_btn = gtk::MenuButton::new();
+        actions_btn.add_css_class("pill");
+        actions_btn.add_css_class("transform-action"); // 12px rounded-rect (not a full pill)
+        actions_btn.set_valign(gtk::Align::Center);
+        actions_btn.set_visible(false);
+        actions_btn.set_tooltip_text(Some(&gettext("Transform this text with AI")));
+        let actions_content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        let actions_icon = gtk::Image::from_icon_name("com.chrisdaggas.speech-to-text-ai");
+        actions_icon.set_pixel_size(16);
+        let actions_label = gtk::Label::new(Some(&gettext("Actions")));
+        let actions_caret = gtk::Image::from_icon_name("pan-down-symbolic");
+        actions_caret.set_pixel_size(12);
+        actions_content.append(&actions_icon);
+        actions_content.append(&actions_label);
+        actions_content.append(&actions_caret);
+        actions_btn.set_child(Some(&actions_content));
+
+        let actions_popover = gtk::Popover::new();
+        actions_popover.add_css_class("menu");
+        actions_popover.set_has_arrow(false);          // clean rectangular menu
+        actions_popover.set_position(gtk::PositionType::Top); // open upward, over the transcript
+        let actions_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        actions_popover.set_child(Some(&actions_list));
+        actions_btn.set_popover(Some(&actions_popover));
+        controls_row.append(&actions_btn);
+
         // Voice edit: speak an instruction to transform the selected message.
         let voice_edit_btn = gtk::Button::new();
         let ve_content = adw::ButtonContent::new();
@@ -202,6 +236,8 @@ impl TranscriptView {
         ve_content.set_label(&gettext("Voice edit"));
         voice_edit_btn.set_child(Some(&ve_content));
         voice_edit_btn.add_css_class("pill");
+        voice_edit_btn.add_css_class("suggested-action");
+        voice_edit_btn.add_css_class("transform-action"); // 12px rounded-rect (not a full pill)
         voice_edit_btn.set_valign(gtk::Align::Center);
         voice_edit_btn.set_visible(false);
         voice_edit_btn.set_tooltip_text(Some(&gettext("Speak an instruction to change the selected message")));
@@ -244,12 +280,8 @@ impl TranscriptView {
         let bottom_panel = gtk::Box::new(gtk::Orientation::Vertical, 0);
         bottom_panel.add_css_class("bottom-panel");
 
-        // Separator above waveform / confidence
-        let conf_separator = gtk::Separator::new(gtk::Orientation::Horizontal);
-        conf_separator.set_margin_start(16);
-        conf_separator.set_margin_end(16);
-        conf_separator.set_margin_bottom(4);
-        bottom_panel.append(&conf_separator);
+        // (No divider line above the waveform — the message area flows straight
+        // into the visualizer without a border.)
 
         // === Waveform visualizer (fixed height) ===
         let waveform_area = gtk::DrawingArea::new();
@@ -354,6 +386,12 @@ impl TranscriptView {
 
         bottom_panel.append(&confidence_box);
 
+        // Flexible gap: pushes the waveform/confidence panel to the window bottom
+        // while the messages + controls stay attached together near the top.
+        let bottom_spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        bottom_spacer.set_vexpand(true);
+        self.append(&bottom_spacer);
+
         self.append(&bottom_panel);
 
         // Store references
@@ -368,7 +406,8 @@ impl TranscriptView {
         *imp.seg_box.borrow_mut() = Some(seg_box);
         *imp.seg_cells.borrow_mut() = seg_cells;
         *imp.controls_row.borrow_mut() = Some(controls_row);
-        *imp.chips_flow.borrow_mut() = Some(chips_flow);
+        *imp.actions_btn.borrow_mut() = Some(actions_btn);
+        *imp.actions_list.borrow_mut() = Some(actions_list);
         *imp.variant_dropdown.borrow_mut() = Some(variant_dropdown);
         *imp.summary_expander.borrow_mut() = Some(summary_expander);
         *imp.summary_label.borrow_mut() = Some(summary_label);
@@ -640,24 +679,35 @@ impl TranscriptView {
         }
     }
 
-    /// Rebuild the transform-chip buttons from preset names (one chip per preset).
+    /// Rebuild the Actions-dropdown items from preset names (one row per preset).
     pub fn set_chip_presets(&self, names: &[String]) {
         let imp = self.imp();
-        let Some(flow) = imp.chips_flow.borrow().clone() else { return };
-        while let Some(child) = flow.first_child() {
-            flow.remove(&child);
+        let Some(list) = imp.actions_list.borrow().clone() else { return };
+        let popover = imp.actions_btn.borrow().as_ref().and_then(|b| b.popover());
+        while let Some(child) = list.first_child() {
+            list.remove(&child);
         }
         let mut buttons = Vec::with_capacity(names.len());
         for (i, name) in names.iter().enumerate() {
             let btn = gtk::Button::with_label(name);
-            btn.add_css_class("pill");
+            btn.add_css_class("flat");
+            btn.add_css_class("menu-item");
+            btn.set_halign(gtk::Align::Fill);
+            if let Some(label) = btn.child().and_downcast::<gtk::Label>() {
+                label.set_xalign(0.0);
+            }
             let view = self.clone();
+            let pop_weak = popover.as_ref().map(|p| p.downgrade());
             btn.connect_clicked(move |_| {
+                // Dismiss the menu, then run the transform on the selected message.
+                if let Some(p) = pop_weak.as_ref().and_then(|p| p.upgrade()) {
+                    p.popdown();
+                }
                 if let Some(cb) = view.imp().chip_callback.borrow().as_ref() {
                     cb(i);
                 }
             });
-            flow.insert(&btn, -1);
+            list.append(&btn);
             buttons.push(btn);
         }
         *imp.chip_buttons.borrow_mut() = buttons;
@@ -668,17 +718,20 @@ impl TranscriptView {
         *self.imp().chip_callback.borrow_mut() = Some(Box::new(f));
     }
 
-    /// Enable/disable all chips (disabled while an AI request is in flight).
+    /// Enable/disable the Actions dropdown (disabled while an AI request is in flight).
     pub fn set_chips_sensitive(&self, on: bool) {
+        if let Some(b) = self.imp().actions_btn.borrow().as_ref() {
+            b.set_sensitive(on);
+        }
         for b in self.imp().chip_buttons.borrow().iter() {
             b.set_sensitive(on);
         }
     }
 
-    /// Show/hide the chips (e.g. only when the LLM integration is enabled).
+    /// Show/hide the Actions dropdown (e.g. only when the LLM integration is enabled).
     pub fn set_chips_visible(&self, on: bool) {
-        if let Some(flow) = self.imp().chips_flow.borrow().as_ref() {
-            flow.set_visible(on);
+        if let Some(b) = self.imp().actions_btn.borrow().as_ref() {
+            b.set_visible(on);
         }
     }
 
@@ -719,11 +772,13 @@ impl TranscriptView {
                 if recording {
                     c.set_icon_name("media-playback-stop-symbolic");
                     c.set_label(&gettext("Stop edit"));
+                    b.remove_css_class("suggested-action");
                     b.add_css_class("destructive-action");
                 } else {
                     c.set_icon_name("document-edit-symbolic");
                     c.set_label(&gettext("Voice edit"));
                     b.remove_css_class("destructive-action");
+                    b.add_css_class("suggested-action");
                 }
             }
         }
@@ -798,8 +853,8 @@ impl TranscriptView {
         if let Some(d) = imp.variant_dropdown.borrow().as_ref() {
             d.set_visible(false);
         }
-        if let Some(f) = imp.chips_flow.borrow().as_ref() {
-            f.set_visible(false);
+        if let Some(b) = imp.actions_btn.borrow().as_ref() {
+            b.set_visible(false);
         }
         if let Some(b) = imp.voice_edit_btn.borrow().as_ref() {
             b.set_visible(false);

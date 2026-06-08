@@ -4,35 +4,11 @@
 
 //! Shared transcription result types and Whisper implementation.
 
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{Path, PathBuf};
 use tracing::info;
-use whisper_rs::{FullParams, SamplingStrategy, SegmentCallbackData, WhisperContext, WhisperContextParameters};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::error::{AppError, AppResult};
-
-/// One decoded segment, surfaced incrementally during transcription so the UI
-/// can show live/partial text and real progress.
-#[derive(Debug, Clone)]
-pub struct SegmentEvent {
-    pub start_ms: i64,
-    pub end_ms: i64,
-    pub text: String,
-}
-
-/// Optional live hooks for a transcription run (Whisper only). All fields are
-/// optional; the closures run on the worker thread inside `whisper_full`, so
-/// they only push onto channels / poll an atomic — never touch GTK.
-#[derive(Default, Clone)]
-pub struct TranscribeHooks {
-    /// Receives each segment as it is decoded.
-    pub segment_tx: Option<async_channel::Sender<SegmentEvent>>,
-    /// Receives decode progress (0–100).
-    pub progress_tx: Option<async_channel::Sender<i32>>,
-    /// Polled by whisper; when set to `true`, decoding aborts early.
-    pub abort: Option<Arc<AtomicBool>>,
-}
 
 // ---------------------------------------------------------------------------
 // Shared result types
@@ -72,6 +48,10 @@ pub struct TranscriptionResult {
 pub struct TranscriptionEngine {
     ctx: WhisperContext,
     model_id: String,
+    model_path: PathBuf,
+    /// Whether this context was created with GPU acceleration. Used to decide
+    /// whether a transcription failure is worth retrying on CPU.
+    use_gpu: bool,
 }
 
 impl TranscriptionEngine {
@@ -105,7 +85,19 @@ impl TranscriptionEngine {
         Ok(Self {
             ctx,
             model_id: model_id.to_string(),
+            model_path: model_path.to_path_buf(),
+            use_gpu,
         })
+    }
+
+    /// Whether this context uses GPU acceleration (worth a CPU retry on failure).
+    pub fn uses_gpu(&self) -> bool {
+        self.use_gpu
+    }
+
+    /// The model file this engine was loaded from (for a CPU reload on failure).
+    pub fn model_path(&self) -> &Path {
+        &self.model_path
     }
 
     /// Transcribe audio data.
@@ -127,26 +119,6 @@ impl TranscriptionEngine {
         beam_size: u32,
         temperature: f32,
         initial_prompt: Option<&str>,
-    ) -> AppResult<TranscriptionResult> {
-        self.transcribe_with_hooks(
-            audio, language, n_threads, translate, beam_size, temperature, initial_prompt,
-            &TranscribeHooks::default(),
-        )
-    }
-
-    /// Transcribe with optional live hooks (incremental segments, progress,
-    /// abort). `transcribe` delegates here with no hooks.
-    #[allow(clippy::too_many_arguments)]
-    pub fn transcribe_with_hooks(
-        &self,
-        audio: &[f32],
-        language: Option<&str>,
-        n_threads: u32,
-        translate: bool,
-        beam_size: u32,
-        temperature: f32,
-        initial_prompt: Option<&str>,
-        hooks: &TranscribeHooks,
     ) -> AppResult<TranscriptionResult> {
         if audio.is_empty() {
             return Ok(TranscriptionResult {
@@ -183,7 +155,10 @@ impl TranscriptionEngine {
         params.set_suppress_blank(true);
         params.set_suppress_non_speech_tokens(true);
         params.set_temperature(temperature);
-        params.set_temperature_inc(0.0);
+        // whisper.cpp default; enables internal temperature retry when a segment
+        // trips entropy/logprob thresholds. With 0.0 (no retry), borderline audio
+        // turns into -6 errors instead of a slightly degraded but valid transcript.
+        params.set_temperature_inc(0.2);
         params.set_entropy_thold(2.2);
         params.set_logprob_thold(-0.8);
 
@@ -200,30 +175,6 @@ impl TranscriptionEngine {
 
         if let Some(prompt) = initial_prompt {
             params.set_initial_prompt(prompt);
-        }
-
-        // Live hooks: emit each segment as it is decoded, report real progress,
-        // and allow early abort. The closures must be 'static + Send (they run on
-        // this worker thread inside whisper_full) — they only push onto channels
-        // or poll an atomic, never touching GTK. The `_lossy` segment variant
-        // avoids a UTF-8 panic inside the C trampoline on malformed bytes.
-        if let Some(tx) = hooks.segment_tx.clone() {
-            params.set_segment_callback_safe_lossy(move |d: SegmentCallbackData| {
-                let _ = tx.send_blocking(SegmentEvent {
-                    // whisper timestamps are centiseconds; ×10 → ms (matches below).
-                    start_ms: d.start_timestamp * 10,
-                    end_ms: d.end_timestamp * 10,
-                    text: d.text,
-                });
-            });
-        }
-        if let Some(tx) = hooks.progress_tx.clone() {
-            params.set_progress_callback_safe(move |p: i32| {
-                let _ = tx.try_send(p);
-            });
-        }
-        if let Some(abort) = hooks.abort.clone() {
-            params.set_abort_callback_safe(move || abort.load(Ordering::Relaxed));
         }
 
         // Run transcription

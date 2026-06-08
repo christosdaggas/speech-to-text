@@ -106,7 +106,8 @@ mod imp {
         pub transcript_label: RefCell<Option<gtk::Label>>,
         pub copied_badge: RefCell<Option<gtk::Label>>,
         pub result_stats: RefCell<Option<gtk::Label>>,
-        pub chips_flow: RefCell<Option<gtk::FlowBox>>,
+        pub actions_btn: RefCell<Option<gtk::MenuButton>>,
+        pub actions_list: RefCell<Option<gtk::Box>>,
         pub chip_buttons: RefCell<Vec<gtk::Button>>,
         pub variant_dropdown: RefCell<Option<gtk::DropDown>>,
         pub variant_syncing: Cell<bool>,
@@ -450,33 +451,68 @@ impl MiniPanel {
         body.append(&transcript_box);
         *imp.transcript_label.borrow_mut() = Some(transcript);
 
-        // Transform chips (one per preset; shown only when the LLM is enabled).
-        let chips_flow = gtk::FlowBox::new();
-        chips_flow.set_selection_mode(gtk::SelectionMode::None);
-        chips_flow.set_max_children_per_line(3);
-        chips_flow.set_homogeneous(true);
-        chips_flow.set_column_spacing(6);
-        chips_flow.set_row_spacing(6);
-        chips_flow.set_visible(false);
-        body.append(&chips_flow);
-        *imp.chips_flow.borrow_mut() = Some(chips_flow);
+        // Transform actions collapsed into one "Actions" dropdown (shown only when
+        // the LLM is enabled), grouped with Voice edit on the right — mirrors the
+        // main window. The raw/polished selector sits on the left.
+        let controls = gtk::Box::new(gtk::Orientation::Horizontal, 6);
 
-        // Meta row: raw/polished selector + voice-edit (left) + "Copied ✓" badge (right).
-        let meta = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let variant_dropdown = gtk::DropDown::from_strings(&[]);
         variant_dropdown.set_valign(gtk::Align::Center);
         variant_dropdown.set_visible(false);
-        meta.append(&variant_dropdown);
+        controls.append(&variant_dropdown);
 
-        let voice_edit_btn = gtk::Button::from_icon_name("document-edit-symbolic");
-        voice_edit_btn.add_css_class("flat");
+        let controls_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        controls_spacer.set_hexpand(true);
+        controls.append(&controls_spacer);
+
+        // Actions dropdown (items rebuilt by `set_chip_presets`).
+        let actions_btn = gtk::MenuButton::new();
+        actions_btn.add_css_class("pill");
+        actions_btn.add_css_class("transform-action");
+        actions_btn.set_valign(gtk::Align::Center);
+        actions_btn.set_visible(false);
+        actions_btn.set_tooltip_text(Some(&gettext("Transform this text with AI")));
+        let actions_content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        let actions_icon = gtk::Image::from_icon_name("com.chrisdaggas.speech-to-text-ai");
+        actions_icon.set_pixel_size(15);
+        let actions_label = gtk::Label::new(Some(&gettext("Actions")));
+        let actions_caret = gtk::Image::from_icon_name("pan-down-symbolic");
+        actions_caret.set_pixel_size(12);
+        actions_content.append(&actions_icon);
+        actions_content.append(&actions_label);
+        actions_content.append(&actions_caret);
+        actions_btn.set_child(Some(&actions_content));
+        let actions_popover = gtk::Popover::new();
+        actions_popover.add_css_class("menu");
+        actions_popover.set_has_arrow(false);
+        actions_popover.set_position(gtk::PositionType::Top);
+        let actions_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        actions_popover.set_child(Some(&actions_list));
+        actions_btn.set_popover(Some(&actions_popover));
+        controls.append(&actions_btn);
+        *imp.actions_btn.borrow_mut() = Some(actions_btn);
+        *imp.actions_list.borrow_mut() = Some(actions_list);
+
+        // Voice edit (labelled, accent) — speak an instruction to change the text.
+        let voice_edit_btn = gtk::Button::new();
+        let ve_content = adw::ButtonContent::new();
+        ve_content.set_icon_name("document-edit-symbolic");
+        ve_content.set_label(&gettext("Voice edit"));
+        voice_edit_btn.set_child(Some(&ve_content));
+        voice_edit_btn.add_css_class("pill");
+        voice_edit_btn.add_css_class("suggested-action");
+        voice_edit_btn.add_css_class("transform-action");
         voice_edit_btn.set_valign(gtk::Align::Center);
-        voice_edit_btn.set_tooltip_text(Some(&gettext("Voice edit: speak an instruction to change this text")));
         voice_edit_btn.set_visible(false);
-        meta.append(&voice_edit_btn);
+        voice_edit_btn.set_tooltip_text(Some(&gettext("Voice edit: speak an instruction to change this text")));
+        controls.append(&voice_edit_btn);
         *imp.voice_edit_btn.borrow_mut() = Some(voice_edit_btn.clone());
         self.wire_button(&voice_edit_btn, MiniPanelAction::VoiceEdit);
 
+        body.append(&controls);
+
+        // Meta row: stats (left, grows) + "Copied ✓" badge (right).
+        let meta = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let stats = gtk::Label::new(None);
         stats.add_css_class("mp-meta");
         stats.set_xalign(0.0);
@@ -603,40 +639,53 @@ impl MiniPanel {
         }
     }
 
-    /// Rebuild the transform-chip buttons from preset names.
+    /// Rebuild the Actions-dropdown items from preset names (one row per preset).
     pub fn set_chip_presets(&self, names: &[String]) {
         let imp = self.imp();
-        let Some(flow) = imp.chips_flow.borrow().clone() else { return };
-        while let Some(child) = flow.first_child() {
-            flow.remove(&child);
+        let Some(list) = imp.actions_list.borrow().clone() else { return };
+        let popover = imp.actions_btn.borrow().as_ref().and_then(|b| b.popover());
+        while let Some(child) = list.first_child() {
+            list.remove(&child);
         }
         let mut buttons = Vec::with_capacity(names.len());
         for (i, name) in names.iter().enumerate() {
             let btn = gtk::Button::with_label(name);
-            btn.add_css_class("pill");
+            btn.add_css_class("flat");
+            btn.add_css_class("menu-item");
+            btn.set_halign(gtk::Align::Fill);
+            if let Some(label) = btn.child().and_downcast::<gtk::Label>() {
+                label.set_xalign(0.0);
+            }
             let panel_weak = self.downgrade();
+            let pop_weak = popover.as_ref().map(|p| p.downgrade());
             btn.connect_clicked(move |_| {
+                if let Some(p) = pop_weak.as_ref().and_then(|p| p.upgrade()) {
+                    p.popdown();
+                }
                 if let Some(p) = panel_weak.upgrade() {
                     p.emit_action(MiniPanelAction::Chip(i));
                 }
             });
-            flow.insert(&btn, -1);
+            list.append(&btn);
             buttons.push(btn);
         }
         *imp.chip_buttons.borrow_mut() = buttons;
     }
 
-    /// Enable/disable all chips (disabled while an AI request is in flight).
+    /// Enable/disable the Actions dropdown (disabled while an AI request is in flight).
     pub fn set_chips_sensitive(&self, on: bool) {
+        if let Some(b) = self.imp().actions_btn.borrow().as_ref() {
+            b.set_sensitive(on);
+        }
         for b in self.imp().chip_buttons.borrow().iter() {
             b.set_sensitive(on);
         }
     }
 
-    /// Show/hide the chips row (only when the LLM integration is enabled).
+    /// Show/hide the Actions dropdown (only when the LLM integration is enabled).
     pub fn set_chips_visible(&self, on: bool) {
-        if let Some(f) = self.imp().chips_flow.borrow().as_ref() {
-            f.set_visible(on);
+        if let Some(b) = self.imp().actions_btn.borrow().as_ref() {
+            b.set_visible(on);
         }
     }
 
