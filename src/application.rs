@@ -1231,7 +1231,23 @@ impl Application {
             .developers(vec!["Christos A. Daggas"])
             .comments("Offline speech-to-text transcription using Whisper")
             .release_notes(
-                "<p>Version 1.2.0</p>\
+                "<p>Version 1.4.0</p>\
+                <ul>\
+                    <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
+                    <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
+                    <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
+                    <li>Changed: the beam_size setting is honoured everywhere — the main window’s live preview no longer hard-codes greedy decoding. It still has a self-protection that pauses the preview if your hardware can’t keep up.</li>\
+                    <li>Changed: the mini panel’s “Improve with AI” chips are consolidated into a single “Actions” dropdown next to Voice edit, matching the main window.</li>\
+                    <li>Changed: Settings pages now fill the full content width instead of being clamped to a narrow centred column.</li>\
+                </ul>\
+                <p>Version 1.3.0</p>\
+                <ul>\
+                    <li>Security & distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
+                    <li>Auto-paste off by default for new installs; update check is now a setting; clear-all history asks for confirmation</li>\
+                    <li>Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — clipboard is now set while the panel holds focus (Wayland requires this)</li>\
+                    <li>Fixed: the mini-panel AI icon now appears only when auto-improve will actually run</li>\
+                </ul>\
+                <p>Version 1.2.0</p>\
                 <ul>\
                     <li>Mini Panel: dictate into any app with a global shortcut — it transcribes, pastes into the focused app, and stays open so you can dictate again</li>\
                     <li>System tray icon and background mode: run minimized; start dictation, open, or quit from the tray</li>\
@@ -1280,7 +1296,23 @@ impl Application {
             .application_icon(APP_ID)
             .version(VERSION)
             .release_notes(
-                "<p>Version 1.2.0</p>\
+                "<p>Version 1.4.0</p>\
+                <ul>\
+                    <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
+                    <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
+                    <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
+                    <li>Changed: the beam_size setting is honoured everywhere — the main window’s live preview no longer hard-codes greedy decoding. It still has a self-protection that pauses the preview if your hardware can’t keep up.</li>\
+                    <li>Changed: the mini panel’s “Improve with AI” chips are consolidated into a single “Actions” dropdown next to Voice edit, matching the main window.</li>\
+                    <li>Changed: Settings pages now fill the full content width instead of being clamped to a narrow centred column.</li>\
+                </ul>\
+                <p>Version 1.3.0</p>\
+                <ul>\
+                    <li>Security & distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
+                    <li>Auto-paste off by default for new installs; update check is now a setting; clear-all history asks for confirmation</li>\
+                    <li>Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — clipboard is now set while the panel holds focus (Wayland requires this)</li>\
+                    <li>Fixed: the mini-panel AI icon now appears only when auto-improve will actually run</li>\
+                </ul>\
+                <p>Version 1.2.0</p>\
                 <ul>\
                     <li>Mini Panel: dictate into any app with a global shortcut — it transcribes, pastes into the focused app, and stays open so you can dictate again</li>\
                     <li>System tray icon and background mode: run minimized; start dictation, open, or quit from the tray</li>\

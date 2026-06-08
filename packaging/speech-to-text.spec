@@ -11,7 +11,7 @@
 %global appid com.chrisdaggas.speech-to-text
 
 Name:           speech-to-text
-Version:        1.3.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
@@ -90,6 +90,14 @@ appstream-util validate-relax --nonet \
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
-* Sat Jun 06 2026 Christos A. Daggas <info@hotwebdesign.gr> - 1.3.0-1
+* Mon Jun 08 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-1
+- Fixed: mini panel intermittent "Generic whisper error, code -6" on Vulkan GPUs with larger models / wider beam search. Mini panel now uses a clean batch decode.
+- Fixed: borderline audio no longer breaks a transcription — whisper's built-in temperature retry re-enabled (temperature_inc = 0.2).
+- Changed: "Show text live while transcribing" applies only to the main window now; the mini panel is always a clean batch decode.
+- Changed: beam_size honoured everywhere — the main window's live preview no longer hard-codes greedy decoding (self-protection still applies).
+- Changed: mini panel transform actions collapse into a single "Actions" dropdown next to Voice edit.
+- Changed: Settings pages now fill the full content width.
+
+* Sat Jun 06 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.3.0-1
 - Security & distribution hardening release (see CHANGELOG / SECURITY.md).
 - Source-built RPM (was prebuilt-binary only).

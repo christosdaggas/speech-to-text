@@ -1,5 +1,5 @@
 Name:           speech-to-text
-Version:        1.3.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
@@ -78,7 +78,15 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
-* Sat Jun 06 2026 Christos A. Daggas <info@hotwebdesign.gr> - 1.3.0-1
+* Mon Jun 08 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-1
+- Fixed: the mini panel could fail mid-session with "Generic whisper error, code -6" on Vulkan GPUs, especially with larger models or wider beam search. The mini panel now uses a clean batch decode and the bug is gone.
+- Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper's built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.
+- Changed: "Show text live while transcribing" applies only to the main window now; the mini panel is always a clean batch decode. The Settings label says so explicitly.
+- Changed: the beam_size setting is honoured everywhere — the main window's live preview no longer hard-codes greedy decoding. It still has a self-protection that pauses the loop if your hardware can't keep up.
+- Changed: the mini panel's "Improve with AI" chips are consolidated into a single "Actions" dropdown next to Voice edit, matching the main window.
+- Changed: Settings pages now fill the full content width instead of being clamped to a narrow centred column.
+
+* Sat Jun 06 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.3.0-1
 - Security & distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction (see SECURITY.md / CHANGELOG.md)
 - Auto-paste now off by default for new installs; update check is now a setting; clear-all history asks for confirmation
 - Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — the clipboard is now set while the panel holds focus (Wayland requires this), so the current transcript is always pasted

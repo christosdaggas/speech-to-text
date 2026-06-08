@@ -74,6 +74,19 @@
   </keywords>
 
   <releases>
+    <release version="1.4.0" date="2026-06-08">
+      <description>
+        <p>Mini panel reliability and UI cleanup.</p>
+        <ul>
+          <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on Vulkan GPUs (large models or wider beam search). It now always uses a clean batch decode.</li>
+          <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription — whisper’s built-in temperature retry is re-enabled.</li>
+          <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode.</li>
+          <li>Changed: the beam_size setting is honoured everywhere — the main window’s live preview no longer hard-codes greedy decoding.</li>
+          <li>Changed: the mini panel’s transform actions collapse into a single “Actions” dropdown next to Voice edit.</li>
+          <li>Changed: Settings pages now fill the full content width.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-06-06">
       <description>
         <p>Security and distribution hardening release.</p>

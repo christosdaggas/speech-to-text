@@ -18,7 +18,7 @@ Report privately using one of:
 
 - GitHub **Private vulnerability reporting** (Security → "Report a vulnerability")
   on the repository, or
-- email **info@hotwebdesign.gr** with subject `SECURITY: speech-to-text`.
+- email **info@chrisdaggas.com** with subject `SECURITY: speech-to-text`.
 
 Include: affected version, environment (distro, Wayland/X11, desktop), a
 description, reproduction steps, and impact. A proof of concept helps.

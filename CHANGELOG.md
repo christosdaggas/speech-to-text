@@ -3,6 +3,39 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-06-08
+
+### Fixed
+
+- Mini panel could fail mid-session with `Generic whisper error, code -6`
+  (whisper.cpp "failed to encode") on Vulkan GPUs, especially with larger
+  models or wider beam search. The mini panel now uses a clean batch decode
+  with no in-decode callbacks, eliminating the failure mode.
+- Borderline audio (whispered, noisy, short clips) no longer breaks the whole
+  transcription. Whisper.cpp's built-in temperature retry is re-enabled
+  (`temperature_inc = 0.2`, upstream default), so a difficult segment is
+  degraded into a slightly less confident transcript instead of erroring out.
+
+### Changed
+
+- `live_transcription` ("Show text live while transcribing") applies only to
+  the main window. The mini panel is always a clean batch decode. The Settings
+  label reflects this.
+- `beam_size` is honoured everywhere. The main window's live preview no longer
+  hard-codes greedy decoding; the existing `live_too_slow` self-protection
+  still pauses the preview if a single iteration runs over 3.5s.
+- Mini panel: the "Improve with AI" chips collapse into a single "Actions"
+  dropdown next to Voice edit, matching the main window's transcript view.
+- Settings pages fill the full content area via a new `fill_preferences_width`
+  helper instead of the default 600px `AdwPreferencesPage` clamp.
+
+### Removed
+
+- Dead streaming plumbing left over after dropping the mini-panel streaming
+  path: `TranscribeHooks`, `SegmentEvent`, `StreamingTranscription`,
+  `transcribe_async_streaming`, `transcribe_with_hooks`,
+  `run_transcription_hooked`, and their imports.
+
 ## [1.3.0] — 2026-06-06
 
 Security & distribution hardening release. No breaking changes for existing
