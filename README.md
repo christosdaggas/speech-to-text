@@ -89,6 +89,48 @@ Global shortcuts on GNOME/Wayland are owned by the desktop via the
 Settings → Keyboard. This requires the app's `.desktop` file to be installed
 system-wide (the RPM does this).
 
+## Local API server (for other apps)
+
+An opt-in HTTP API lets other apps on the same machine send audio for
+transcription and translation. It is **off by default**. Enable it in
+**Settings → API**: flip the switch (starts/stops immediately), pick a port
+(default `8756`), and copy the bearer token. The server binds **`127.0.0.1`
+only** — never the network.
+
+- `POST /v1/transcribe` — body is the audio file (raw, e.g. `--data-binary`) or
+  `multipart/form-data` with a `file` field (browser `FormData`). Query/form
+  params: `language` (ISO 639-1, omit for auto-detect), `translate=true`
+  (Whisper translate→English), `translate_to=<language>` (LLM translation of the
+  transcript — requires the LLM enabled), `beam_size`, `temperature`,
+  `initial_prompt`, `mode`, `segments=false`. Returns JSON
+  `{ text, raw_text, detected_language, confidence, duration_secs,
+  translated_text?, segments? }`.
+- `POST /v1/translate` — `{ "text": "...", "target_language": "Greek" }` (LLM
+  only, no audio).
+- `GET /v1/health` — status, version, backend, selected model (no auth).
+- `GET /v1/models` — downloaded Whisper models + the selected one.
+
+```bash
+TOKEN=<copied-from-settings>; PORT=8756
+curl -s http://127.0.0.1:$PORT/v1/health | jq .
+curl -s -X POST "http://127.0.0.1:$PORT/v1/transcribe?language=en" \
+  -H "Authorization: Bearer $TOKEN" --data-binary @sample.wav | jq .
+# Whisper translate → English
+curl -s -X POST "http://127.0.0.1:$PORT/v1/transcribe?translate=true" \
+  -H "Authorization: Bearer $TOKEN" --data-binary @greek.mp3 | jq .text
+# LLM translate to any language
+curl -s -X POST "http://127.0.0.1:$PORT/v1/transcribe?translate_to=Greek" \
+  -H "Authorization: Bearer $TOKEN" --data-binary @english.flac | jq .translated_text
+# browser-style multipart upload
+curl -s -X POST "http://127.0.0.1:$PORT/v1/transcribe" \
+  -H "Authorization: Bearer $TOKEN" -F file=@sample.wav | jq .text
+```
+
+Security: localhost-only bind, a required 256-bit bearer token (stored in the
+keyring, not the config), a `Host`-header check (DNS-rebinding guard), an upload
+size cap, a bounded request queue (HTTP 429 when busy), and no transcript/token
+logging. API requests are **not** saved to the in-app History.
+
 ## Configuration & data locations
 
 - Config: `~/.config/speech-to-text/config.json` (mode 0600)

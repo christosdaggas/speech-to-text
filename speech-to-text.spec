@@ -1,6 +1,6 @@
 Name:           speech-to-text
 Version:        1.4.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/chrisdaggas/speech-to-text
@@ -28,6 +28,9 @@ BuildArch:      x86_64
 Requires:       gtk4
 Requires:       libadwaita
 Requires:       alsa-lib
+# The binary is built with whisper.cpp's Vulkan GPU backend and links
+# libvulkan.so.1 at runtime (used when "Use GPU" is enabled in Settings).
+Requires:       vulkan-loader
 
 %description
 Speech to Text is a native Linux desktop application that provides offline
@@ -78,6 +81,9 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Thu Jun 11 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-2
+- Added: Vulkan GPU acceleration for Whisper transcription. The binary now ships with whisper.cpp's Vulkan backend, so "Use GPU" in Settings runs the encoder on a Vulkan-capable GPU (with automatic CPU fallback if a GPU encode fails). Requires vulkan-loader.
+
 * Mon Jun 08 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-1
 - Fixed: the mini panel could fail mid-session with "Generic whisper error, code -6" on Vulkan GPUs, especially with larger models or wider beam search. The mini panel now uses a clean batch decode and the bug is gone.
 - Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper's built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.

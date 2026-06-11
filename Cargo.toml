@@ -95,11 +95,26 @@ tempfile = "3"
 # URL parsing/validation for the LLM endpoint
 url = "2"
 
+# Local HTTP API server (opt-in, localhost-only). A small hand-rolled hyper
+# service — the route surface is tiny and we avoid pulling a full web framework
+# (axum/tower) into a size-tuned desktop binary. reqwest already pulls hyper.
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+# multipart/form-data parsing for browser FormData uploads.
+multer = "3"
+# Byte buffers for the hyper request/response bodies.
+bytes = "1"
+
 [features]
 default = []
 gresource = []
 cuda = ["whisper-rs/cuda"]
 metal = ["whisper-rs/metal"]
+# Vulkan GPU backend for whisper.cpp. Opt-in (like cuda/metal) so CPU-only
+# builds don't require the Vulkan toolchain. Building this needs the Vulkan
+# loader + headers and a GLSL compiler (glslc) to compile the compute shaders.
+vulkan = ["whisper-rs/vulkan"]
 
 [profile.release]
 opt-level = 3

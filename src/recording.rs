@@ -327,6 +327,49 @@ pub fn run_transcription(
     }
 }
 
+/// Ensure a Whisper engine is loaded in the shared slot, loading the configured
+/// model on first use. No-op if an engine is already loaded — so the API server
+/// and the GUI share the one instance (whoever loads first wins). Honors
+/// `config.use_gpu` with a CPU fallback when `cpu_fallback` is set, mirroring the
+/// main window's loader. Blocking: call from a worker thread, not the UI thread.
+///
+/// Only relevant for the Whisper backend; Cohere/Qwen run via their CLIs and
+/// need no preloaded engine.
+pub fn ensure_engine_loaded(
+    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
+    config: &crate::config::AppConfig,
+) -> Result<(), String> {
+    if engine.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+        return Ok(());
+    }
+
+    let model_id = config.selected_model.clone();
+    if !ModelCatalog::is_downloaded(&model_id) {
+        return Err(format!(
+            "Model '{}' is not downloaded. Open the app and download it in Settings → Model.",
+            model_id
+        ));
+    }
+    let model_path = ModelCatalog::model_path(&model_id);
+
+    let loaded = match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, config.use_gpu) {
+        Ok(e) => e,
+        Err(e) if config.use_gpu && config.cpu_fallback => {
+            tracing::warn!("API: GPU model load failed ({e}); retrying on CPU");
+            TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false)
+                .map_err(|e2| format!("Failed to load model on GPU and CPU: {e2}"))?
+        }
+        Err(e) => return Err(format!("Failed to load model: {e}")),
+    };
+
+    // Re-check under the lock: another thread may have loaded it meanwhile.
+    let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_none() {
+        *guard = Some(loaded);
+    }
+    Ok(())
+}
+
 fn build_outcome(result: TranscriptionResult, params: &DictationParams, duration_secs: f32) -> DictationOutcome {
     let confidence = result.average_confidence.unwrap_or(0.0);
     let segments: Vec<(i64, i64, String)> = result.segments.iter()

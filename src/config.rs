@@ -180,6 +180,22 @@ pub struct AppConfig {
     /// the final result is always the full-context decode.
     #[serde(default)]
     pub live_transcription: bool,
+
+    // ── Local HTTP API server ────────────────────────────────────────
+    /// Whether the local HTTP API server is enabled. Off by default; when on,
+    /// the server binds 127.0.0.1 only so other local apps can POST audio for
+    /// transcription/translation.
+    #[serde(default)]
+    pub api_server_enabled: bool,
+
+    /// TCP port for the local API server (bound on 127.0.0.1 only).
+    #[serde(default = "default_api_port")]
+    pub api_server_port: u16,
+
+    /// Require an `Authorization: Bearer <token>` on API requests. The token
+    /// itself lives in the system keyring, never in this file. On by default.
+    #[serde(default = "default_true")]
+    pub api_token_enabled: bool,
 }
 
 /// One personal-dictionary replacement rule: replace `from` with `to`.
@@ -278,6 +294,9 @@ impl Default for AppConfig {
             dictionary_replacements: Vec::new(),
             dictionary_enabled: true,
             live_transcription: false,
+            api_server_enabled: false,
+            api_server_port: default_api_port(),
+            api_token_enabled: true,
         }
     }
 }
@@ -363,6 +382,11 @@ fn default_selection_shortcut() -> String {
 /// Default Qwen3-ASR model size (the small/fast 0.6B model).
 fn default_qwen_model_size() -> String {
     "0.6B".to_string()
+}
+
+/// Default port for the local API server.
+fn default_api_port() -> u16 {
+    8756
 }
 
 /// Built-in prompt presets shipped with the app.
@@ -656,6 +680,33 @@ mod tests {
         assert_eq!(back.dictionary_terms.len(), 2);
         assert_eq!(back.dictionary_replacements[0].to, "Kube");
         assert!(back.dictionary_replacements[0].whole_word);
+    }
+
+    #[test]
+    fn api_server_fields_round_trip_and_legacy_loads() {
+        // Old config without the API fields must still deserialize to safe
+        // defaults: server OFF, token required, default port.
+        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("api_server_enabled");
+        obj.remove("api_server_port");
+        obj.remove("api_token_enabled");
+        let raw = serde_json::to_string(&value).unwrap();
+        let cfg: AppConfig = serde_json::from_str(&raw).expect("legacy deserialize");
+        assert!(!cfg.api_server_enabled, "server is off by default");
+        assert!(cfg.api_token_enabled, "token is required by default");
+        assert_eq!(cfg.api_server_port, 8756);
+
+        // Round-trip with content.
+        let mut cfg = AppConfig::default();
+        cfg.api_server_enabled = true;
+        cfg.api_server_port = 9100;
+        cfg.api_token_enabled = false;
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(back.api_server_enabled);
+        assert_eq!(back.api_server_port, 9100);
+        assert!(!back.api_token_enabled);
     }
 
     #[test]

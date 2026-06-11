@@ -23,7 +23,7 @@ use crate::ui::{
     Controls, HeaderControls, HelpPage, HistoryPage, StatusBar, TranscriptView,
     WelcomeWizard, ControlAction,
 };
-use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, language_code_to_name, fill_preferences_width};
+use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, ApiPage, language_code_to_name, fill_preferences_width};
 use crate::ui::widgets::GpuStatusPanel;
 use crate::transcription::postprocess;
 use crate::i18n::gettext;
@@ -50,6 +50,7 @@ pub enum NavItem {
     Dictation,
     Dictionary,
     Llm,
+    Api,
     Help,
 }
 
@@ -65,6 +66,7 @@ impl NavItem {
             Self::Dictation => "input-keyboard-symbolic",
             Self::Dictionary => "accessories-dictionary-symbolic",
             Self::Llm => "network-transmit-receive-symbolic",
+            Self::Api => "network-server-symbolic",
             Self::Help => "help-about-symbolic",
         }
     }
@@ -80,13 +82,14 @@ impl NavItem {
             Self::Dictation => gettext("Dictation"),
             Self::Dictionary => gettext("Dictionary"),
             Self::Llm => gettext("LLM"),
+            Self::Api => gettext("API"),
             Self::Help => gettext("Help"),
         }
     }
 
     /// Whether this is a settings page (shown under "Settings" header).
     pub fn is_settings(&self) -> bool {
-        matches!(self, Self::Microphone | Self::Model | Self::Language | Self::Performance | Self::Dictation | Self::Dictionary | Self::Llm)
+        matches!(self, Self::Microphone | Self::Model | Self::Language | Self::Performance | Self::Dictation | Self::Dictionary | Self::Llm | Self::Api)
     }
 
     pub fn all() -> &'static [NavItem] {
@@ -100,6 +103,7 @@ impl NavItem {
             Self::Dictation,
             Self::Dictionary,
             Self::Llm,
+            Self::Api,
             Self::Help,
         ]
     }
@@ -153,6 +157,7 @@ mod imp {
         pub dictation_page: RefCell<Option<DictationPage>>,
         pub dictionary_page: RefCell<Option<DictionaryPage>>,
         pub llm_page: RefCell<Option<LlmPage>>,
+        pub api_page: RefCell<Option<ApiPage>>,
         /// One result per dictation (raw transcript + AI variants). The transcript
         /// view shows one selectable bubble per entry; `selected_message` is the
         /// one the chips / Improve / Voice edit act on. Append-only + clear-all,
@@ -463,6 +468,9 @@ impl MainWindow {
         let llm_page = LlmPage::new();
         content_stack.add_named(&llm_page, Some("llm"));
 
+        let api_page = ApiPage::new();
+        content_stack.add_named(&api_page, Some("api"));
+
         // Settings pages use AdwPreferencesPage, which centres its content in a
         // 600px clamp by default. Widen every page so the settings fill the full
         // width of the content area instead of a narrow centred column.
@@ -473,6 +481,7 @@ impl MainWindow {
         fill_preferences_width(&dictation_page);
         fill_preferences_width(&dictionary_page);
         fill_preferences_width(&llm_page);
+        fill_preferences_width(&api_page);
 
         // Help page
         let help_page = HelpPage::new();
@@ -524,6 +533,7 @@ impl MainWindow {
         *imp.dictation_page.borrow_mut() = Some(dictation_page);
         *imp.dictionary_page.borrow_mut() = Some(dictionary_page);
         *imp.llm_page.borrow_mut() = Some(llm_page);
+        *imp.api_page.borrow_mut() = Some(api_page);
         *imp.gpu_panel.borrow_mut() = Some(gpu_panel);
         *imp.nav_labels.borrow_mut() = nav_labels;
         *imp.nav_boxes.borrow_mut() = nav_boxes;
@@ -1065,9 +1075,19 @@ impl MainWindow {
     }
 
     fn current_config_snapshot(&self) -> Option<AppConfig> {
+        // Read the authoritative process-wide config (kept current by every
+        // `save()`), NOT the window's local `imp.config` Arc. The translate and
+        // language toggles persist via `AppConfig::load()` + `save()` without
+        // updating `imp.config`, so cloning the local Arc here would carry a stale
+        // `translate_to_english` (and other fields) and re-stamp it on the next
+        // single-field `save()` in the model/engine handlers — silently clobbering
+        // the user's choice and making the pop-up translate intermittently.
+        // `imp.config` is only ever set to already-saved values, so the cache is
+        // always at least as fresh; gate on it only so we return None before the
+        // window has been initialized.
         self.imp().config.borrow()
             .as_ref()
-            .map(|config| (**config).clone())
+            .map(|_| AppConfig::load())
     }
 
     /// The shared recording controller (cloned `Rc`).
@@ -2252,6 +2272,7 @@ impl MainWindow {
             NavItem::Dictation => "dictation",
             NavItem::Dictionary => "dictionary",
             NavItem::Llm => "llm",
+            NavItem::Api => "api",
             NavItem::Help => "help",
         };
 
@@ -2306,6 +2327,7 @@ impl MainWindow {
                         "dictation" => NavItem::Dictation,
                         "dictionary" => NavItem::Dictionary,
                         "llm" => NavItem::Llm,
+                        "api" => NavItem::Api,
                         "help" => NavItem::Help,
                         _ => return,
                     };

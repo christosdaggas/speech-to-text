@@ -25,6 +25,9 @@ captures the assets, trust boundaries, threats, and the mitigations in place.
    injection) via XDG portals.
 4. **App ↔ other applications.** Auto-paste types into whatever window is
    focused.
+5. **Local clients ↔ API server.** The opt-in HTTP API (off by default) accepts
+   audio from other local processes / local web pages. Bound to `127.0.0.1`
+   only; other local processes and browser pages are *not* trusted.
 
 ## Threats & mitigations
 
@@ -42,6 +45,7 @@ captures the assets, trust boundaries, threats, and the mitigations in place.
 | T10 | **Unexpected input injection** into other apps | Auto-paste off by default; in-app consent + OS portal prompt; revocable restore token. |
 | T11 | **Supply-chain drift** (vulnerable/unused/odd-licensed deps) | CI runs `cargo audit` + `cargo deny` (advisories, license allowlist, source allowlist); unused deps removed; tokio features minimized. |
 | T12 | **Tampered release binary** | Signed `SHA256SUMS` + SBOM; source-build RPM / COPR for reproducibility. |
+| T13 | **Local API server** abused (off by default): network exposure, unauthorized callers, DNS-rebinding from a browser, resource exhaustion, secret/transcript leakage | Binds `127.0.0.1` only (hardcoded, no bind-address knob); required 256-bit bearer token (keyring-stored, constant-time compared, never logged); `Host`-header loopback check defeats DNS rebinding; upload-size cap + bounded inference queue (429) + per-request timeout; CORS reflects Origin but the token still gates access; results never persisted to History; errors run through `redact_secrets`. |
 
 ## Explicitly out of scope / accepted
 
@@ -52,7 +56,9 @@ captures the assets, trust boundaries, threats, and the mitigations in place.
 - **Upstream dependency vulnerabilities.** Tracked via `cargo audit`; fixed by
   updating once upstream patches land.
 - **Update check metadata** (IP/version to GitHub). Disclosed and disable-able.
-- **No web UI / HTTP API / auth surface exists** — there is no server to attack.
+- **The HTTP API is off by default.** When the user enables it, it is bound to
+  `127.0.0.1` only and gated by a bearer token; a pre-existing malicious local
+  process running as the same user is out of scope (see below).
 
 ## Residual risks
 

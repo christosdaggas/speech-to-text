@@ -9,6 +9,7 @@
 use gtk4::prelude::*;
 use gtk4::glib;
 
+mod api;
 mod application;
 mod audio;
 mod config;

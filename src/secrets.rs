@@ -82,3 +82,22 @@ pub async fn load_llm_api_key() -> Option<String> {
 pub async fn delete_llm_api_key() -> AppResult<()> {
     delete_secret("llm_api_key").await
 }
+
+// ── Local API server bearer token ────────────────────────────────────────────
+
+/// Store (or replace) the local API server's bearer token in the Secret Service.
+pub async fn store_api_token(token: &str) -> AppResult<()> {
+    store_secret("api_token", token).await
+}
+
+/// Load the local API server's bearer token from the Secret Service, if present.
+pub async fn load_api_token() -> Option<String> {
+    load_secret("api_token").await
+}
+
+/// Remove the stored local API server token. Kept for parity with the other
+/// secret helpers; not currently wired to a UI action.
+#[allow(dead_code)]
+pub async fn delete_api_token() -> AppResult<()> {
+    delete_secret("api_token").await
+}

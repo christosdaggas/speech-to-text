@@ -15,6 +15,7 @@ pub mod performance;
 pub mod dictation;
 pub mod dictionary;
 pub mod llm;
+pub mod api;
 
 pub use microphone::MicrophonePage;
 pub use model::ModelPage;
@@ -24,6 +25,7 @@ pub use performance::PerformancePage;
 pub use dictation::DictationPage;
 pub use dictionary::DictionaryPage;
 pub use llm::LlmPage;
+pub use api::ApiPage;
 
 /// Effectively-unlimited clamp width: large enough that no monitor caps the
 /// content, small enough to avoid arithmetic overflow inside libadwaita's

@@ -72,6 +72,9 @@ mod imp {
         /// Keeps the application alive in the background (no window needed).
         /// Dropping this guard releases the hold, so it lives for the app's life.
         pub hold_guard: RefCell<Option<gio::ApplicationHoldGuard>>,
+        /// The running local HTTP API server, when enabled. Dropping the handle
+        /// stops the server and closes the port.
+        pub api_server: RefCell<Option<crate::api::ApiServerHandle>>,
     }
 
     #[glib::object_subclass]
@@ -162,6 +165,9 @@ mod imp {
                 *self.controller.borrow_mut() = Some(RecordingController::new());
             }
 
+            // Start the local HTTP API server if the user enabled it.
+            self.obj().start_api_server();
+
             // Register the global dictation shortcut via the portal. Best-effort:
             // failures are logged and the app keeps working with in-app controls.
             if config.mini_panel_enabled {
@@ -248,6 +254,92 @@ impl Application {
         let controller = RecordingController::new();
         *self.imp().controller.borrow_mut() = Some(controller.clone());
         controller
+    }
+
+    // ===================================================================
+    // Local HTTP API server
+    // ===================================================================
+
+    /// Whether the local API server is currently running.
+    pub fn api_server_running(&self) -> bool {
+        self.imp().api_server.borrow().is_some()
+    }
+
+    /// Start the local API server per the saved config. No-op if it's already
+    /// running or disabled. When token auth is on, the bearer token is loaded
+    /// from the keyring (created on first use) off the GTK thread, then the
+    /// listener is bound back on the main thread and the handle is stored.
+    pub fn start_api_server(&self) {
+        if self.api_server_running() {
+            return;
+        }
+        let config = AppConfig::load();
+        if !config.api_server_enabled {
+            return;
+        }
+        let controller = self.controller();
+        let engine = controller.engine_arc();
+        let catalog = controller.model_catalog_arc();
+        let port = config.api_server_port;
+
+        if !config.api_token_enabled {
+            self.finish_start_api_server(engine, catalog, port, None);
+            return;
+        }
+
+        let (tx, rx) = async_channel::bounded::<Option<String>>(1);
+        crate::application::tokio_runtime().spawn(async move {
+            let token = match crate::secrets::load_api_token().await {
+                Some(t) if !t.is_empty() => t,
+                _ => {
+                    let t = crate::api::generate_token();
+                    let _ = crate::secrets::store_api_token(&t).await;
+                    t
+                }
+            };
+            let _ = tx.send(Some(token)).await;
+        });
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let Ok(token) = rx.recv().await else { return };
+            let Some(app) = app_weak.upgrade() else { return };
+            let controller = app.controller();
+            app.finish_start_api_server(
+                controller.engine_arc(),
+                controller.model_catalog_arc(),
+                port,
+                token,
+            );
+        });
+    }
+
+    fn finish_start_api_server(
+        &self,
+        engine: Arc<std::sync::Mutex<Option<crate::transcription::TranscriptionEngine>>>,
+        catalog: Arc<crate::transcription::ModelCatalog>,
+        port: u16,
+        token: Option<String>,
+    ) {
+        if self.api_server_running() {
+            return;
+        }
+        match crate::api::start(engine, catalog, port, token) {
+            Ok(handle) => *self.imp().api_server.borrow_mut() = Some(handle),
+            Err(e) => tracing::warn!("Could not start API server: {e}"),
+        }
+    }
+
+    /// Stop the local API server if running (closes the port).
+    pub fn stop_api_server(&self) {
+        if let Some(handle) = self.imp().api_server.borrow_mut().take() {
+            handle.stop();
+        }
+    }
+
+    /// Restart the API server (used after a port change while enabled).
+    pub fn restart_api_server(&self) {
+        self.stop_api_server();
+        self.start_api_server();
     }
 
     // ===================================================================
