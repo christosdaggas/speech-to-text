@@ -1,4 +1,5 @@
 # Speech to Text
+<img width="2762" height="1600" alt="Screenshot From 2026-06-20 15-31-27" src="https://github.com/user-attachments/assets/3eb85f72-1989-4e01-a2d8-281e95a21bfa" />
 
 A native Linux desktop app (GTK4 / libadwaita) for **local, offline**
 speech-to-text. Audio is transcribed on your own machine with Whisper, and a
