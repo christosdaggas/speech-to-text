@@ -184,6 +184,27 @@ mod imp {
                 *self.controller.borrow_mut() = Some(RecordingController::new());
             }
 
+            // Preload the selected Whisper model in the background so dictation
+            // from the mini panel / tray / global shortcut works immediately
+            // when the app is autostarted hidden and no window — the usual
+            // model loader — is ever constructed. A normal launch builds
+            // MainWindow, whose load_selected_model() handles it instead.
+            let launch_hidden = *crate::application::LAUNCH_HIDDEN.get().unwrap_or(&false);
+            if launch_hidden && !config.first_run && config.backend == "whisper" {
+                if let Some(controller) = self.controller.borrow().as_ref() {
+                    let engine = controller.engine_arc();
+                    let cfg = (*config).clone();
+                    std::thread::Builder::new()
+                        .name("model-preload".into())
+                        .spawn(move || {
+                            if let Err(e) = crate::recording::ensure_engine_loaded(&engine, &cfg) {
+                                tracing::warn!("Startup model preload skipped: {e}");
+                            }
+                        })
+                        .ok();
+                }
+            }
+
             // Start the local HTTP API server if the user enabled it.
             self.obj().start_api_server();
 

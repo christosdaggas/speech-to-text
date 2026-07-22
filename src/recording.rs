@@ -364,13 +364,39 @@ pub fn ensure_engine_loaded(
         return Ok(());
     }
 
-    let model_id = config.selected_model.clone();
+    // Resolve stale base IDs (e.g. "tiny" stored while only "tiny-q5_1" is on
+    // disk) the way MainWindow::load_selected_model does, so window-less
+    // sessions with older configs still load the intended model.
+    let mut model_id = config.selected_model.clone();
     if !ModelCatalog::is_downloaded(&model_id) {
-        return Err(format!(
-            "Model '{}' is not downloaded. Open the app and download it in Settings → Model.",
-            model_id
-        ));
+        let base = ModelCatalog::base_model_id(&model_id).to_string();
+        let resolved = ModelCatalog::resolve_model(&base, config.use_quantized);
+        if ModelCatalog::is_downloaded(&resolved) {
+            tracing::info!(
+                "Selected model '{}' missing; loading downloaded variant '{}'",
+                model_id,
+                resolved
+            );
+            model_id = resolved;
+        } else {
+            return Err(format!(
+                "Model '{}' is not downloaded. Open the app and download it in Settings → Model.",
+                model_id
+            ));
+        }
     }
+
+    // The resolved variant may itself already be loaded.
+    if model_id != config.selected_model
+        && engine
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .is_some_and(|loaded| loaded.model_id() == model_id)
+    {
+        return Ok(());
+    }
+
     let model_path = ModelCatalog::model_path(&model_id);
 
     let loaded =
@@ -388,7 +414,7 @@ pub fn ensure_engine_loaded(
     let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
     if guard
         .as_ref()
-        .is_none_or(|engine| engine.model_id() != config.selected_model)
+        .is_none_or(|engine| engine.model_id() != model_id)
     {
         *guard = Some(loaded);
     }
@@ -476,7 +502,29 @@ impl RecordingController {
                                 .into(),
                         )
                     } else {
-                        run_transcription(&worker_engine, &audio, &job.params, job.duration_secs)
+                        // Lazy-load the configured model when the shared slot
+                        // is still empty (mirrors the API worker), so dictation
+                        // from the mini panel / tray works even if no window
+                        // ever loaded a model. Only when empty — a filled slot
+                        // is the main window's to manage.
+                        let lazy = if job.params.backend == "whisper"
+                            && worker_engine
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .is_none()
+                        {
+                            ensure_engine_loaded(&worker_engine, &crate::config::AppConfig::load())
+                        } else {
+                            Ok(())
+                        };
+                        lazy.and_then(|()| {
+                            run_transcription(
+                                &worker_engine,
+                                &audio,
+                                &job.params,
+                                job.duration_secs,
+                            )
+                        })
                     };
                     let _ = job.reply.send_blocking(result);
                 }

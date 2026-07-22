@@ -1359,6 +1359,19 @@ impl MainWindow {
 
         self.apply_backend_capabilities(&config.backend);
 
+        // Keep the translate toggles honest on every full re-sync — backend
+        // switches force them inactive via apply_backend_capabilities above.
+        if config.backend == "whisper" {
+            let controls = self.imp().controls.borrow().as_ref().cloned();
+            let lang_page = self.imp().language_page.borrow().as_ref().cloned();
+            if let (Some(controls), Some(lang_page)) = (controls, lang_page) {
+                self.imp().syncing_translate.set(true);
+                controls.set_translate_active(config.translate_to_english);
+                lang_page.set_translate_enabled(config.translate_to_english);
+                self.imp().syncing_translate.set(false);
+            }
+        }
+
         if let Some(status_bar) = self.imp().status_bar.borrow().as_ref() {
             if config.backend == "cohere" {
                 status_bar.set_model_name(&gettext("Cohere Transcribe"));
@@ -1918,13 +1931,17 @@ impl MainWindow {
         });
 
         // Restore the saved translate state into both toggles (guarded so it
-        // doesn't re-trigger a save).
-        if let Some(config) = imp.config.borrow().as_ref() {
-            imp.syncing_translate.set(true);
-            controls.set_translate_active(config.translate_to_english);
-            language_page.set_translate_enabled(config.translate_to_english);
-            imp.syncing_translate.set(false);
-        }
+        // doesn't re-trigger a save). Read AppConfig::load(), not imp.config:
+        // this runs from setup_ui() during GObject construction, before
+        // MainWindow::new() stores imp.config, so gating on imp.config
+        // silently skipped the restore — the toggles then showed OFF while a
+        // persisted `translate_to_english = true` kept translating dictation
+        // on the config-driven paths (mini panel / global shortcut).
+        let config = AppConfig::load();
+        imp.syncing_translate.set(true);
+        controls.set_translate_active(config.translate_to_english);
+        language_page.set_translate_enabled(config.translate_to_english);
+        imp.syncing_translate.set(false);
     }
 
     fn on_record(&self) {
@@ -2764,6 +2781,19 @@ impl MainWindow {
             Some(e) => e,
             None => return,
         };
+
+        // The shared slot may already hold this model (startup preload on a
+        // hidden launch, or the API worker loaded it first). Reuse it instead
+        // of loading a second multi-GB copy; just bring the UI up to date.
+        let already_loaded = engine_arc
+            .lock()
+            .map(|g| g.as_ref().is_some_and(|e| e.model_id() == model_id))
+            .unwrap_or(false);
+        if already_loaded {
+            self.on_model_loaded(model_id);
+            return;
+        }
+
         let generation = imp.model_load_generation.get().wrapping_add(1);
         imp.model_load_generation.set(generation);
 
