@@ -15,7 +15,6 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::application::Application;
-use crate::audio::AudioCapture;
 use crate::config::{AppConfig, LlmPreset};
 use crate::i18n::gettext;
 use crate::recording::{DictationMode, DictationParams, RecordingController, RecordingOwner};
@@ -188,7 +187,6 @@ mod imp {
         pub config: RefCell<Option<Arc<AppConfig>>>,
         /// Shared recording + transcription controller (owned by the Application).
         pub controller: RefCell<Option<Rc<RecordingController>>>,
-        pub audio_capture: RefCell<Option<Arc<Mutex<AudioCapture>>>>,
         pub engine: RefCell<Option<Arc<Mutex<Option<TranscriptionEngine>>>>>,
         pub model_catalog: RefCell<Option<Arc<ModelCatalog>>>,
         /// Last transcription segments for SRT export: (start_ms, end_ms, text).
@@ -283,7 +281,6 @@ impl MainWindow {
         let imp = window.imp();
         *imp.config.borrow_mut() = Some(config.clone());
         let controller = app.controller();
-        *imp.audio_capture.borrow_mut() = Some(controller.audio_arc());
         *imp.engine.borrow_mut() = Some(controller.engine_arc());
         *imp.model_catalog.borrow_mut() = Some(controller.model_catalog_arc());
         *imp.controller.borrow_mut() = Some(controller);
@@ -2102,10 +2099,8 @@ impl MainWindow {
 
     fn on_pause(&self) {
         let imp = self.imp();
-        if let Some(audio) = imp.audio_capture.borrow().as_ref() {
-            if let Ok(mut cap) = audio.lock() {
-                cap.pause();
-            }
+        if let Some(controller) = self.controller() {
+            controller.pause();
         }
         if let Some(controls) = imp.controls.borrow().as_ref() {
             controls.set_paused_state(true);
@@ -2117,10 +2112,8 @@ impl MainWindow {
 
     fn on_resume(&self) {
         let imp = self.imp();
-        if let Some(audio) = imp.audio_capture.borrow().as_ref() {
-            if let Ok(mut cap) = audio.lock() {
-                cap.resume();
-            }
+        if let Some(controller) = self.controller() {
+            controller.resume();
         }
         if let Some(controls) = imp.controls.borrow().as_ref() {
             controls.set_paused_state(false);
@@ -2492,22 +2485,15 @@ impl MainWindow {
             let Some(window) = window.upgrade() else {
                 return glib::ControlFlow::Break;
             };
-            let imp = window.imp();
-            let audio = match imp.audio_capture.borrow().as_ref() {
-                Some(a) => a.clone(),
-                None => return glib::ControlFlow::Break,
+            let Some(controller) = window.controller() else {
+                return glib::ControlFlow::Break;
             };
-            match audio.lock() {
-                Ok(cap) => {
-                    if cap.state() == crate::audio::capture::RecordingState::Idle {
-                        return glib::ControlFlow::Break;
-                    }
-                    let secs = cap.recording_duration_secs() as u64;
-                    if let Some(tv) = imp.transcript_view.borrow().as_ref() {
-                        tv.set_timer(secs);
-                    }
-                }
-                Err(_) => return glib::ControlFlow::Break,
+            if controller.state() == crate::audio::capture::RecordingState::Idle {
+                return glib::ControlFlow::Break;
+            }
+            let secs = controller.recording_duration_secs() as u64;
+            if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
+                tv.set_timer(secs);
             }
             glib::ControlFlow::Continue
         });

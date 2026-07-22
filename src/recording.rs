@@ -434,7 +434,11 @@ fn build_outcome(
 /// Shared recording + transcription controller, owned by the `Application` and
 /// `Rc`-shared with each UI. Lives entirely on the glib main thread.
 pub struct RecordingController {
-    audio: Arc<Mutex<AudioCapture>>,
+    /// Not shared: `AudioCapture` owns a cpal `Stream`, which is `!Send`, so the
+    /// capture is main-thread-only and every caller goes through the methods
+    /// below. The controller itself is what gets `Rc`-shared, so a plain
+    /// `Mutex` field is enough for interior mutability behind `&self`.
+    audio: Mutex<AudioCapture>,
     engine: Arc<Mutex<Option<TranscriptionEngine>>>,
     model_catalog: Arc<ModelCatalog>,
     owner: Cell<RecordingOwner>,
@@ -479,28 +483,13 @@ impl RecordingController {
             })
             .expect("failed to start transcription worker");
 
-        // `AudioCapture` holds a cpal `Stream`, which is `!Send`/`!Sync`, so this
-        // `Arc` can never really cross a thread — clippy is right that it buys
-        // nothing over an `Rc`. It stays an `Arc` anyway because the handle is
-        // handed out by `audio_arc()` and stored as `Arc<Mutex<AudioCapture>>`
-        // by the main window; the shared type has to match on both sides.
-        // Capture itself is main-thread-only (see the module docs), so the
-        // atomic refcount is simply unused, not unsound.
-        #[allow(clippy::arc_with_non_send_sync)]
-        let audio = Arc::new(Mutex::new(AudioCapture::new()));
-
         Rc::new(Self {
-            audio,
+            audio: Mutex::new(AudioCapture::new()),
             engine,
             model_catalog: Arc::new(ModelCatalog::new()),
             owner: Cell::new(RecordingOwner::None),
             inference_tx,
         })
-    }
-
-    /// The shared audio capture handle (same instance every caller sees).
-    pub fn audio_arc(&self) -> Arc<Mutex<AudioCapture>> {
-        self.audio.clone()
     }
 
     /// The shared Whisper engine slot.
