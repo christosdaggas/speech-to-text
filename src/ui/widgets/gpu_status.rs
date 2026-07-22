@@ -467,8 +467,10 @@ fn read_amd_vram_used() -> Option<f64> {
 /// e.g. "NVIDIA GeForce RTX 3060" → ("NVIDIA", "GeForce RTX 3060")
 fn split_gpu_brand_model(name: &str) -> (&str, &str) {
     for prefix in &["NVIDIA ", "AMD ", "Intel "] {
-        if name.starts_with(prefix) {
-            return (prefix.trim(), &name[prefix.len()..]);
+        // strip_prefix hands back the remainder directly, so the brand prefix length
+        // never has to be re-derived for the slice (and cannot drift out of sync).
+        if let Some(model) = name.strip_prefix(prefix) {
+            return (prefix.trim(), model);
         }
     }
     (name, "")

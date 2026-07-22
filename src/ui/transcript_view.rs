@@ -18,6 +18,23 @@ use crate::ui::controls::ControlAction;
 /// Number of cells in the transcribing decode-sweep (mirrors the mini panel).
 const N_SEGS: usize = 24;
 
+// The stored handlers below are spelled out once here: nested inside the
+// `RefCell<Option<..>>` cells they live in, the bare `Box<dyn Fn(..)>` form is
+// unreadable at the field and trips `clippy::type_complexity`.
+
+/// Handler for the index-carrying selections in this view — a message bubble, an
+/// Actions preset, a transcript variant. All three hand back a plain index, so
+/// they share one alias instead of three identical ones.
+type IndexCallback = Box<dyn Fn(usize)>;
+
+/// Dispatcher for the transcript-footer actions (Copy / Save / Cancel / Stop).
+/// Mirrors `controls::Controls`' own dispatcher — an `Rc` handle so both
+/// surfaces can route the same `ControlAction` back to `MainWindow`.
+type ActionCallback = Rc<dyn Fn(ControlAction)>;
+
+/// Handler invoked with the path of an audio file dropped onto the view.
+type FileDropCallback = Box<dyn Fn(std::path::PathBuf)>;
+
 mod imp {
     use super::*;
 
@@ -34,7 +51,7 @@ mod imp {
         pub message_bubbles: RefCell<Vec<gtk::Box>>,
         pub message_labels: RefCell<Vec<gtk::Label>>,
         pub selected_idx: Cell<isize>,
-        pub message_selected_cb: RefCell<Option<Box<dyn Fn(usize)>>>,
+        pub message_selected_cb: RefCell<Option<IndexCallback>>,
         /// Transient "live preview" bubble shown while recording (not a message).
         pub live_preview: RefCell<Option<gtk::Box>>,
         pub live_preview_label: RefCell<Option<gtk::Label>>,
@@ -47,16 +64,16 @@ mod imp {
         pub footer_cancel_btn: RefCell<Option<gtk::Button>>,
         pub footer_stop_btn: RefCell<Option<gtk::Button>>,
         pub copied_badge: RefCell<Option<gtk::Label>>,
-        pub action_cb: RefCell<Option<Rc<dyn Fn(ControlAction)>>>,
+        pub action_cb: RefCell<Option<ActionCallback>>,
         pub is_recording: Cell<bool>,
         // Transform actions (dropdown) + raw/polished variant selector (under the transcript)
         pub controls_row: RefCell<Option<gtk::Box>>,
         pub actions_btn: RefCell<Option<gtk::MenuButton>>,
         pub actions_list: RefCell<Option<gtk::Box>>,
         pub chip_buttons: RefCell<Vec<gtk::Button>>,
-        pub chip_callback: RefCell<Option<Box<dyn Fn(usize)>>>,
+        pub chip_callback: RefCell<Option<IndexCallback>>,
         pub variant_dropdown: RefCell<Option<gtk::DropDown>>,
-        pub variant_callback: RefCell<Option<Box<dyn Fn(usize)>>>,
+        pub variant_callback: RefCell<Option<IndexCallback>>,
         pub variant_syncing: Cell<bool>,
         pub voice_edit_btn: RefCell<Option<gtk::Button>>,
         pub voice_edit_callback: RefCell<Option<Box<dyn Fn()>>>,
@@ -66,7 +83,7 @@ mod imp {
         pub chapters_box: RefCell<Option<gtk::Box>>,
         pub waveform_area: RefCell<Option<gtk::DrawingArea>>,
         pub waveform_data: RefCell<Vec<f32>>,
-        pub drop_callback: RefCell<Option<Box<dyn Fn(std::path::PathBuf)>>>,
+        pub drop_callback: RefCell<Option<FileDropCallback>>,
         // Transcribing decode-sweep (shown in place of the waveform while decoding)
         pub seg_box: RefCell<Option<gtk::Box>>,
         pub seg_cells: RefCell<Vec<gtk::Box>>,

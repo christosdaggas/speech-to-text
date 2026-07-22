@@ -165,7 +165,6 @@ impl AudioCapture {
         // Build the input stream based on sample format
         let stream = match sample_format {
             SampleFormat::F32 => {
-                let max_live_samples = max_live_samples;
                 let waveform_interval = (sample_rate as usize / 30)
                     .saturating_mul(channels.max(1) as usize)
                     .max(1);

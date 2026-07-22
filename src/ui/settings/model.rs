@@ -148,7 +148,7 @@ impl ModelPage {
 
             let row = adw::ActionRow::builder()
                 .title(&model_info.display_name)
-                .subtitle(&format!(
+                .subtitle(format!(
                     "{} — {}",
                     model_info.size_display, model_info.description
                 ))
@@ -518,7 +518,7 @@ impl ModelPage {
             config.save();
             if let Some(row) = storage_row_weak2.upgrade() {
                 let default_dir = crate::config::AppConfig::default_models_dir();
-                row.set_subtitle(&*default_dir.to_string_lossy());
+                row.set_subtitle(&default_dir.to_string_lossy());
             }
         });
         storage_row.add_suffix(&reset_btn);
@@ -621,7 +621,7 @@ impl ModelPage {
         // Download/Downloaded pill. No "Installed" status label.
         let runtime_row = adw::ActionRow::builder()
             .title(gettext("Runtime").as_str())
-            .subtitle(&format!("~123 MB — {}", gettext("Transcription engine")))
+            .subtitle(format!("~123 MB — {}", gettext("Transcription engine")))
             .build();
 
         let runtime_size = gtk::Label::new(Some("~123 MB"));
@@ -775,7 +775,7 @@ impl ModelPage {
         // button shown only when downloaded, Download/Downloaded pill).
         let model_row = adw::ActionRow::builder()
             .title(gettext("Model Weights").as_str())
-            .subtitle(&format!("~4.1 GB — {}", gettext("Cohere Transcribe model")))
+            .subtitle(format!("~4.1 GB — {}", gettext("Cohere Transcribe model")))
             .build();
 
         let model_size = gtk::Label::new(Some("~4.1 GB"));
@@ -969,7 +969,7 @@ impl ModelPage {
         // Runtime row
         let q_runtime_row = adw::ActionRow::builder()
             .title(gettext("Runtime").as_str())
-            .subtitle(&format!("~500 MB — {}", gettext("Engine + libtorch")))
+            .subtitle(format!("~500 MB — {}", gettext("Engine + libtorch")))
             .build();
         let q_runtime_size = gtk::Label::new(Some("~500 MB"));
         q_runtime_size.add_css_class("dim-label");
@@ -1112,8 +1112,8 @@ impl ModelPage {
     /// delete operate on that size; progress is reported on the shared bar.
     fn build_qwen_model_row(&self, size: &'static str, approx: &'static str) -> adw::ActionRow {
         let row = adw::ActionRow::builder()
-            .title(&format!("{} — {}", gettext("Model Weights"), size))
-            .subtitle(&format!("{} — Qwen3-ASR-{} model", approx, size))
+            .title(format!("{} — {}", gettext("Model Weights"), size))
+            .subtitle(format!("{} — Qwen3-ASR-{} model", approx, size))
             .build();
 
         let size_label = gtk::Label::new(Some(approx));

@@ -89,7 +89,10 @@ fn strip_hallucinations(text: &str) -> String {
     // Check longest phrases first so e.g. "σας ευχαριστούμε" is removed whole
     // instead of leaving an orphan "Σας" after stripping only "ευχαριστούμε".
     let mut phrases_by_len: Vec<&&str> = HALLUCINATION_PHRASES.iter().collect();
-    phrases_by_len.sort_by(|a, b| b.len().cmp(&a.len()));
+    // Reverse turns the ascending sort_by_key into the descending (longest
+    // first) order we need; the sort stays stable, so equal-length phrases keep
+    // their declaration order above.
+    phrases_by_len.sort_by_key(|phrase| std::cmp::Reverse(phrase.len()));
 
     let mut result = text.to_string();
     for phrase in phrases_by_len {
@@ -182,14 +185,12 @@ pub fn cleanup_transcript(text: &str) -> String {
         last_was_space = false;
 
         // Capitalize after sentence-ending punctuation
-        if last_char == '.' || last_char == '!' || last_char == '?' {
-            if ch.is_alphabetic() {
-                for upper in ch.to_uppercase() {
-                    result.push(upper);
-                }
-                last_char = ch;
-                continue;
+        if (last_char == '.' || last_char == '!' || last_char == '?') && ch.is_alphabetic() {
+            for upper in ch.to_uppercase() {
+                result.push(upper);
             }
+            last_char = ch;
+            continue;
         }
 
         result.push(ch);
@@ -446,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_srt_formatting() {
-        let segments = vec![(0, 2500, "Hello world."), (2500, 5000, "How are you?")];
+        let segments = [(0, 2500, "Hello world."), (2500, 5000, "How are you?")];
         let srt = format_as_srt(
             &segments
                 .iter()

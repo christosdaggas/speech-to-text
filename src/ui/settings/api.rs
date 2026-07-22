@@ -109,7 +109,7 @@ impl ApiPage {
 
         let url_row = adw::ActionRow::builder()
             .title(gettext("Address").as_str())
-            .subtitle(&format!("http://127.0.0.1:{}", config.api_server_port))
+            .subtitle(format!("http://127.0.0.1:{}", config.api_server_port))
             .build();
         url_row.add_css_class("property");
         group.add(&url_row);

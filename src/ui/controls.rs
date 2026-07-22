@@ -35,6 +35,13 @@ pub enum ControlAction {
     OpenFile,
 }
 
+/// Dispatcher installed by `connect_action`. Held as an `Rc` rather than a `Box`
+/// so the hero's click handler can clone it out of its `RefCell` and drop the
+/// borrow before calling back into the window. Named because the stored form
+/// (`RefCell<Option<..>>`) is unreadable inline and trips
+/// `clippy::type_complexity`.
+type ActionCallback = Rc<dyn Fn(ControlAction)>;
+
 mod imp {
     use super::*;
 
@@ -69,7 +76,7 @@ mod imp {
         pub paused_state: Cell<bool>,
         /// Action dispatcher populated by `connect_action`; the hero reads it
         /// lazily on click.
-        pub action_cb: RefCell<Option<Rc<dyn Fn(ControlAction)>>>,
+        pub action_cb: RefCell<Option<ActionCallback>>,
     }
 
     #[glib::object_subclass]
@@ -423,7 +430,7 @@ impl Controls {
         let imp = self.imp();
 
         // Store the callback so the hero's lazy dispatcher can use it.
-        let cb: Rc<dyn Fn(ControlAction)> = Rc::new(callback.clone());
+        let cb: ActionCallback = Rc::new(callback.clone());
         *imp.action_cb.borrow_mut() = Some(cb);
 
         if let Some(btn) = imp.pause_btn.borrow().as_ref() {

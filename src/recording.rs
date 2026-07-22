@@ -386,9 +386,9 @@ pub fn ensure_engine_loaded(
 
     // Re-check under the lock: another thread may have loaded it meanwhile.
     let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
-    if !guard
+    if guard
         .as_ref()
-        .is_some_and(|engine| engine.model_id() == config.selected_model)
+        .is_none_or(|engine| engine.model_id() != config.selected_model)
     {
         *guard = Some(loaded);
     }
@@ -479,8 +479,18 @@ impl RecordingController {
             })
             .expect("failed to start transcription worker");
 
+        // `AudioCapture` holds a cpal `Stream`, which is `!Send`/`!Sync`, so this
+        // `Arc` can never really cross a thread — clippy is right that it buys
+        // nothing over an `Rc`. It stays an `Arc` anyway because the handle is
+        // handed out by `audio_arc()` and stored as `Arc<Mutex<AudioCapture>>`
+        // by the main window; the shared type has to match on both sides.
+        // Capture itself is main-thread-only (see the module docs), so the
+        // atomic refcount is simply unused, not unsound.
+        #[allow(clippy::arc_with_non_send_sync)]
+        let audio = Arc::new(Mutex::new(AudioCapture::new()));
+
         Rc::new(Self {
-            audio: Arc::new(Mutex::new(AudioCapture::new())),
+            audio,
             engine,
             model_catalog: Arc::new(ModelCatalog::new()),
             owner: Cell::new(RecordingOwner::None),

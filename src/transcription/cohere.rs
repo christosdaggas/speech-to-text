@@ -418,7 +418,7 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> AppResult<()> {
     if !dest.join("transcribe").exists() {
         if let Ok(entries) = std::fs::read_dir(dest) {
             for entry in entries.flatten() {
-                if entry.file_type().map_or(false, |t| t.is_dir())
+                if entry.file_type().is_ok_and(|t| t.is_dir())
                     && entry.path().join("transcribe").exists()
                 {
                     for sub in std::fs::read_dir(entry.path())?.flatten() {

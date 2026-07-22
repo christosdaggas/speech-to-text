@@ -225,13 +225,10 @@ impl TranscriptionEngine {
         for i in 0..num_segments {
             let start_ms = state.full_get_segment_t0(i).map_err(|e| {
                 AppError::Transcription(format!("Failed to get segment start: {}", e))
-            })? as i64
-                * 10; // whisper timestamps are in centiseconds
-            let end_ms = state
-                .full_get_segment_t1(i)
-                .map_err(|e| AppError::Transcription(format!("Failed to get segment end: {}", e)))?
-                as i64
-                * 10;
+            })? * 10; // whisper timestamps are in centiseconds
+            let end_ms = state.full_get_segment_t1(i).map_err(|e| {
+                AppError::Transcription(format!("Failed to get segment end: {}", e))
+            })? * 10;
             let text = state.full_get_segment_text(i).map_err(|e| {
                 AppError::Transcription(format!("Failed to get segment text: {}", e))
             })?;

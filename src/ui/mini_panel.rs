@@ -63,6 +63,11 @@ const N_LEDS: usize = 7;
 /// Number of cells in the decode (transcribing) segmented bar.
 const N_SEGS: usize = 22;
 
+/// The single handler every button and the close request funnel through (see
+/// `emit_action`). Named because the stored form (`RefCell<Option<..>>`) is
+/// unreadable at the field and trips `clippy::type_complexity`.
+type ActionCallback = Box<dyn Fn(MiniPanelAction)>;
+
 mod imp {
     use super::*;
 
@@ -71,7 +76,7 @@ mod imp {
         pub(super) state: Cell<PanelState>,
         /// Best-effort "keep above" (no-op on GNOME/Mutter Wayland).
         pub(super) keep_on_top: Cell<bool>,
-        pub action_callback: RefCell<Option<Box<dyn Fn(MiniPanelAction)>>>,
+        pub action_callback: RefCell<Option<ActionCallback>>,
 
         // Header
         pub hdr_dot: RefCell<Option<gtk::Box>>,

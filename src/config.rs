@@ -602,10 +602,8 @@ impl AppConfig {
     /// Uses custom model_directory if set, otherwise default XDG data path.
     /// Accepts an optional config reference to avoid re-reading disk.
     pub fn models_dir_with_config(config: Option<&AppConfig>) -> PathBuf {
-        let custom = config.and_then(|c| c.model_directory.as_ref()).or_else(|| {
-            // Fallback: read from disk only if no config provided
-            None
-        });
+        // No disk fallback: callers that care pass the config in.
+        let custom = config.and_then(|c| c.model_directory.as_ref());
         if let Some(dir) = custom {
             PathBuf::from(dir)
         } else {
@@ -699,14 +697,16 @@ mod tests {
         assert!(cfg.dictionary_terms.is_empty());
 
         // Round-trip with content.
-        let mut cfg = AppConfig::default();
-        cfg.dictionary_terms = vec!["Kubernetes".into(), "Daggas".into()];
-        cfg.dictionary_replacements = vec![DictReplacement {
-            from: "cube".into(),
-            to: "Kube".into(),
-            whole_word: true,
-            case_sensitive: false,
-        }];
+        let cfg = AppConfig {
+            dictionary_terms: vec!["Kubernetes".into(), "Daggas".into()],
+            dictionary_replacements: vec![DictReplacement {
+                from: "cube".into(),
+                to: "Kube".into(),
+                whole_word: true,
+                case_sensitive: false,
+            }],
+            ..AppConfig::default()
+        };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(back.dictionary_terms.len(), 2);
@@ -730,10 +730,12 @@ mod tests {
         assert_eq!(cfg.api_server_port, 8756);
 
         // Round-trip with content.
-        let mut cfg = AppConfig::default();
-        cfg.api_server_enabled = true;
-        cfg.api_server_port = 9100;
-        cfg.api_token_enabled = false;
+        let cfg = AppConfig {
+            api_server_enabled: true,
+            api_server_port: 9100,
+            api_token_enabled: false,
+            ..AppConfig::default()
+        };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
         assert!(back.api_server_enabled);
@@ -743,9 +745,12 @@ mod tests {
 
     #[test]
     fn effective_initial_prompt_merges_and_caps() {
-        let mut cfg = AppConfig::default();
-        cfg.initial_prompt = Some("My meeting notes.".into());
-        cfg.dictionary_terms = vec!["Kubernetes".into(), "Daggas".into()];
+        // `mut` is kept: the dictionary is toggled off further down to re-check the merge.
+        let mut cfg = AppConfig {
+            initial_prompt: Some("My meeting notes.".into()),
+            dictionary_terms: vec!["Kubernetes".into(), "Daggas".into()],
+            ..AppConfig::default()
+        };
         let p = cfg.effective_initial_prompt().unwrap();
         assert!(p.contains("My meeting notes."));
         assert!(p.contains("Kubernetes") && p.contains("Daggas"));
@@ -806,13 +811,15 @@ mod tests {
 
     #[test]
     fn serde_round_trip_preserves_performance_fields() {
-        let mut config = AppConfig::default();
-        config.use_gpu = true;
-        config.n_threads = 6;
-        config.beam_size = 3;
-        config.temperature = 0.4;
-        config.selected_microphone = Some("USB Mic".into());
-        config.selected_model = "small-q5_1".into();
+        let config = AppConfig {
+            use_gpu: true,
+            n_threads: 6,
+            beam_size: 3,
+            temperature: 0.4,
+            selected_microphone: Some("USB Mic".into()),
+            selected_model: "small-q5_1".into(),
+            ..AppConfig::default()
+        };
 
         let json = serde_json::to_string(&config).expect("serialize");
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize");
@@ -868,12 +875,14 @@ mod tests {
 
     #[test]
     fn serde_round_trip_preserves_mini_panel_fields() {
-        let mut config = AppConfig::default();
-        config.mini_panel_enabled = false;
-        config.mini_panel_always_on_top = true;
-        config.global_shortcut = "<Super>d".into();
-        config.auto_paste = false;
-        config.dictation_mode = "email".into();
+        let config = AppConfig {
+            mini_panel_enabled: false,
+            mini_panel_always_on_top: true,
+            global_shortcut: "<Super>d".into(),
+            auto_paste: false,
+            dictation_mode: "email".into(),
+            ..AppConfig::default()
+        };
 
         let json = serde_json::to_string(&config).expect("serialize");
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize");
@@ -887,21 +896,23 @@ mod tests {
 
     #[test]
     fn serde_round_trip_preserves_llm_fields() {
-        let mut config = AppConfig::default();
-        config.llm_enabled = true;
-        config.llm_api_url = "http://localhost:11434/v1".into();
-        config.llm_model = "llama3.1:8b".into();
-        config.llm_temperature = 0.7;
-        config.llm_auto_apply = true;
-        config.llm_active_preset = 2;
-        config.llm_selection_enabled = true;
-        config.llm_presets = vec![crate::config::LlmPreset {
-            name: "T".into(),
-            prompt: "Translate the following text to {lang}.".into(),
-            model: Some("m".into()),
-            temperature: Some(0.1),
-            translate_to: Some("French".into()),
-        }];
+        let config = AppConfig {
+            llm_enabled: true,
+            llm_api_url: "http://localhost:11434/v1".into(),
+            llm_model: "llama3.1:8b".into(),
+            llm_temperature: 0.7,
+            llm_auto_apply: true,
+            llm_active_preset: 2,
+            llm_selection_enabled: true,
+            llm_presets: vec![crate::config::LlmPreset {
+                name: "T".into(),
+                prompt: "Translate the following text to {lang}.".into(),
+                model: Some("m".into()),
+                temperature: Some(0.1),
+                translate_to: Some("French".into()),
+            }],
+            ..AppConfig::default()
+        };
 
         let json = serde_json::to_string(&config).expect("serialize");
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize");
@@ -926,27 +937,30 @@ mod tests {
 
     #[test]
     fn migration_updates_old_builtin_presets_only() {
-        let mut c = AppConfig::default();
-        c.llm_presets = vec![
-            // Old stock "Clean up" prompt.
-            LlmPreset {
-                name: "Clean up".into(),
-                prompt: "Clean up the following transcribed text: fix grammar, punctuation and capitalization. Keep the meaning and the original language. Reply with only the corrected text.".into(),
-                model: None, temperature: None, translate_to: None,
-            },
-            // Old Translate preset with an empty (locked) prompt.
-            LlmPreset {
-                name: "Translate".into(),
-                prompt: String::new(),
-                model: None, temperature: None, translate_to: Some("English".into()),
-            },
-            // A user-customized preset — must be left untouched.
-            LlmPreset {
-                name: "Clean up".into(),
-                prompt: "my own edited prompt".into(),
-                model: None, temperature: None, translate_to: None,
-            },
-        ];
+        // `mut` is kept: migrate_builtin_presets() rewrites the presets in place below.
+        let mut c = AppConfig {
+            llm_presets: vec![
+                // Old stock "Clean up" prompt.
+                LlmPreset {
+                    name: "Clean up".into(),
+                    prompt: "Clean up the following transcribed text: fix grammar, punctuation and capitalization. Keep the meaning and the original language. Reply with only the corrected text.".into(),
+                    model: None, temperature: None, translate_to: None,
+                },
+                // Old Translate preset with an empty (locked) prompt.
+                LlmPreset {
+                    name: "Translate".into(),
+                    prompt: String::new(),
+                    model: None, temperature: None, translate_to: Some("English".into()),
+                },
+                // A user-customized preset — must be left untouched.
+                LlmPreset {
+                    name: "Clean up".into(),
+                    prompt: "my own edited prompt".into(),
+                    model: None, temperature: None, translate_to: None,
+                },
+            ],
+            ..AppConfig::default()
+        };
 
         assert!(c.migrate_builtin_presets());
         assert!(c.llm_presets[0].prompt.contains("speech-to-text")); // improved Clean up

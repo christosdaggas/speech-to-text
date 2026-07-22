@@ -12,8 +12,9 @@ use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
 /// Model download state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ModelState {
+    #[default]
     NotDownloaded,
     Downloading,
     Downloaded,
@@ -31,12 +32,6 @@ mod imp {
         pub action_btn: RefCell<Option<gtk::Button>>,
         pub progress_bar: RefCell<Option<gtk::ProgressBar>>,
         pub state: Cell<ModelState>,
-    }
-
-    impl Default for ModelState {
-        fn default() -> Self {
-            ModelState::NotDownloaded
-        }
     }
 
     #[glib::object_subclass]
