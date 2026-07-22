@@ -185,7 +185,6 @@ impl Tray for SttTray {
             MenuItem::Separator,
             StandardItem {
                 label: gettext("Quit"),
-                icon_name: "application-exit-symbolic".into(),
                 activate: Box::new(|t: &mut Self| t.emit(TrayAction::Quit)),
                 ..Default::default()
             }
