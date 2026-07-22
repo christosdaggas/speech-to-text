@@ -23,6 +23,35 @@ pub struct AudioBuffer {
     target_sample_rate: u32,
 }
 
+/// Detached raw audio that can be conditioned away from the capture lock.
+pub struct RawAudioSnapshot {
+    raw_samples: Vec<f32>,
+    source_sample_rate: u32,
+    source_channels: u32,
+    target_sample_rate: u32,
+}
+
+impl RawAudioSnapshot {
+    pub fn empty(target_sample_rate: u32) -> Self {
+        Self {
+            raw_samples: Vec::new(),
+            source_sample_rate: target_sample_rate,
+            source_channels: 1,
+            target_sample_rate,
+        }
+    }
+
+    pub fn condition(self) -> Vec<f32> {
+        AudioBuffer {
+            raw_samples: self.raw_samples,
+            source_sample_rate: self.source_sample_rate,
+            source_channels: self.source_channels,
+            target_sample_rate: self.target_sample_rate,
+        }
+        .get_mono_16khz()
+    }
+}
+
 impl AudioBuffer {
     pub fn new(target_sample_rate: u32) -> Self {
         Self {
@@ -37,6 +66,14 @@ impl AudioBuffer {
     pub fn set_source_params(&mut self, sample_rate: u32, channels: u32) {
         self.source_sample_rate = sample_rate;
         self.source_channels = channels;
+        let desired = (sample_rate as usize)
+            .saturating_mul(channels.max(1) as usize)
+            .saturating_mul(30)
+            .min(crate::limits::MAX_BUFFER_SAMPLES);
+        if self.raw_samples.capacity() < desired {
+            self.raw_samples
+                .reserve(desired.saturating_sub(self.raw_samples.len()));
+        }
     }
 
     /// Push new samples into the buffer. Caps total length at
@@ -56,6 +93,18 @@ impl AudioBuffer {
         }
     }
 
+    /// Convert and append i16 PCM directly into the existing raw buffer.
+    pub fn push_i16_samples(&mut self, samples: &[i16]) {
+        let cap = crate::limits::MAX_BUFFER_SAMPLES;
+        let room = cap.saturating_sub(self.raw_samples.len());
+        self.raw_samples.extend(
+            samples
+                .iter()
+                .take(room)
+                .map(|&sample| sample as f32 / i16::MAX as f32),
+        );
+    }
+
     /// Number of raw (source-rate, interleaved) samples currently buffered.
     pub fn raw_len(&self) -> usize {
         self.raw_samples.len()
@@ -64,6 +113,38 @@ impl AudioBuffer {
     /// Clear the buffer for a new recording.
     pub fn clear(&mut self) {
         self.raw_samples.clear();
+    }
+
+    /// Detach the complete raw recording in O(1), allowing conditioning on a
+    /// worker without holding the real-time capture mutex.
+    pub fn take_raw_snapshot(&mut self) -> RawAudioSnapshot {
+        RawAudioSnapshot {
+            raw_samples: std::mem::take(&mut self.raw_samples),
+            source_sample_rate: self.source_sample_rate,
+            source_channels: self.source_channels,
+            target_sample_rate: self.target_sample_rate,
+        }
+    }
+
+    /// Copy only enough source frames to produce the requested 16 kHz tail.
+    /// One extra source second preserves silence-trimming context.
+    pub fn tail_raw_snapshot(&self, max_target_samples: usize) -> RawAudioSnapshot {
+        let channels = self.source_channels.max(1) as usize;
+        let source_rate = self.source_sample_rate.max(1) as usize;
+        let target_rate = self.target_sample_rate.max(1) as usize;
+        let source_frames = max_target_samples
+            .saturating_mul(source_rate)
+            .div_ceil(target_rate)
+            .saturating_add(source_rate);
+        let wanted = source_frames.saturating_mul(channels);
+        let mut start = self.raw_samples.len().saturating_sub(wanted);
+        start -= start % channels;
+        RawAudioSnapshot {
+            raw_samples: self.raw_samples[start..].to_vec(),
+            source_sample_rate: self.source_sample_rate,
+            source_channels: self.source_channels,
+            target_sample_rate: self.target_sample_rate,
+        }
     }
 
     /// Get the recording duration in seconds.

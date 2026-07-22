@@ -87,6 +87,7 @@ impl HistoryPage {
 
     fn setup_ui(&self) {
         let imp = self.imp();
+        self.add_css_class("history-page");
 
         // Header area with search
         let header_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -102,7 +103,7 @@ impl HistoryPage {
         header_box.append(&title);
 
         let search_entry = gtk::SearchEntry::new();
-        search_entry.set_placeholder_text(Some("Search transcriptions…"));
+        search_entry.set_placeholder_text(Some(gettext("Search transcriptions…").as_str()));
         search_entry.set_hexpand(false);
         search_entry.set_width_chars(25);
         header_box.append(&search_entry);
@@ -143,26 +144,43 @@ impl HistoryPage {
         self.append(&scrolled);
 
         // Search filtering
-        let list_ref = list_box.clone();
+        let page_weak = self.downgrade();
+        let placeholder_ref = placeholder.clone();
         search_entry.connect_search_changed(move |entry| {
             let query = entry.text().to_string().to_lowercase();
-            let mut idx = 0;
-            while let Some(row) = list_ref.row_at_index(idx) {
-                if query.is_empty() {
-                    row.set_visible(true);
-                } else {
-                    // Filter based on the row title
-                    let visible = row
-                        .child()
-                        .and_then(|w| w.downcast::<adw::ActionRow>().ok())
-                        .map(|r| {
-                            r.title().to_string().to_lowercase().contains(&query)
-                                || r.subtitle().map(|s| s.to_string().to_lowercase().contains(&query)).unwrap_or(false)
-                        })
-                        .unwrap_or(true);
-                    row.set_visible(visible);
+            let Some(page) = page_weak.upgrade() else { return };
+            for history_entry in page.imp().entries.borrow().iter() {
+                if let Some(row) = page.imp().rows.borrow().get(&history_entry.id) {
+                    let searchable = format!(
+                        "{}\n{}\n{}\n{}",
+                        history_entry.title,
+                        history_entry.text,
+                        history_entry.polished_text.as_deref().unwrap_or_default(),
+                        history_entry.summary.as_deref().unwrap_or_default(),
+                    )
+                    .to_lowercase();
+                    row.set_visible(query.is_empty() || searchable.contains(&query));
                 }
-                idx += 1;
+            }
+            let placeholder_title = if query.is_empty() {
+                gettext("No Transcriptions Yet")
+            } else {
+                gettext("No matching transcriptions")
+            };
+            placeholder_ref.set_title(&placeholder_title);
+        });
+
+        let page_weak = self.downgrade();
+        list_box.connect_row_activated(move |_, activated| {
+            let Some(page) = page_weak.upgrade() else { return };
+            let id = page
+                .imp()
+                .rows
+                .borrow()
+                .iter()
+                .find_map(|(id, row)| (row == activated).then(|| id.clone()));
+            if let Some(id) = id {
+                page.show_entry(&id);
             }
         });
 
@@ -234,6 +252,7 @@ impl HistoryPage {
             .subtitle(&subtitle)
             .activatable(true)
             .build();
+        row.set_use_markup(false);
 
         // Model badge
         let model_badge = gtk::Label::new(Some(&entry.model));
@@ -278,6 +297,42 @@ impl HistoryPage {
 
         list_box.prepend(&row);
         self.imp().rows.borrow_mut().insert(entry.id.clone(), row);
+    }
+
+    fn show_entry(&self, id: &str) {
+        let Some(entry) = self
+            .imp()
+            .entries
+            .borrow()
+            .iter()
+            .find(|entry| entry.id == id)
+            .cloned()
+        else {
+            return;
+        };
+
+        let detail = gtk::Window::builder()
+            .title(&entry.title)
+            .default_width(640)
+            .default_height(480)
+            .modal(true)
+            .build();
+        if let Some(parent) = self.root().and_downcast::<gtk::Window>() {
+            detail.set_transient_for(Some(&parent));
+        }
+        let scrolled = gtk::ScrolledWindow::new();
+        scrolled.set_margin_top(16);
+        scrolled.set_margin_bottom(16);
+        scrolled.set_margin_start(16);
+        scrolled.set_margin_end(16);
+        let text = gtk::TextView::new();
+        text.set_editable(false);
+        text.set_cursor_visible(false);
+        text.set_wrap_mode(gtk::WrapMode::WordChar);
+        text.buffer().set_text(&entry.text);
+        scrolled.set_child(Some(&text));
+        detail.set_child(Some(&scrolled));
+        detail.present();
     }
 
     /// Update the title of an existing entry (in memory, on disk, and in the UI
@@ -332,6 +387,15 @@ impl HistoryPage {
             Ok(e) => e,
             Err(e) => {
                 tracing::warn!("Failed to parse history: {}", e);
+                let backup = path.with_extension(format!(
+                    "json.corrupt-{}",
+                    chrono::Utc::now().timestamp()
+                ));
+                if let Err(rename_error) = std::fs::rename(&path, &backup) {
+                    tracing::warn!("Failed to preserve corrupt history: {}", rename_error);
+                } else {
+                    tracing::warn!("Preserved corrupt history at {:?}", backup);
+                }
                 return;
             }
         };

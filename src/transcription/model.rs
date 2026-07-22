@@ -307,7 +307,8 @@ impl ModelCatalog {
 /// Download a model asynchronously with progress reporting.
 ///
 /// `progress_callback` receives (bytes_downloaded, total_bytes) on each chunk.
-/// `cancel` aborts the download when set to `true`; the partial file is removed.
+/// `cancel` aborts the download when set to `true`; the partial file is retained
+/// and resumed on the next attempt.
 /// The completed file is verified against the server's `Content-Length` to guard
 /// against silent truncation or an HTML error page being saved as a model.
 #[tracing::instrument(name = "download.whisper_model", skip_all, fields(model = %model_info.id))]
@@ -333,9 +334,52 @@ where
     let output_path = ModelCatalog::model_path(&model_info.id);
     let temp_path = output_path.with_extension("bin.partial");
 
+    let client = super::download_client();
+    let filename = format!("ggml-{}.bin", model_info.id);
+    let expected_sha = crate::transcription::verify::hf_lfs_sha256(
+        &client,
+        "ggerganov/whisper.cpp",
+        &filename,
+    )
+    .await
+    .ok_or_else(|| {
+        AppError::ModelDownloadFailed(format!(
+            "Could not obtain the trusted SHA-256 for '{filename}'; download refused."
+        ))
+    })?;
+
+    let partial_matches = if temp_path.is_file() {
+        let path = temp_path.clone();
+        let expected = expected_sha.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::transcription::verify::sha256_file(&path)
+                .map(|actual| actual.eq_ignore_ascii_case(&expected))
+                .unwrap_or(false)
+        })
+        .await
+        .unwrap_or(false)
+    } else {
+        false
+    };
+    if partial_matches {
+        tokio::fs::rename(&temp_path, &output_path).await.map_err(|e| {
+            AppError::ModelDownloadFailed(format!("Failed to finalize resumed download: {e}"))
+        })?;
+        return Ok(output_path);
+    }
+
     info!("Downloading model '{}' from {}", model_info.id, model_info.url);
 
-    let response = reqwest::get(&model_info.url).await
+    let existing = tokio::fs::metadata(&temp_path)
+        .await
+        .map(|metadata| metadata.len())
+        .unwrap_or(0)
+        .min(crate::limits::MAX_DOWNLOAD_BYTES);
+    let mut request = client.get(&model_info.url);
+    if existing > 0 {
+        request = request.header(reqwest::header::RANGE, format!("bytes={existing}-"));
+    }
+    let response = request.send().await
         .map_err(|e| AppError::ModelDownloadFailed(format!("HTTP request failed: {}", e)))?;
 
     if !response.status().is_success() {
@@ -344,11 +388,26 @@ where
         ));
     }
 
+    let resuming = existing > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    let start = if resuming { existing } else { 0 };
     let content_len = response.content_length();
-    let total_size = content_len.unwrap_or(model_info.size_bytes);
-    let mut downloaded: u64 = 0;
+    let total_size = response
+        .headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.rsplit_once('/'))
+        .and_then(|(_, total)| total.parse::<u64>().ok())
+        .or_else(|| content_len.map(|remaining| start.saturating_add(remaining)))
+        .unwrap_or(model_info.size_bytes);
+    let mut downloaded = start;
 
-    let mut file = tokio::fs::File::create(&temp_path).await
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(resuming)
+        .truncate(!resuming)
+        .open(&temp_path)
+        .await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to create file: {}", e)))?;
 
     use futures::StreamExt;
@@ -358,7 +417,6 @@ where
     while let Some(chunk) = stream.next().await {
         if cancel.load(Ordering::Relaxed) {
             drop(file);
-            let _ = tokio::fs::remove_file(&temp_path).await;
             return Err(AppError::ModelDownloadFailed("Download cancelled".into()));
         }
 
@@ -385,7 +443,7 @@ where
 
     // Integrity check before publishing the file.
     let valid = match content_len {
-        Some(expected) => downloaded == expected,
+        Some(expected) => downloaded == start.saturating_add(expected),
         // No Content-Length: at least reject obviously-truncated downloads.
         None => downloaded >= model_info.size_bytes / 2,
     };
@@ -397,18 +455,18 @@ where
         )));
     }
 
+    // Verify before publishing the model to the final path.
+    let verify_path = temp_path.clone();
+    let verify_sha = expected_sha.clone();
+    tokio::task::spawn_blocking(move || {
+        crate::transcription::verify::verify_file(&verify_path, &verify_sha)
+    })
+    .await
+    .map_err(|e| AppError::ModelDownloadFailed(format!("Integrity task failed: {e}")))??;
+
     // Rename temp file to final path atomically
     tokio::fs::rename(&temp_path, &output_path).await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to finalize: {}", e)))?;
-
-    // Verify integrity against HuggingFace's published LFS sha256 (best-effort:
-    // proceeds if the hash can't be fetched, fails closed + removes on mismatch).
-    let client = super::download_client();
-    let filename = format!("ggml-{}.bin", model_info.id);
-    match crate::transcription::verify::hf_lfs_sha256(&client, "ggerganov/whisper.cpp", &filename).await {
-        Some(sha) => crate::transcription::verify::verify_file(&output_path, &sha)?,
-        None => info!("No published checksum for '{}'; skipping hash verification.", filename),
-    }
 
     info!("Model '{}' downloaded successfully to {:?} ({} bytes)", model_info.id, output_path, downloaded);
     Ok(output_path)

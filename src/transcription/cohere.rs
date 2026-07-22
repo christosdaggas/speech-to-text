@@ -118,20 +118,19 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
 
     // Verify the runtime archive against GitHub's published digest before we
     // extract and execute anything from it. Fail closed on mismatch.
-    match super::verify::github_asset_sha256(
+    let published_sha = super::verify::github_asset_sha256(
         &client,
         "second-state",
         "cohere_transcribe_rs",
         "v0.1.1",
         "transcribe-linux-x86_64.zip",
     )
-    .await
-    {
-        Some(sha) => super::verify::verify_file(&zip_path, &sha)?,
-        None => tracing::warn!(
-            "No published checksum available for the Cohere runtime; extracting without integrity verification."
-        ),
-    }
+    .await;
+    super::verify::verify_pinned_file(
+        &zip_path,
+        "cohere-runtime-v0.1.1-linux-x86_64",
+        published_sha.as_deref(),
+    )?;
 
     // Extraction is CPU/IO-bound and uses blocking std::fs — run it off the
     // async runtime so it can't stall other tasks.
@@ -173,14 +172,36 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
 
     let client = super::download_client();
 
-    // model.safetensors (~4.1 GB) — reports progress, skip if already exists
+    // The gated model API exposes the LFS SHA-256 when called with the user's
+    // token. Refuse the download if that trust metadata is unavailable.
+    let model_sha = super::verify::hf_lfs_sha256_with_token(
+        &client,
+        "CohereLabs/cohere-transcribe-03-2026",
+        "model.safetensors",
+        Some(hf_token),
+    )
+    .await
+    .ok_or_else(|| {
+        AppError::ModelDownloadFailed(
+            "Could not obtain the trusted SHA-256 for the Cohere model; download refused."
+                .into(),
+        )
+    })?;
+
+    // model.safetensors (~4.1 GB) — reports progress, verifies existing files.
     let safetensors = dir.join("model.safetensors");
-    if !safetensors.is_file() {
+    let model_valid = safetensors.is_file()
+        && super::verify::sha256_file(&safetensors)
+            .map(|actual| actual.eq_ignore_ascii_case(&model_sha))
+            .unwrap_or(false);
+    if !model_valid {
+        let _ = std::fs::remove_file(&safetensors);
         download_hf_file(
             &client,
             MODEL_URL,
             hf_token,
             &safetensors,
+            Some(&model_sha),
             &progress,
         )
         .await?;
@@ -192,6 +213,7 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
         CONFIG_URL,
         hf_token,
         &dir.join("config.json"),
+        None,
         &|_, _| {},
     )
     .await?;
@@ -202,6 +224,7 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
         TOKENIZER_CONFIG_URL,
         hf_token,
         &dir.join("tokenizer_config.json"),
+        None,
         &|_, _| {},
     )
     .await?;
@@ -282,9 +305,10 @@ pub fn transcribe_via_cli(
     };
     cmd.env("LD_LIBRARY_PATH", &ld_path);
 
-    let output = cmd
-        .output()
-        .map_err(|e| AppError::Transcription(format!("Failed to run transcribe binary: {}", e)))?;
+    let output = super::run_command_with_timeout(
+        &mut cmd,
+        std::time::Duration::from_secs(10 * 60),
+    )?;
 
     drop(tmp); // RAII removes the temp WAV
 
@@ -319,6 +343,7 @@ async fn download_hf_file(
     url: &str,
     token: &str,
     dest: &Path,
+    expected_sha256: Option<&str>,
     progress: &impl Fn(u64, u64),
 ) -> AppResult<()> {
     let partial = PathBuf::from(format!("{}.partial", dest.display()));
@@ -383,6 +408,10 @@ async fn download_hf_file(
         }
     }
 
+    if let Some(expected) = expected_sha256 {
+        super::verify::verify_file(&partial, expected)?;
+    }
+
     tokio::fs::rename(&partial, &dest).await?;
 
     Ok(())
@@ -414,14 +443,25 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> AppResult<()> {
 }
 
 fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
+    find_file_recursive_inner(dir, name, 0)
+}
+
+fn find_file_recursive_inner(dir: &Path, name: &str, depth: usize) -> Option<PathBuf> {
+    if depth > 16 {
+        return None;
+    }
     let entries = std::fs::read_dir(dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
+        let file_type = entry.file_type().ok()?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
             return Some(path);
         }
-        if path.is_dir() {
-            if let Some(found) = find_file_recursive(&path, name) {
+        if file_type.is_dir() {
+            if let Some(found) = find_file_recursive_inner(&path, name, depth + 1) {
                 return Some(found);
             }
         }

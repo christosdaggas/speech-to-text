@@ -20,6 +20,7 @@ use tracing::info;
 
 use crate::audio::capture::RecordingState;
 use crate::config::AppConfig;
+use crate::i18n::gettext;
 use crate::recording::{
     DictationOutcome, DictationParams, RecordingController, RecordingOwner,
 };
@@ -75,6 +76,10 @@ mod imp {
         /// The running local HTTP API server, when enabled. Dropping the handle
         /// stops the server and closes the port.
         pub api_server: RefCell<Option<crate::api::ApiServerHandle>>,
+        /// Invalidates asynchronous API starts after disable/restart requests.
+        pub api_start_generation: std::cell::Cell<u64>,
+        /// Invalidates stale global-dictation, LLM, and auto-paste callbacks.
+        pub dictation_generation: std::cell::Cell<u64>,
     }
 
     #[glib::object_subclass]
@@ -90,12 +95,23 @@ mod imp {
             let obj = self.obj();
             obj.setup_actions();
             obj.set_accels_for_action("app.quit", &["<primary>q"]);
+            obj.set_accels_for_action("win.record-toggle", &["<primary>r"]);
+            obj.set_accels_for_action("win.cancel-recording", &["Escape"]);
         }
     }
 
     impl ApplicationImpl for Application {
         fn activate(&self) {
             let application = self.obj();
+
+            // Autostart needs only tray, shortcuts and the optional API. Avoid
+            // constructing every GTK page and loading a multi-GB model until the
+            // user explicitly opens the application.
+            let launch_hidden = *crate::application::LAUNCH_HIDDEN.get().unwrap_or(&false);
+            if !self.started.get() && launch_hidden && application.main_window().is_none() {
+                self.started.set(true);
+                return;
+            }
 
             // Find the existing main window (it may be hidden in the tray) or
             // create it. Don't rely on active_window(): a hidden window — or the
@@ -110,7 +126,6 @@ mod imp {
             // Start hidden ONLY when launched with `--hidden` (autostart at
             // login). A manual launch always shows the window, and any later
             // activation (re-launch, tray "Open") does too.
-            let launch_hidden = *crate::application::LAUNCH_HIDDEN.get().unwrap_or(&false);
             if self.started.get() || !launch_hidden {
                 window.present();
             }
@@ -277,38 +292,50 @@ impl Application {
         if !config.api_server_enabled {
             return;
         }
+        let generation = self.imp().api_start_generation.get().wrapping_add(1);
+        self.imp().api_start_generation.set(generation);
         let controller = self.controller();
         let engine = controller.engine_arc();
         let catalog = controller.model_catalog_arc();
         let port = config.api_server_port;
 
         if !config.api_token_enabled {
-            self.finish_start_api_server(engine, catalog, port, None);
+            self.finish_start_api_server(engine, catalog, port, None, generation);
             return;
         }
 
-        let (tx, rx) = async_channel::bounded::<Option<String>>(1);
+        let (tx, rx) = async_channel::bounded::<Result<String, String>>(1);
         crate::application::tokio_runtime().spawn(async move {
             let token = match crate::secrets::load_api_token().await {
-                Some(t) if !t.is_empty() => t,
+                Some(t) if !t.is_empty() => Ok(t),
                 _ => {
                     let t = crate::api::generate_token();
-                    let _ = crate::secrets::store_api_token(&t).await;
-                    t
+                    crate::secrets::store_api_token(&t)
+                        .await
+                        .map(|_| t)
+                        .map_err(|e| crate::error::redact_secrets(&e.to_string()))
                 }
             };
-            let _ = tx.send(Some(token)).await;
+            let _ = tx.send(token).await;
         });
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let Ok(token) = rx.recv().await else { return };
             let Some(app) = app_weak.upgrade() else { return };
+            let token = match token {
+                Ok(token) => token,
+                Err(error) => {
+                    tracing::warn!("Could not store API token; server was not started: {error}");
+                    return;
+                }
+            };
             let controller = app.controller();
             app.finish_start_api_server(
                 controller.engine_arc(),
                 controller.model_catalog_arc(),
                 port,
-                token,
+                Some(token),
+                generation,
             );
         });
     }
@@ -319,8 +346,14 @@ impl Application {
         catalog: Arc<crate::transcription::ModelCatalog>,
         port: u16,
         token: Option<String>,
+        generation: u64,
     ) {
-        if self.api_server_running() {
+        let config = AppConfig::load();
+        if self.api_server_running()
+            || self.imp().api_start_generation.get() != generation
+            || !config.api_server_enabled
+            || config.api_server_port != port
+        {
             return;
         }
         match crate::api::start(engine, catalog, port, token) {
@@ -331,6 +364,9 @@ impl Application {
 
     /// Stop the local API server if running (closes the port).
     pub fn stop_api_server(&self) {
+        self.imp()
+            .api_start_generation
+            .set(self.imp().api_start_generation.get().wrapping_add(1));
         if let Some(handle) = self.imp().api_server.borrow_mut().take() {
             handle.stop();
         }
@@ -452,6 +488,8 @@ impl Application {
         if !controller.try_acquire(RecordingOwner::Mini) {
             return;
         }
+        let generation = self.imp().dictation_generation.get().wrapping_add(1);
+        self.imp().dictation_generation.set(generation);
 
         let config = self.config_snapshot();
         let lang_label = panel_lang_label(&config);
@@ -512,8 +550,9 @@ impl Application {
 
         // Capture mic duration before stop() drains the buffer (for WPM stats).
         let duration_secs = controller.recording_duration_secs();
+        let generation = self.imp().dictation_generation.get();
 
-        let audio = match controller.stop() {
+        let audio = match controller.stop_snapshot() {
             Ok(a) => a,
             Err(e) => {
                 controller.release();
@@ -524,10 +563,6 @@ impl Application {
         controller.release();
 
         let panel = self.mini_panel();
-        if audio.is_empty() {
-            panel.show_error(&crate::i18n::gettext("No clear speech detected — try again"));
-            return;
-        }
         let config = self.config_snapshot();
         panel.show_transcribing(&panel_model_label(&config), &panel_lang_label(&config));
         if config.backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
@@ -550,12 +585,15 @@ impl Application {
         // trip -6 here, and live-segment preview adds little UX value for the
         // pop-up's short dictations. The live_transcription setting applies to
         // the main window's live loop, not this path.
-        let receiver = controller.transcribe_async(audio, params, duration_secs);
+        let receiver = controller.transcribe_snapshot_async(audio, params, duration_secs);
 
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let result = receiver.recv().await;
             let Some(app) = app_weak.upgrade() else { return };
+            if app.imp().dictation_generation.get() != generation {
+                return;
+            }
             // If the user already started a new dictation while this one was
             // transcribing, drop this (stale) result so it doesn't overwrite the
             // live recording UI.
@@ -563,14 +601,14 @@ impl Application {
                 return;
             }
             match result {
-                Ok(Ok(outcome)) => app.finish_global_dictation(outcome),
+                Ok(Ok(outcome)) => app.finish_global_dictation(outcome, generation),
                 Ok(Err(msg)) => app.mini_panel().show_error(&msg),
                 Err(_) => {}
             }
         });
     }
 
-    fn finish_global_dictation(&self, outcome: DictationOutcome) {
+    fn finish_global_dictation(&self, outcome: DictationOutcome, generation: u64) {
         let panel = self.mini_panel();
         let cleaned = outcome.cleaned_text.clone();
         if cleaned.is_empty() {
@@ -605,6 +643,9 @@ impl Application {
             glib::spawn_future_local(async move {
                 let res = rx.recv().await;
                 let Some(app) = app_weak.upgrade() else { return };
+                if app.imp().dictation_generation.get() != generation {
+                    return;
+                }
                 // Drop stale results if a new dictation has started meanwhile.
                 if app.controller().owner() == RecordingOwner::Mini {
                     return;
@@ -904,7 +945,8 @@ impl Application {
             // clicked into their editor mid-recording — silently keeps the
             // *previous* clipboard and pastes stale text. The reshow task
             // re-acquires focus, sets the clipboard, hides, then pastes.
-            self.spawn_autopaste_then_reshow(text);
+            let generation = self.imp().dictation_generation.get();
+            self.spawn_autopaste_then_reshow(text, generation);
         } else {
             // Non-auto-paste: the panel stays visible and focused (its preceding
             // transcribing/improving state was presented), so the set succeeds and
@@ -997,6 +1039,9 @@ impl Application {
     }
 
     fn cancel_global_dictation(&self) {
+        self.imp()
+            .dictation_generation
+            .set(self.imp().dictation_generation.get().wrapping_add(1));
         let controller = self.controller();
         if controller.owner() == RecordingOwner::Mini {
             controller.cancel();
@@ -1146,10 +1191,13 @@ impl Application {
     /// the user clicked into another window mid-transcription. Fallback (compositor
     /// without the Clipboard portal): set the GTK clipboard while the panel is
     /// focused, then inject Ctrl+V.
-    fn spawn_autopaste_then_reshow(&self, text: String) {
+    fn spawn_autopaste_then_reshow(&self, text: String, generation: u64) {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let Some(app) = app_weak.upgrade() else { return };
+            if app.imp().dictation_generation.get() != generation {
+                return;
+            }
             let panel = app.mini_panel();
 
             // Hide so the compositor hands keyboard focus back to the previously
@@ -1159,6 +1207,10 @@ impl Application {
             // click-into-another-window case work.
             panel.set_visible(false);
             glib::timeout_future(std::time::Duration::from_millis(300)).await;
+            let Some(app) = app_weak.upgrade() else { return };
+            if app.imp().dictation_generation.get() != generation {
+                return;
+            }
 
             // Primary: Clipboard portal + Ctrl+V on one RemoteDesktop session.
             let (tx, rx) = async_channel::bounded::<bool>(1);
@@ -1196,7 +1248,9 @@ impl Application {
             // Re-present the panel showing the transcript, unless the user has
             // already started a new recording in the meantime.
             let Some(app) = app_weak.upgrade() else { return };
-            if app.controller().owner() == RecordingOwner::Mini {
+            if app.imp().dictation_generation.get() != generation
+                || app.controller().owner() == RecordingOwner::Mini
+            {
                 return;
             }
             let panel = app.mini_panel();
@@ -1332,7 +1386,16 @@ impl Application {
             .developers(vec!["Christos A. Daggas"])
             .comments("Offline speech-to-text transcription using Whisper")
             .release_notes(
-                "<p>Version 1.4.0</p>\
+                "<p>Version 1.5.0</p>\
+                <ul>\
+                    <li>Verified runtime and model downloads with resumable transfers.</li>\
+                    <li>Faster inference, bounded background work, and smoother live previews.</li>\
+                    <li>More reliable recording, pause, resume, language selection, and cancellation.</li>\
+                    <li>Privacy-first AI consent, explicit automation controls, and safer credentials.</li>\
+                    <li>Expanded history, file transcription recovery, and full-text search.</li>\
+                    <li>A refined workspace with improved navigation, Help, Settings, and light-theme styling.</li>\
+                </ul>\
+                <p>Version 1.4.0</p>\
                 <ul>\
                     <li>New: an Open File button in the controls row transcribes an existing audio file from disk (WAV, MP3, FLAC, OGG, Opus, or M4A) — results, stats, segments, SRT export, and the Actions/Voice-edit menu all work as they do for a live recording.</li>\
                     <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
@@ -1344,7 +1407,7 @@ impl Application {
                 </ul>\
                 <p>Version 1.3.0</p>\
                 <ul>\
-                    <li>Security & distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
+                    <li>Security and distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
                     <li>Auto-paste off by default for new installs; update check is now a setting; clear-all history asks for confirmation</li>\
                     <li>Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — clipboard is now set while the panel holds focus (Wayland requires this)</li>\
                     <li>Fixed: the mini-panel AI icon now appears only when auto-improve will actually run</li>\
@@ -1391,69 +1454,197 @@ impl Application {
     }
 
     fn show_whats_new(&self) {
-        let window = self.active_window();
-
-        let dialog = adw::AboutDialog::builder()
-            .application_name(format!("What's New in {}", APP_NAME))
-            .application_icon(APP_ID)
-            .version(VERSION)
-            .release_notes(
-                "<p>Version 1.4.0</p>\
-                <ul>\
-                    <li>New: an Open File button in the controls row transcribes an existing audio file from disk (WAV, MP3, FLAC, OGG, Opus, or M4A) — results, stats, segments, SRT export, and the Actions/Voice-edit menu all work as they do for a live recording.</li>\
-                    <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
-                    <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
-                    <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
-                    <li>Changed: the beam_size setting is honoured everywhere — the main window’s live preview no longer hard-codes greedy decoding. It still has a self-protection that pauses the preview if your hardware can’t keep up.</li>\
-                    <li>Changed: the mini panel’s “Improve with AI” chips are consolidated into a single “Actions” dropdown next to Voice edit, matching the main window.</li>\
-                    <li>Changed: Settings pages now fill the full content width instead of being clamped to a narrow centred column.</li>\
-                </ul>\
-                <p>Version 1.3.0</p>\
-                <ul>\
-                    <li>Security & distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
-                    <li>Auto-paste off by default for new installs; update check is now a setting; clear-all history asks for confirmation</li>\
-                    <li>Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — clipboard is now set while the panel holds focus (Wayland requires this)</li>\
-                    <li>Fixed: the mini-panel AI icon now appears only when auto-improve will actually run</li>\
-                </ul>\
-                <p>Version 1.2.0</p>\
-                <ul>\
-                    <li>Mini Panel: dictate into any app with a global shortcut — it transcribes, pastes into the focused app, and stays open so you can dictate again</li>\
-                    <li>System tray icon and background mode: run minimized; start dictation, open, or quit from the tray</li>\
-                    <li>Dictation modes: Plain, Message, Email, Note, and Code Prompt formatting</li>\
-                    <li>Whisper Large v3 Turbo models (full and quantized)</li>\
-                    <li>Engine selector moved to Settings → Model (“Default Engine”): choose Whisper or Cohere Transcribe</li>\
-                    <li>Translate to English now also applies to the mini panel</li>\
-                    <li>Fixed: auto-detect language no longer produces empty transcriptions</li>\
-                    <li>Fixed: Cohere Transcribe now uses your selected language</li>\
-                    <li>Fixed: recording no longer gets stuck repeating old text</li>\
-                </ul>\
-                <p>Version 1.1.0</p>\
-                <ul>\
-                    <li>Multi-backend transcription engine support</li>\
-                    <li>Fixed icon display in welcome wizard</li>\
-                    <li>Stability and reliability improvements</li>\
-                </ul>\
-                <p>Version 1.0.0 - July 2026</p>\
-                <ul>\
-                    <li>GPU acceleration enabled by default</li>\
-                    <li>GNOME accent color support for waveform animation</li>\
-                    <li>Improved UI consistency with sidebar-matching theme</li>\
-                    <li>Offline transcription using Whisper (whisper.cpp)</li>\
-                    <li>Multiple Whisper model sizes (Tiny to Large v3)</li>\
-                    <li>Real-time confidence scoring</li>\
-                    <li>Transcription history with search</li>\
-                    <li>Audio device selection</li>\
-                    <li>Pause/resume recording</li>\
-                    <li>Save transcripts to file</li>\
-                    <li>Auto-detect language</li>\
-                    <li>Theme switching (System, Light, Dark)</li>\
-                    <li>Custom model storage location</li>\
-                    <li>Automatic update checking from GitHub</li>\
-                </ul>"
-            )
+        let dialog = adw::Window::builder()
+            .application(self)
+            .title(gettext("What's New"))
+            .default_width(680)
+            .default_height(720)
+            .modal(true)
             .build();
 
-        dialog.present(window.as_ref());
+        if let Some(window) = self.active_window() {
+            dialog.set_transient_for(Some(&window));
+        }
+
+        let toolbar = adw::ToolbarView::new();
+        let header = adw::HeaderBar::new();
+        let title = adw::WindowTitle::builder()
+            .title(gettext("What's New"))
+            .subtitle(gettext("Version 1.5.0"))
+            .build();
+        header.set_title_widget(Some(&title));
+        toolbar.add_top_bar(&header);
+
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 24);
+        content.set_margin_top(32);
+        content.set_margin_bottom(32);
+        content.set_margin_start(24);
+        content.set_margin_end(24);
+
+        let hero_icon = gtk::Image::from_icon_name(APP_ID);
+        hero_icon.set_pixel_size(80);
+        content.append(&hero_icon);
+
+        let heading = gtk::Label::new(Some(&gettext("Speech to Text 1.5")));
+        heading.add_css_class("title-1");
+        heading.set_wrap(true);
+        heading.set_justify(gtk::Justification::Center);
+        content.append(&heading);
+
+        let intro = gtk::Label::new(Some(&gettext(
+            "A faster, safer, and more polished release for everyday dictation and transcription.",
+        )));
+        intro.add_css_class("dim-label");
+        intro.set_wrap(true);
+        intro.set_justify(gtk::Justification::Center);
+        intro.set_max_width_chars(60);
+        intro.set_halign(gtk::Align::Center);
+        content.append(&intro);
+
+        Self::append_whats_new_group(
+            &content,
+            &gettext("Faster and smoother"),
+            &[
+                gettext("Faster startup when launching hidden, without loading the interface or a model."),
+                gettext("Bounded inference work and non-blocking audio capture keep recording responsive."),
+                gettext("Live previews process only the latest audio tail and discard stale results."),
+                gettext("Interrupted model downloads can resume instead of starting over."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            &gettext("Safer by default"),
+            &[
+                gettext("Runtime, model, and sidecar downloads are verified before use."),
+                gettext("The local API now enforces validation, request limits, timeouts, and safer access controls."),
+                gettext("AI features use endpoint-specific consent, bounded responses, and explicit automation choices."),
+                gettext("Credentials stay out of plaintext settings and release signing now fails closed."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            &gettext("More reliable"),
+            &[
+                gettext("Pause, resume, shortcuts, language selection, onboarding, and cancellation behave consistently."),
+                gettext("Outdated transcription and AI callbacks can no longer overwrite newer work."),
+                gettext("Corrupt settings and history files are backed up before recovery."),
+                gettext("File transcriptions are preserved in History and can be searched in full."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            &gettext("Refined experience"),
+            &[
+                gettext("The workspace, Settings, History, Help, and model selector share a clearer visual language."),
+                gettext("Current Session shows either the live preview or the latest completed transcription."),
+                gettext("Navigation, keyboard behavior, light-theme cards, and compact layouts have been polished."),
+                gettext("History detail views make complete transcripts easier to review and manage."),
+            ],
+        );
+
+        let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
+        separator.set_margin_top(8);
+        separator.set_margin_bottom(8);
+        content.append(&separator);
+
+        let history_heading = gtk::Label::new(Some(&gettext("Previous releases")));
+        history_heading.add_css_class("title-2");
+        history_heading.set_halign(gtk::Align::Start);
+        content.append(&history_heading);
+
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.4.0",
+            &[
+                gettext("Added an Open File button for transcribing WAV, MP3, FLAC, OGG, Opus, and M4A files with the same results and tools as live recordings."),
+                gettext("Fixed mini-panel failures on Vulkan GPUs by always using a clean batch decode."),
+                gettext("Re-enabled Whisper temperature retry so difficult audio degrades gracefully instead of failing the entire transcription."),
+                gettext("Limited live transcription previews to the main window so the mini panel remains a clean batch decode."),
+                gettext("Applied the configured beam size consistently to live previews."),
+                gettext("Consolidated the mini panel's AI tools into an Actions menu."),
+                gettext("Allowed Settings pages to use the full available content width."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.3.0",
+            &[
+                gettext("Hardened downloads, secret storage, configuration, History, AI connections, resource limits, and log redaction."),
+                gettext("Disabled auto-paste by default for new installs, made update checks configurable, and added confirmation before clearing History."),
+                gettext("Fixed the mini panel pasting the previous transcript when focus changed during recording."),
+                gettext("Made the mini-panel AI indicator appear only when automatic improvement will run."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.2.0",
+            &[
+                gettext("Added the Mini Panel for dictating into any application with a global shortcut."),
+                gettext("Added a system tray icon and background mode."),
+                gettext("Added Plain, Message, Email, Note, and Code Prompt dictation modes."),
+                gettext("Added full and quantized Whisper Large v3 Turbo models."),
+                gettext("Moved the transcription engine selector to Model settings."),
+                gettext("Applied Translate to English to mini-panel transcriptions."),
+                gettext("Fixed empty transcriptions when automatically detecting the language."),
+                gettext("Fixed Cohere Transcribe ignoring the selected language."),
+                gettext("Fixed recording sessions repeating old text."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.1.0",
+            &[
+                gettext("Added multiple transcription backend support."),
+                gettext("Fixed icon display in the welcome wizard."),
+                gettext("Improved stability and reliability."),
+            ],
+        );
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.0.0",
+            &[
+                gettext("Enabled GPU acceleration by default."),
+                gettext("Added GNOME accent-color support for waveform animation."),
+                gettext("Improved visual consistency with the sidebar theme."),
+                gettext("Added offline transcription using Whisper."),
+                gettext("Added Whisper model sizes from Tiny through Large v3."),
+                gettext("Added real-time confidence scoring."),
+                gettext("Added searchable transcription History."),
+                gettext("Added audio-device selection."),
+                gettext("Added pause and resume recording."),
+                gettext("Added transcript file export."),
+                gettext("Added automatic language detection."),
+                gettext("Added System, Light, and Dark themes."),
+                gettext("Added a configurable model storage location."),
+                gettext("Added automatic update checks from GitHub."),
+            ],
+        );
+
+        let scrolled = gtk::ScrolledWindow::new();
+        scrolled.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        let clamp = adw::Clamp::new();
+        clamp.set_maximum_size(720);
+        clamp.set_tightening_threshold(560);
+        clamp.set_child(Some(&content));
+        scrolled.set_child(Some(&clamp));
+        toolbar.set_content(Some(&scrolled));
+        dialog.set_content(Some(&toolbar));
+        dialog.present();
+    }
+
+    fn append_whats_new_group(container: &gtk::Box, title: &str, items: &[String]) {
+        let group = adw::PreferencesGroup::builder().title(title).build();
+        for item in items {
+            let row = adw::ActionRow::builder()
+                .title(item)
+                .title_lines(0)
+                .build();
+            let icon = gtk::Image::from_icon_name("object-select-symbolic");
+            icon.add_css_class("success");
+            row.add_prefix(&icon);
+            group.add(&row);
+        }
+        container.append(&group);
     }
 }
 

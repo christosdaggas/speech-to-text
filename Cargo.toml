@@ -1,6 +1,6 @@
 [package]
 name = "speech-to-text"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2021"
 authors = ["Christos A. Daggas"]
 description = "Native Linux desktop application for offline speech-to-text transcription using Whisper"

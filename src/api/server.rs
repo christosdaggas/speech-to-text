@@ -15,6 +15,7 @@ use hyper::header;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use tokio::task::JoinSet;
 
 use super::{handlers, Resp, ServerState};
 
@@ -32,21 +33,34 @@ pub(super) async fn serve(
             return;
         }
     };
+    let mut connections = JoinSet::new();
 
     loop {
         tokio::select! {
             _ = &mut shutdown_rx => {
                 tracing::info!("API server shutting down");
+                connections.abort_all();
                 break;
+            }
+            completed = connections.join_next(), if !connections.is_empty() => {
+                let _ = completed;
             }
             accepted = listener.accept() => {
                 let (stream, _peer) = match accepted {
                     Ok(s) => s,
                     Err(e) => { tracing::warn!("API accept error: {e}"); continue; }
                 };
+                let permit = match state.connections.clone().try_acquire_owned() {
+                    Ok(permit) => permit,
+                    Err(_) => {
+                        tracing::debug!("API connection limit reached");
+                        continue;
+                    }
+                };
                 let io = TokioIo::new(stream);
                 let state = state.clone();
-                tokio::task::spawn(async move {
+                connections.spawn(async move {
+                    let _permit = permit;
                     let svc = service_fn(move |req| {
                         let state = state.clone();
                         async move { Ok::<_, Infallible>(handle(req, state).await) }
@@ -79,7 +93,7 @@ async fn handle(req: Request<Incoming>, state: ServerState) -> Resp {
 
     // CORS preflight is unauthenticated by spec.
     if req.method() == Method::OPTIONS {
-        return with_cors(preflight(), origin.as_deref());
+        return with_cors(preflight(), origin.as_deref(), state.token.is_some());
     }
 
     let method = req.method().clone();
@@ -109,7 +123,7 @@ async fn handle(req: Request<Incoming>, state: ServerState) -> Resp {
         ),
     };
 
-    with_cors(resp, origin.as_deref())
+    with_cors(resp, origin.as_deref(), state.token.is_some())
 }
 
 /// True when the `Host` header names a loopback address (or is absent).
@@ -184,7 +198,10 @@ fn preflight() -> Resp {
 /// Add CORS headers reflecting the request's Origin. The bearer token (not a
 /// cookie) gates real access, so reflecting the origin is safe: a hostile page
 /// still lacks the token, and the Host guard blocks DNS rebinding.
-fn with_cors(mut resp: Resp, origin: Option<&str>) -> Resp {
+fn with_cors(mut resp: Resp, origin: Option<&str>, authenticated: bool) -> Resp {
+    if !authenticated {
+        return resp;
+    }
     if let Some(origin) = origin {
         let headers = resp.headers_mut();
         if let Ok(value) = origin.parse() {
@@ -201,4 +218,28 @@ fn with_cors(mut resp: Resp, origin: Option<&str>) -> Resp {
         headers.insert(header::VARY, header::HeaderValue::from_static("Origin"));
     }
     resp
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cors_is_only_enabled_when_token_auth_is_active() {
+        let origin = "https://example.test";
+        let unauthenticated = with_cors(preflight(), Some(origin), false);
+        assert!(unauthenticated
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+
+        let authenticated = with_cors(preflight(), Some(origin), true);
+        assert_eq!(
+            authenticated
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .and_then(|value| value.to_str().ok()),
+            Some(origin)
+        );
+    }
 }

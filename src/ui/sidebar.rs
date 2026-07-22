@@ -13,11 +13,12 @@ use gtk4 as gtk;
 pub fn create_section_header(title: &str) -> gtk::Label {
     let label = gtk::Label::new(Some(title));
     label.set_halign(gtk::Align::Start);
-    label.set_margin_start(16);
-    label.set_margin_top(16);
+    label.set_margin_start(12);
+    label.set_margin_top(12);
     label.set_margin_bottom(4);
     label.add_css_class("dim-label");
     label.add_css_class("caption");
+    label.add_css_class("sidebar-section-header");
     label
 }
 

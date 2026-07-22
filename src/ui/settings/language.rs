@@ -166,6 +166,9 @@ impl LanguagePage {
 
     fn load_from_config(&self) {
         let config = AppConfig::load();
+        if let Some(switch) = self.imp().auto_detect_switch.borrow().as_ref() {
+            switch.set_active(config.auto_detect_language);
+        }
         if let Some(combo) = self.imp().language_combo.borrow().as_ref() {
             if let Some(ref code) = config.language {
                 if let Some(idx) = LANG_CODES.iter().position(|c| c == code) {
@@ -176,6 +179,13 @@ impl LanguagePage {
     }
 
     fn connect_persistence(&self) {
+        if let Some(switch) = self.imp().auto_detect_switch.borrow().as_ref() {
+            switch.connect_active_notify(|switch| {
+                let mut config = AppConfig::load();
+                config.auto_detect_language = switch.is_active();
+                config.save();
+            });
+        }
         if let Some(combo) = self.imp().language_combo.borrow().as_ref() {
             combo.connect_selected_notify(|combo| {
                 let idx = (combo.selected() as usize).min(LANG_CODES.len() - 1);

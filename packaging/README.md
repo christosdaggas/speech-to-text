@@ -16,12 +16,13 @@ rpmbuild -ba packaging/speech-to-text.spec
 ```
 
 Build dependencies (handled by `BuildRequires`): `rust cargo gcc gcc-c++ cmake
-clang gtk4-devel libadwaita-devel alsa-lib-devel glib2-devel gettext
-desktop-file-utils libappstream-glib`.
+clang gtk4-devel libadwaita-devel alsa-lib-devel vulkan-loader-devel glslc
+glib2-devel gettext desktop-file-utils libappstream-glib`.
 
 > `whisper-rs` builds whisper.cpp from C++ and uses pregenerated bindings; the
 > spec exports `WHISPER_DONT_GENERATE_BINDINGS=1` so `libclang`/bindgen is not
-> required.
+> required. Public builds enable the Vulkan backend and work with AMD GPUs via
+> Mesa's RADV driver.
 
 ## COPR (public Fedora repository)
 

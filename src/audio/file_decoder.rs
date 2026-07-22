@@ -55,6 +55,11 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
     let channels = track.codec_params.channels
         .map(|c| c.count() as u32)
         .unwrap_or(1);
+    if !(1_000..=384_000).contains(&sample_rate) || !(1..=32).contains(&channels) {
+        return Err(AppError::Audio(format!(
+            "Unsupported audio parameters: {sample_rate}Hz, {channels} channels"
+        )));
+    }
     let track_id = track.id;
 
     let mut decoder = symphonia::default::get_codecs()
@@ -90,18 +95,22 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
 
         let samples = sample_buf.samples();
         decoded_samples = decoded_samples.saturating_add(samples.len());
-        if decoded_samples > crate::limits::MAX_DECODED_SAMPLES {
+        let source_frames = decoded_samples / channels as usize;
+        let projected_output = source_frames
+            .saturating_mul(WHISPER_SAMPLE_RATE as usize)
+            .div_ceil(sample_rate as usize);
+        if projected_output > crate::limits::MAX_DECODED_SAMPLES {
             tracing::warn!(
-                "Decoded audio exceeded the safety cap ({} source samples); truncating.",
+                "Decoded audio exceeded the safety cap ({} target samples); truncating.",
                 crate::limits::MAX_DECODED_SAMPLES
             );
-            audio_buffer.push_samples(samples);
             break;
         }
         audio_buffer.push_samples(samples);
     }
 
-    let pcm = audio_buffer.get_mono_16khz();
+    let mut pcm = audio_buffer.get_mono_16khz();
+    pcm.truncate(crate::limits::MAX_DECODED_SAMPLES);
     if pcm.is_empty() {
         return Err(AppError::Audio("No audio data decoded from file".into()));
     }

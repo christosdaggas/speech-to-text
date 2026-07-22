@@ -123,6 +123,7 @@ impl WelcomeWizard {
         finish_btn.add_css_class("suggested-action");
         finish_btn.add_css_class("pill");
         finish_btn.set_visible(false);
+        finish_btn.set_sensitive(false);
         nav_box.append(&finish_btn);
 
         main_box.append(&nav_box);
@@ -158,6 +159,12 @@ impl WelcomeWizard {
         let wizard_weak = self.downgrade();
         finish_btn.connect_clicked(move |_| {
             if let Some(wizard) = wizard_weak.upgrade() {
+                let Some(model_id) = wizard.imp().downloaded_model_id.borrow().clone() else {
+                    return;
+                };
+                if !ModelCatalog::is_downloaded(&model_id) {
+                    return;
+                }
                 wizard.imp().completed.set(true);
 
                 // Save config: mark first_run = false and set selected model.
@@ -448,6 +455,7 @@ impl WelcomeWizard {
         }
         if let Some(finish) = self.imp().finish_btn.borrow().as_ref() {
             finish.set_visible(true);
+            finish.set_sensitive(true);
         }
     }
 

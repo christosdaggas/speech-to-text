@@ -129,6 +129,7 @@ mod imp {
         pub sidebar_toggle_btn: RefCell<Option<gtk::Button>>,
         pub sidebar_title_box: RefCell<Option<gtk::Box>>,
         pub settings_header_label: RefCell<Option<gtk::Label>>,
+        pub sidebar_section_rows: RefCell<Vec<gtk::ListBoxRow>>,
         pub info_box: RefCell<Option<gtk::Box>>,
         pub gpu_panel: RefCell<Option<GpuStatusPanel>>,
         pub update_banner: RefCell<Option<gtk::Box>>,
@@ -143,6 +144,11 @@ mod imp {
         /// Set when a live decode was too slow or failed; disables the live loop
         /// for the rest of this recording so it can't flood a slow/VRAM-tight GPU.
         pub live_too_slow: Cell<bool>,
+        /// Monotonic ID used to reject callbacks from cancelled or superseded
+        /// recording, file-import, and LLM operations.
+        pub operation_generation: Cell<u64>,
+        /// Only the latest model-load request may publish an engine/UI result.
+        pub model_load_generation: Cell<u64>,
 
         // Content pages
         pub transcript_view: RefCell<Option<TranscriptView>>,
@@ -205,11 +211,14 @@ glib::wrapper! {
 }
 
 impl MainWindow {
-    // Widened so the transcript area on the right is wider while the sidebar
-    // stays at SIDEBAR_EXPANDED_WIDTH. Content = WINDOW_WIDTH - 280: at 968 the
-    // content is ~688px (two +15% steps over the original 800/520 layout).
-    const WINDOW_WIDTH: i32 = 1280;
-    const WINDOW_HEIGHT: i32 = 750;
+    // Content = WINDOW_WIDTH - SIDEBAR_EXPANDED_WIDTH (280). Trimmed so the right
+    // main area starts a bit narrower and less empty; the sidebar keeps its width.
+    const WINDOW_WIDTH: i32 = 1140;
+    // Compact starting height: just enough that the always-visible session card
+    // (incl. the idle empty state) fits below the short side-by-side hero without
+    // the transcript body shrinking and clipping. The window stays resizable, so
+    // this is only the initial size.
+    const WINDOW_HEIGHT: i32 = 680;
     /// Minimum width of the right column (transcript area). The window is now
     /// resizable, so `set_default_size` drives the initial 1100px width and this
     /// is only the floor below which the right column won't shrink. Kept modest
@@ -217,6 +226,26 @@ impl MainWindow {
     const CONTENT_MIN_WIDTH: i32 = 560;
     const SIDEBAR_EXPANDED_WIDTH: i32 = 280;
     const SIDEBAR_COLLAPSED_WIDTH: i32 = 50;
+
+    fn begin_operation(&self) -> u64 {
+        let generation = self.imp().operation_generation.get().wrapping_add(1);
+        self.imp().operation_generation.set(generation);
+        generation
+    }
+
+    fn operation_is_current(&self, generation: u64) -> bool {
+        self.imp().operation_generation.get() == generation
+    }
+
+    fn sync_theme_class(&self) {
+        self.remove_css_class("light-theme");
+        self.remove_css_class("dark-theme");
+        self.add_css_class(if adw::StyleManager::default().is_dark() {
+            "dark-theme"
+        } else {
+            "light-theme"
+        });
+    }
 
     pub fn new(app: &Application, config: Arc<AppConfig>) -> Self {
         let window: Self = glib::Object::builder()
@@ -228,6 +257,13 @@ impl MainWindow {
         // + width_request), and only the content_box has hexpand=true, so all the
         // extra width on resize/maximize goes to the right side.
         window.set_resizable(true);
+        window.sync_theme_class();
+        let window_weak = window.downgrade();
+        adw::StyleManager::default().connect_dark_notify(move |_| {
+            if let Some(window) = window_weak.upgrade() {
+                window.sync_theme_class();
+            }
+        });
         window.set_title(Some(crate::APP_NAME));
 
         // Store config and borrow the shared recording state from the
@@ -260,6 +296,17 @@ impl MainWindow {
         // (tray icon + global shortcut stay active). Quit via Ctrl+Q or the
         // tray "Quit" item. Re-open by launching the app again or via the tray.
         window.connect_close_request(|win| {
+            if win
+                .controller()
+                .map(|controller| {
+                    controller.owner() == RecordingOwner::Main
+                        && controller.state() != crate::audio::capture::RecordingState::Idle
+                })
+                .unwrap_or(false)
+            {
+                win.show_toast(&gettext("Stop or cancel the active recording before hiding the window."));
+                return glib::Propagation::Stop;
+            }
             win.set_visible(false);
             glib::Propagation::Stop
         });
@@ -311,6 +358,8 @@ impl MainWindow {
 
         // Sidebar header
         let sidebar_header = adw::HeaderBar::new();
+        sidebar_header.add_css_class("sidebar-headerbar");
+        sidebar_header.set_height_request(52);
         sidebar_header.set_show_end_title_buttons(false);
         sidebar_header.set_show_start_title_buttons(false);
 
@@ -323,16 +372,11 @@ impl MainWindow {
         sidebar_toggle_btn.set_action_name(Some("win.toggle-sidebar"));
         sidebar_header.pack_end(&sidebar_toggle_btn);
 
-        let sidebar_icon = gtk::Image::from_icon_name(crate::APP_ID);
-        sidebar_icon.set_pixel_size(20);
-        sidebar_icon.set_margin_end(8);
-
         let title_label = gtk::Label::new(Some(crate::APP_NAME));
         title_label.add_css_class("title");
 
         let title_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         title_box.set_halign(gtk::Align::Center);
-        title_box.append(&sidebar_icon);
         title_box.append(&title_label);
 
         sidebar_header.set_title_widget(Some(&title_box));
@@ -346,18 +390,12 @@ impl MainWindow {
         let mut nav_labels = Vec::new();
         let mut nav_boxes = Vec::new();
 
-        // Add nav items with section headers
-        let mut added_settings_header = false;
+        // Section titles ("WORKSPACE" / "SETTINGS") are intentionally omitted —
+        // the navigation reads cleaner as a single uninterrupted list. The empty
+        // section-row vec and None header keep the collapse logic below happy.
+        let section_rows: Vec<gtk::ListBoxRow> = Vec::new();
         let settings_header_label_opt: Option<gtk::Label> = None;
         for nav_item in NavItem::all() {
-            if nav_item.is_settings() && !added_settings_header {
-                // Add a small spacer before settings items (no label)
-                let spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                spacer.set_margin_top(8);
-                sidebar_box.append(&spacer);
-                added_settings_header = true;
-            }
-
             let (row, label, hbox) = self.create_nav_row(*nav_item);
             sidebar_list.append(&row);
             nav_labels.push(label);
@@ -365,6 +403,7 @@ impl MainWindow {
         }
 
         let sidebar_scroll = gtk::ScrolledWindow::new();
+        sidebar_scroll.add_css_class("sidebar-scroll");
         sidebar_scroll.set_vexpand(true);
         sidebar_scroll.set_child(Some(&sidebar_list));
         sidebar_box.append(&sidebar_scroll);
@@ -429,16 +468,24 @@ impl MainWindow {
         // Transcription page (main view)
         let transcription_page = gtk::Box::new(gtk::Orientation::Vertical, 0);
         transcription_page.set_vexpand(true);
+        transcription_page.add_css_class("transcription-page");
+
+        let workspace_surface = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        workspace_surface.set_vexpand(true);
+        workspace_surface.add_css_class("workspace-surface");
+
+        let controls = Controls::new();
+        workspace_surface.append(&controls);
 
         let transcript_view = TranscriptView::new();
-        transcription_page.append(&transcript_view);
+        workspace_surface.append(&transcript_view);
 
-        // Full-width container so the sidebar background spans the entire width
-        let controls_area = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        controls_area.add_css_class("controls-area");
-        let controls = Controls::new();
-        controls_area.append(&controls);
-        transcription_page.append(&controls_area);
+        let transcription_clamp = adw::Clamp::new();
+        transcription_clamp.set_maximum_size(940);
+        transcription_clamp.set_tightening_threshold(760);
+        transcription_clamp.set_vexpand(true);
+        transcription_clamp.set_child(Some(&workspace_surface));
+        transcription_page.append(&transcription_clamp);
 
         content_stack.add_named(&transcription_page, Some("transcription"));
 
@@ -540,11 +587,13 @@ impl MainWindow {
         *imp.sidebar_toggle_btn.borrow_mut() = Some(sidebar_toggle_btn);
         *imp.sidebar_title_box.borrow_mut() = Some(title_box);
         *imp.settings_header_label.borrow_mut() = settings_header_label_opt;
+        *imp.sidebar_section_rows.borrow_mut() = section_rows;
         *imp.info_box.borrow_mut() = Some(info_box);
         *imp.update_banner.borrow_mut() = Some(update_banner);
         imp.sidebar_collapsed.set(false);
 
-        // Connect navigation
+        // Connect navigation. With the section-header rows removed, each list
+        // row maps 1:1 to NavItem::all() in order — no index offset.
         let window = self.clone();
         sidebar_list.connect_row_selected(move |_, row| {
             if let Some(row) = row {
@@ -555,7 +604,7 @@ impl MainWindow {
             }
         });
 
-        // Select first item
+        // Select the first item (Transcription).
         if let Some(first_row) = sidebar_list.row_at_index(0) {
             sidebar_list.select_row(Some(&first_row));
         }
@@ -654,16 +703,20 @@ impl MainWindow {
         tv.set_chips_visible(cfg.llm_enabled && has_result);
     }
 
-    /// Append a finished transcription as a new selectable message and render it.
+    /// Show the newest finished transcription as the single current-session
+    /// result. Older transcriptions remain in History, not in this workspace.
     fn add_result_message(&self, state: crate::ui::result_state::ResultState, confidence: f64) {
         let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
             return;
         };
-        tv.clear_live_preview();
+        tv.clear();
         let text = state.active_text().to_string();
         let (words, wpm) = (state.stats.words, state.stats.wpm);
-        self.imp().messages.borrow_mut().push(state);
-        let idx = tv.add_message(&text); // append + auto-select
+        let mut messages = self.imp().messages.borrow_mut();
+        messages.clear();
+        messages.push(state);
+        drop(messages);
+        let idx = tv.add_message(&text);
         self.imp().selected_message.set(idx as isize);
         tv.set_confidence(confidence);
         tv.set_stats(words, wpm);
@@ -755,10 +808,14 @@ impl MainWindow {
             sb.set_recording_status(&gettext("Improving with AI…"));
         }
         let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), source);
+        let generation = self.imp().operation_generation.get();
         let window = self.clone();
         let label = preset.name.clone();
         glib::spawn_future_local(async move {
             let res = rx.recv().await;
+            if !window.operation_is_current(generation) {
+                return;
+            }
             if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
                 tv.set_chips_sensitive(true);
             }
@@ -1015,7 +1072,7 @@ impl MainWindow {
     /// section. Self-gates on the LLM being enabled and a length threshold.
     fn maybe_generate_summary(&self, text: &str, duration_secs: f32) {
         let cfg = AppConfig::load();
-        if !cfg.llm_enabled {
+        if !cfg.llm_enabled || !cfg.llm_auto_summary {
             return;
         }
         let words = crate::ui::result_state::word_count(text);
@@ -1032,6 +1089,7 @@ impl MainWindow {
             temperature: cfg.llm_temperature,
         };
         tv.set_summary_loading(true);
+        let generation = self.imp().operation_generation.get();
 
         let rx_sum = crate::llm::improve_async(
             llm_cfg.clone(),
@@ -1064,6 +1122,9 @@ impl MainWindow {
             } else {
                 Vec::new()
             };
+            if !window.operation_is_current(generation) {
+                return;
+            }
             if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
                 if summary_text.is_empty() && chapters.is_empty() {
                     tv.clear_summary();
@@ -1281,9 +1342,10 @@ impl MainWindow {
             title_box.set_visible(!new_collapsed);
         }
 
-        // Hide/show settings header label
-        if let Some(label) = imp.settings_header_label.borrow().as_ref() {
-            label.set_visible(!new_collapsed);
+        // Remove section rows entirely in compact mode so they leave no blank
+        // gaps between navigation icons.
+        for row in imp.sidebar_section_rows.borrow().iter() {
+            row.set_visible(!new_collapsed);
         }
 
         // Hide/show navigation labels and adjust box alignment
@@ -1349,6 +1411,21 @@ impl MainWindow {
                 ControlAction::Save => window.on_save(),
             }
         });
+
+        if let Some(transcript_view) = imp.transcript_view.borrow().as_ref() {
+            let window = self.clone();
+            transcript_view.connect_action(move |action| match action {
+                ControlAction::Stop => window.on_stop(),
+                ControlAction::Copy => window.on_copy(),
+                ControlAction::Clear => window.on_clear(),
+                ControlAction::Save => window.on_save(),
+                ControlAction::OpenFile => window.on_open_file(),
+                ControlAction::Record => window.on_record(),
+                ControlAction::Pause => window.on_pause(),
+                ControlAction::Resume => window.on_resume(),
+                ControlAction::Cancel => window.on_cancel(),
+            });
+        }
     }
 
     /// Wire drag-and-drop of audio files onto the transcript view.
@@ -1419,8 +1496,18 @@ impl MainWindow {
         let Some(controller) = self.controller() else {
             return;
         };
+        if controller.is_recording() {
+            self.show_toast(&gettext("Stop the current recording first"));
+            return;
+        }
+        let generation = self.begin_operation();
         let engine = controller.engine_arc();
         let params = self.build_dictation_params(backend);
+        let source_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Audio file")
+            .to_string();
 
         // Show the decode-sweep animation while the file is transcribed.
         if let Some(tv) = imp.transcript_view.borrow().as_ref() {
@@ -1447,6 +1534,9 @@ impl MainWindow {
         let window = self.clone();
         glib::spawn_future_local(async move {
             if let Ok(result) = receiver.recv().await {
+                if !window.operation_is_current(generation) {
+                    return;
+                }
                 if let Some(tv) = window.imp().transcript_view.borrow().as_ref() {
                     tv.stop_transcribing_anim();
                 }
@@ -1476,9 +1566,28 @@ impl MainWindow {
                         // Render as the current result (text + confidence + stats +
                         // clipboard + chips/selector).
                         let state = crate::ui::result_state::ResultState::new(
-                            cleaned.clone(), duration_secs, detected, segments,
+                            cleaned.clone(), duration_secs, detected.clone(), segments,
                         );
                         window.add_result_message(state, confidence as f64);
+                        if let Some(history) = window.imp().history_page.borrow().as_ref() {
+                            let config = AppConfig::load();
+                            let language = detected
+                                .as_deref()
+                                .map(|code| format!("Auto-detect ({})", language_code_to_name(code)))
+                                .or_else(|| config.language.as_deref().map(language_code_to_name))
+                                .unwrap_or_else(|| "Auto-detect".to_string());
+                            history.add_entry(crate::ui::history_page::HistoryEntry {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                title: source_name.clone(),
+                                text: cleaned.clone(),
+                                language,
+                                duration_secs: duration_secs.round() as u64,
+                                timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+                                model: config.selected_model,
+                                word_count: Some(crate::ui::result_state::word_count(&cleaned) as u32),
+                                ..Default::default()
+                            });
+                        }
                         window.show_toast(&gettext("File transcription complete"));
                         window.maybe_generate_summary(&cleaned, duration_secs);
                         window.maybe_auto_improve(&cleaned);
@@ -1727,6 +1836,22 @@ impl MainWindow {
             return;
         };
 
+        let backend = self.active_backend();
+        let backend_ready = match backend.as_str() {
+            "cohere" => crate::transcription::cohere::cohere_ready(),
+            "qwen" => crate::transcription::qwen::qwen_ready(),
+            _ => controller
+                .engine_arc()
+                .lock()
+                .map(|engine| engine.is_some())
+                .unwrap_or(false),
+        };
+        if !backend_ready {
+            self.show_toast(&gettext("The selected transcription model is not ready. Open Model settings and finish setup first."));
+            self.navigate_to(NavItem::Model);
+            return;
+        }
+
         // Don't start if another owner (e.g. global dictation) is recording.
         if !controller.try_acquire(RecordingOwner::Main) {
             return;
@@ -1743,6 +1868,7 @@ impl MainWindow {
 
         match result {
             Ok(()) => {
+                let generation = self.begin_operation();
                 if let Some(controls) = imp.controls.borrow().as_ref() {
                     controls.set_recording_state(true);
                 }
@@ -1774,7 +1900,7 @@ impl MainWindow {
                 if AppConfig::load().live_transcription && self.active_backend() == "whisper" {
                     self.imp().live_decoding.set(false);
                     self.imp().live_too_slow.set(false);
-                    self.start_live_loop();
+                    self.start_live_loop(generation);
                 }
 
                 tracing::info!("Recording started");
@@ -1790,12 +1916,15 @@ impl MainWindow {
     /// while recording continues. Greedy (beam=1) + plain formatting for low
     /// latency; never overlaps itself; stops when recording ends. The final,
     /// authoritative result is produced by `on_stop`.
-    fn start_live_loop(&self) {
+    fn start_live_loop(&self, generation: u64) {
         let window = self.downgrade();
         glib::timeout_add_local(std::time::Duration::from_millis(2000), move || {
             let Some(win) = window.upgrade() else {
                 return glib::ControlFlow::Break;
             };
+            if !win.operation_is_current(generation) {
+                return glib::ControlFlow::Break;
+            }
             let Some(controller) = win.controller() else {
                 return glib::ControlFlow::Break;
             };
@@ -1815,14 +1944,14 @@ impl MainWindow {
             if win.imp().live_decoding.get() {
                 return glib::ControlFlow::Continue;
             }
-            let mut snapshot = controller.live_snapshot();
+            const LIVE_WINDOW: usize = 12 * 16_000;
+            let mut snapshot = controller.live_snapshot(LIVE_WINDOW);
             // Need at least ~1s of conditioned audio to bother.
             if snapshot.len() < 16_000 {
                 return glib::ControlFlow::Continue;
             }
             // Bound cost: decode only the most recent ~12s window. The final
             // on-stop pass still decodes the whole take at full quality.
-            const LIVE_WINDOW: usize = 12 * 16_000;
             if snapshot.len() > LIVE_WINDOW {
                 snapshot = snapshot.split_off(snapshot.len() - LIVE_WINDOW);
             }
@@ -1836,6 +1965,9 @@ impl MainWindow {
             glib::spawn_future_local(async move {
                 let res = rx.recv().await;
                 let Some(win) = win2.upgrade() else { return };
+                if !win.operation_is_current(generation) {
+                    return;
+                }
                 win.imp().live_decoding.set(false);
                 match res {
                     Ok(Ok(outcome)) => {
@@ -1909,8 +2041,8 @@ impl MainWindow {
         let duration_secs = controller.recording_duration_secs();
 
         // Stop recording and get audio data.
-        let audio_data = match controller.stop() {
-            Ok(data) => data,
+        let audio_snapshot = match controller.stop_snapshot() {
+            Ok(snapshot) => snapshot,
             Err(e) => {
                 controller.release();
                 self.show_toast(&format!("Error stopping recording: {}", e));
@@ -1926,14 +2058,6 @@ impl MainWindow {
         }
         if let Some(tv) = imp.transcript_view.borrow().as_ref() {
             tv.set_recording(false);
-        }
-
-        if audio_data.is_empty() {
-            self.show_toast(&gettext("No clear speech detected — try speaking closer to the microphone"));
-            if let Some(sb) = imp.status_bar.borrow().as_ref() {
-                sb.set_recording_status(&gettext("Ready"));
-            }
-            return;
         }
 
         // Determine backend
@@ -1975,10 +2099,14 @@ impl MainWindow {
         // reliably — the previous on-stop streaming path could hide the chips with
         // a late segment update.)
         let params = self.build_dictation_params(backend);
-        let receiver = controller.transcribe_async(audio_data, params, duration_secs);
+        let generation = self.imp().operation_generation.get();
+        let receiver = controller.transcribe_snapshot_async(audio_snapshot, params, duration_secs);
         let window = self.clone();
         glib::spawn_future_local(async move {
             if let Ok(result) = receiver.recv().await {
+                if !window.operation_is_current(generation) {
+                    return;
+                }
                 window.apply_transcription_result(result);
             }
         });
@@ -1999,6 +2127,9 @@ impl MainWindow {
                 let cleaned = outcome.cleaned_text;
                 if cleaned.is_empty() {
                     *self.imp().last_segments.borrow_mut() = Vec::new();
+                    if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+                        tv.clear_live_preview();
+                    }
                     if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
                         sb.set_recording_status(&gettext("Ready"));
                     }
@@ -2059,6 +2190,9 @@ impl MainWindow {
                 self.maybe_auto_improve(&cleaned);
             }
             Err(msg) => {
+                if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
+                    tv.clear_live_preview();
+                }
                 self.show_toast(&msg);
                 if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
                     sb.set_recording_status(&gettext("Error"));
@@ -2072,6 +2206,11 @@ impl MainWindow {
         let Some(controller) = self.controller() else {
             return;
         };
+        if !matches!(controller.owner(), RecordingOwner::Main | RecordingOwner::None) {
+            return;
+        }
+
+        self.begin_operation();
 
         // Stop recording and discard the audio data.
         controller.cancel();
@@ -2084,6 +2223,8 @@ impl MainWindow {
         }
         if let Some(tv) = imp.transcript_view.borrow().as_ref() {
             tv.set_recording(false);
+            tv.clear_live_preview();
+            tv.stop_transcribing_anim();
         }
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
             sb.set_recording_status(&gettext("Ready"));
@@ -2107,6 +2248,7 @@ impl MainWindow {
     }
 
     fn on_clear(&self) {
+        self.begin_operation();
         self.imp().messages.borrow_mut().clear();
         self.imp().selected_message.set(-1);
         if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
@@ -2237,20 +2379,26 @@ impl MainWindow {
         row.set_selectable(true);
         row.set_tooltip_text(Some(&nav_item.title()));
 
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        hbox.set_margin_top(8);
-        hbox.set_margin_bottom(8);
-        hbox.set_margin_start(12);
-        hbox.set_margin_end(12);
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        hbox.set_valign(gtk::Align::Fill);
+        hbox.set_vexpand(true);
+        hbox.set_margin_start(8);
+        hbox.set_margin_end(8);
         hbox.add_css_class("nav-row-box");
 
         let icon = gtk::Image::from_icon_name(nav_item.icon_name());
-        icon.set_pixel_size(20);
+        icon.set_pixel_size(18);
+        icon.set_valign(gtk::Align::Center);
         hbox.append(&icon);
 
         let label = gtk::Label::new(Some(&nav_item.title()));
         label.set_halign(gtk::Align::Start);
+        label.set_valign(gtk::Align::Fill);
+        label.set_yalign(0.5);
         label.set_hexpand(true);
+        label.set_wrap(false);
+        label.set_lines(1);
+        label.set_ellipsize(gtk::pango::EllipsizeMode::End);
         label.add_css_class("nav-label");
         hbox.append(&label);
 
@@ -2281,6 +2429,10 @@ impl MainWindow {
         }
 
         imp.current_nav.set(Some(nav_item));
+
+        if let Some(header) = imp.header_controls.borrow().as_ref() {
+            header.set_page_title(&nav_item.title());
+        }
 
         // The LLM enable switch may have changed; keep the AI button in sync.
         self.refresh_ai_button();
@@ -2336,7 +2488,33 @@ impl MainWindow {
             })
             .build();
 
-        self.add_action_entries([action_quit, action_toggle_sidebar, action_navigate]);
+        let action_record_toggle = gio::ActionEntry::builder("record-toggle")
+            .activate(|window: &Self, _, _| {
+                let is_main_recording = window
+                    .controller()
+                    .map(|controller| controller.owner() == RecordingOwner::Main)
+                    .unwrap_or(false);
+                if is_main_recording {
+                    window.on_stop();
+                } else {
+                    window.on_record();
+                }
+            })
+            .build();
+
+        let action_cancel_recording = gio::ActionEntry::builder("cancel-recording")
+            .activate(|window: &Self, _, _| {
+                window.on_cancel();
+            })
+            .build();
+
+        self.add_action_entries([
+            action_quit,
+            action_toggle_sidebar,
+            action_navigate,
+            action_record_toggle,
+            action_cancel_recording,
+        ]);
     }
 
     /// Add a history entry through the live HistoryPage (keeps the in-memory
@@ -2450,6 +2628,8 @@ impl MainWindow {
             Some(e) => e,
             None => return,
         };
+        let generation = imp.model_load_generation.get().wrapping_add(1);
+        imp.model_load_generation.set(generation);
 
         // Check GPU setting from performance page or config
         let use_gpu = imp.performance_page.borrow()
@@ -2471,27 +2651,21 @@ impl MainWindow {
         }
 
         // Result carries the loaded model ID plus whether we fell back to CPU.
-        let (sender, receiver) = async_channel::bounded::<Result<(String, bool), String>>(1);
+        let (sender, receiver) = async_channel::bounded::<
+            Result<(String, bool, TranscriptionEngine), String>,
+        >(1);
 
         let model_id_owned = model_id.to_string();
         std::thread::spawn(move || {
-            let store = |engine| {
-                if let Ok(mut guard) = engine_arc.lock() {
-                    *guard = Some(engine);
-                }
-            };
-
             match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id_owned, use_gpu) {
                 Ok(engine) => {
-                    store(engine);
-                    let _ = sender.send_blocking(Ok((model_id_owned, false)));
+                    let _ = sender.send_blocking(Ok((model_id_owned, false, engine)));
                 }
                 Err(e) if use_gpu && cpu_fallback => {
                     tracing::warn!("GPU model load failed ({}); retrying on CPU", e);
                     match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id_owned, false) {
                         Ok(engine) => {
-                            store(engine);
-                            let _ = sender.send_blocking(Ok((model_id_owned, true)));
+                            let _ = sender.send_blocking(Ok((model_id_owned, true, engine)));
                         }
                         Err(e2) => {
                             let _ = sender.send_blocking(Err(format!(
@@ -2509,8 +2683,21 @@ impl MainWindow {
         let window = self.clone();
         glib::spawn_future_local(async move {
             while let Ok(result) = receiver.recv().await {
+                if window.imp().model_load_generation.get() != generation {
+                    return;
+                }
                 match result {
-                    Ok((mid, downgraded)) => {
+                    Ok((mid, downgraded, engine)) => {
+                        let still_selected = window
+                            .current_config_snapshot()
+                            .map(|config| config.backend == "whisper" && config.selected_model == mid)
+                            .unwrap_or(false);
+                        if !still_selected {
+                            return;
+                        }
+                        if let Ok(mut guard) = engine_arc.lock() {
+                            *guard = Some(engine);
+                        }
                         if downgraded {
                             window.show_toast(&gettext("GPU unavailable — loaded model on CPU"));
                         }

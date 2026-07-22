@@ -142,20 +142,19 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
 
     // Verify the runtime archive against GitHub's published digest before we
     // extract and execute anything from it. Fail closed on mismatch.
-    match super::verify::github_asset_sha256(
+    let published_sha = super::verify::github_asset_sha256(
         &client,
         "second-state",
         "qwen3_asr_rs",
         "v0.2.0",
         "asr-linux-x86_64.zip",
     )
-    .await
-    {
-        Some(sha) => super::verify::verify_file(&zip_path, &sha)?,
-        None => tracing::warn!(
-            "No published checksum available for the Qwen runtime; extracting without integrity verification."
-        ),
-    }
+    .await;
+    super::verify::verify_pinned_file(
+        &zip_path,
+        "qwen-runtime-v0.2.0-linux-x86_64",
+        published_sha.as_deref(),
+    )?;
 
     // Run the blocking extraction off the async runtime.
     {
@@ -242,6 +241,13 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
             )));
         }
         let sha = e["lfs"]["oid"].as_str().and_then(super::verify::normalize_hf_oid);
+        if matches!(Path::new(path).extension().and_then(|e| e.to_str()), Some("safetensors") | Some("bin"))
+            && sha.is_none()
+        {
+            return Err(AppError::ModelDownloadFailed(format!(
+                "No trusted SHA-256 was published for model weight file: {path}"
+            )));
+        }
         planned.push((path.to_string(), sha));
     }
 
@@ -259,8 +265,9 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
             std::fs::create_dir_all(parent)?;
         }
         if dest.is_file() {
-            // Resume: keep an existing file if it already matches the hash (or
-            // if we have no hash to check against); otherwise re-download.
+            // Resume: keep an existing weight only if it matches its hash.
+            // Small non-LFS metadata files are validated by their allowlisted
+            // names and parsed by the sidecar.
             match expected {
                 Some(sha)
                     if super::verify::sha256_file(&dest)
@@ -398,9 +405,10 @@ pub fn transcribe_via_cli(
         .join(":");
     cmd.env("LD_LIBRARY_PATH", &ld_path);
 
-    let output = cmd
-        .output()
-        .map_err(|e| AppError::Transcription(format!("Failed to run asr binary: {}", e)))?;
+    let output = super::run_command_with_timeout(
+        &mut cmd,
+        std::time::Duration::from_secs(10 * 60),
+    )?;
 
     drop(tmp); // RAII removes the temp WAV
 
@@ -520,14 +528,25 @@ async fn download_file(
 }
 
 fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
+    find_file_recursive_inner(dir, name, 0)
+}
+
+fn find_file_recursive_inner(dir: &Path, name: &str, depth: usize) -> Option<PathBuf> {
+    if depth > 16 {
+        return None;
+    }
     let entries = std::fs::read_dir(dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
+        let file_type = entry.file_type().ok()?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
             return Some(path);
         }
-        if path.is_dir() {
-            if let Some(found) = find_file_recursive(&path, name) {
+        if file_type.is_dir() {
+            if let Some(found) = find_file_recursive_inner(&path, name, depth + 1) {
                 return Some(found);
             }
         }

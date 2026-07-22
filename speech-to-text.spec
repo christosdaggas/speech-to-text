@@ -1,9 +1,9 @@
 Name:           speech-to-text
-Version:        1.4.0
-Release:        2%{?dist}
+Version:        1.5.0
+Release:        1%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
-URL:            https://github.com/chrisdaggas/speech-to-text
+URL:            https://github.com/christosdaggas/speech-to-text
 
 # We use a pre-built binary, no source archive needed
 Source0:        speech-to-text
@@ -12,6 +12,8 @@ Source2:        com.chrisdaggas.speech-to-text.svg
 Source3:        com.chrisdaggas.speech-to-text-symbolic.svg
 Source4:        style.css
 Source5:        com.chrisdaggas.speech-to-text-ai.svg
+Source6:        com.chrisdaggas.speech-to-text.metainfo.xml
+Source7:        LICENSE
 
 # Locale .mo files
 Source10:       de.mo
@@ -52,14 +54,20 @@ install -Dm644 "%{SOURCE3}" "%{buildroot}%{_datadir}/icons/hicolor/symbolic/apps
 # AI / LLM indicator icon
 install -Dm644 "%{SOURCE5}" "%{buildroot}%{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-ai.svg"
 
+# AppStream metadata and license
+install -Dm644 "%{SOURCE6}" "%{buildroot}%{_metainfodir}/com.chrisdaggas.speech-to-text.metainfo.xml"
+install -Dm644 "%{SOURCE7}" "%{buildroot}%{_licensedir}/%{name}/LICENSE"
+
 # Locale files
 for lang in de el es fr it pt ru zh; do
     install -Dm644 "%{_sourcedir}/${lang}.mo" "%{buildroot}%{_datadir}/locale/${lang}/LC_MESSAGES/speech-to-text.mo"
 done
 
 %files
+%license %{_licensedir}/%{name}/LICENSE
 %{_bindir}/speech-to-text
 %{_datadir}/applications/com.chrisdaggas.speech-to-text.desktop
+%{_metainfodir}/com.chrisdaggas.speech-to-text.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text.svg
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-ai.svg
 %{_datadir}/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg
@@ -81,6 +89,11 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-1
+- Verified and resumable model/runtime downloads
+- Faster bounded inference and more reliable recording workflows
+- Expanded History, safer AI integration, and refined application UI
+
 * Thu Jun 11 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-2
 - Added: Vulkan GPU acceleration for Whisper transcription. The binary now ships with whisper.cpp's Vulkan backend, so "Use GPU" in Settings runs the encoder on a Vulkan-capable GPU (with automatic CPU fallback if a GPU encode fails). Requires vulkan-loader.
 

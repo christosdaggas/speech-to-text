@@ -67,3 +67,52 @@ pub(crate) fn encode_wav_16bit(samples: &[f32], sample_rate: u32) -> Vec<u8> {
 
     buf
 }
+
+/// Run a native sidecar with a hard deadline. `Command::output()` can otherwise
+/// block the only inference worker forever when a downloaded runtime wedges.
+pub(crate) fn run_command_with_timeout(
+    command: &mut std::process::Command,
+    timeout: std::time::Duration,
+) -> crate::error::AppResult<std::process::Output> {
+    let stdout_file = tempfile::NamedTempFile::new().map_err(|e| {
+        crate::error::AppError::Transcription(format!("Failed to create sidecar output file: {e}"))
+    })?;
+    let stderr_file = tempfile::NamedTempFile::new().map_err(|e| {
+        crate::error::AppError::Transcription(format!("Failed to create sidecar error file: {e}"))
+    })?;
+    command
+        .stdout(std::process::Stdio::from(stdout_file.reopen()?))
+        .stderr(std::process::Stdio::from(stderr_file.reopen()?));
+    let mut child = command
+        .spawn()
+        .map_err(|e| crate::error::AppError::Transcription(format!("Failed to start sidecar: {e}")))?;
+    let started = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return Ok(std::process::Output {
+                    status,
+                    stdout: std::fs::read(stdout_file.path())?,
+                    stderr: std::fs::read(stderr_file.path())?,
+                });
+            }
+            Ok(None) if started.elapsed() < timeout => {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(crate::error::AppError::Transcription(
+                    "Transcription sidecar timed out and was terminated.".into(),
+                ));
+            }
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(crate::error::AppError::Transcription(format!(
+                    "Failed while waiting for sidecar: {e}"
+                )));
+            }
+        }
+    }
+}

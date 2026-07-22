@@ -10,8 +10,10 @@ use gtk4 as gtk;
 use libadwaita as adw;
 use adw::subclass::prelude::*;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use crate::i18n::gettext;
+use crate::ui::controls::ControlAction;
 
 /// Number of cells in the transcribing decode-sweep (mirrors the mini panel).
 const N_SEGS: usize = 24;
@@ -24,6 +26,8 @@ mod imp {
         pub bubble_list: RefCell<Option<gtk::Box>>,
         pub scrolled_window: RefCell<Option<gtk::ScrolledWindow>>,
         pub placeholder: RefCell<Option<gtk::Label>>,
+        pub empty_state: RefCell<Option<gtk::Box>>,
+        pub empty_subtitle: RefCell<Option<gtk::Label>>,
         pub messages: RefCell<Vec<String>>,
         // Multi-message model: one selectable bubble per dictation. Indices are
         // stable (we only append or clear-all).
@@ -38,6 +42,12 @@ mod imp {
         pub confidence_label: RefCell<Option<gtk::Label>>,
         pub timer_label: RefCell<Option<gtk::Label>>,
         pub stats_label: RefCell<Option<gtk::Label>>,
+        pub recording_icon: RefCell<Option<gtk::Image>>,
+        pub transcript_card: RefCell<Option<gtk::Box>>,
+        pub footer_cancel_btn: RefCell<Option<gtk::Button>>,
+        pub footer_stop_btn: RefCell<Option<gtk::Button>>,
+        pub copied_badge: RefCell<Option<gtk::Label>>,
+        pub action_cb: RefCell<Option<Rc<dyn Fn(ControlAction)>>>,
         pub is_recording: Cell<bool>,
         // Transform actions (dropdown) + raw/polished variant selector (under the transcript)
         pub controls_row: RefCell<Option<gtk::Box>>,
@@ -98,6 +108,420 @@ impl TranscriptView {
     }
 
     fn setup_ui(&self) {
+        let imp = self.imp();
+        self.add_css_class("transcript-view");
+        self.set_vexpand(true);
+
+        // One card owns metadata, waveform, transcript text, and result actions.
+        let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        card.add_css_class("transcript-card");
+        card.set_margin_start(0);
+        card.set_margin_end(0);
+        card.set_margin_top(0);
+        card.set_margin_bottom(0);
+        card.set_valign(gtk::Align::Start);
+        card.set_vexpand(true);
+
+        // Metadata header: recording state + timer + confidence | words + WPM.
+        let info_bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        info_bar.add_css_class("transcript-card-header");
+        info_bar.set_margin_start(22);
+        info_bar.set_margin_end(22);
+        info_bar.set_margin_top(10);
+        info_bar.set_margin_bottom(4);
+
+        let transcript_title = gtk::Label::new(Some(&gettext("Current session")));
+        transcript_title.add_css_class("transcript-section-title");
+        info_bar.append(&transcript_title);
+
+        let rec_icon = gtk::Image::from_icon_name("media-record-symbolic");
+        rec_icon.set_pixel_size(10);
+        rec_icon.add_css_class("recording-indicator");
+        rec_icon.add_css_class("dim-label");
+        info_bar.append(&rec_icon);
+
+        let timer_label = gtk::Label::new(Some("00:00"));
+        timer_label.add_css_class("monospace");
+        timer_label.add_css_class("transcript-timer");
+        info_bar.append(&timer_label);
+
+        // Confidence renders as e.g. "· 94% confidence" once a value exists;
+        // no static placeholder noise while idle.
+        let confidence_label = gtk::Label::new(None);
+        confidence_label.add_css_class("transcript-metadata");
+        info_bar.append(&confidence_label);
+
+        let info_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        info_spacer.set_hexpand(true);
+        info_bar.append(&info_spacer);
+
+        let stats_label = gtk::Label::new(Some(&gettext("0 words · 0 WPM")));
+        stats_label.add_css_class("transcript-metadata");
+        stats_label.set_xalign(1.0);
+        info_bar.append(&stats_label);
+        card.append(&info_bar);
+
+        // Waveform lives inside the card directly below metadata.
+        let waveform_area = gtk::DrawingArea::new();
+        waveform_area.set_height_request(46);
+        waveform_area.set_margin_start(22);
+        waveform_area.set_margin_end(22);
+        waveform_area.set_margin_top(0);
+        waveform_area.set_margin_bottom(4);
+        // Always visible (idle draws a flat muted line): the waveform slot and
+        // the seg bar swap 1:1, so the card height — and therefore the window
+        // size — never changes between idle, recording and transcribing.
+        waveform_area.set_visible(true);
+        waveform_area.add_css_class("waveform");
+
+        let view_weak = self.downgrade();
+        waveform_area.set_draw_func(move |area, cr, width, height| {
+            let Some(view) = view_weak.upgrade() else { return };
+            let data = view.imp().waveform_data.borrow();
+            let mid_y = height as f64 / 2.0;
+            let color = area.color();
+
+            // Idle: a single quiet hairline that fades out toward both ends,
+            // instead of a row of dashes — the dashed "waveform" read as cheap
+            // in the minimal layout.
+            if data.is_empty() {
+                let (r, g, b) = (
+                    color.red() as f64,
+                    color.green() as f64,
+                    color.blue() as f64,
+                );
+                let grad = gtk::cairo::LinearGradient::new(0.0, 0.0, width as f64, 0.0);
+                grad.add_color_stop_rgba(0.0, r, g, b, 0.0);
+                grad.add_color_stop_rgba(0.12, r, g, b, 0.85);
+                grad.add_color_stop_rgba(0.88, r, g, b, 0.85);
+                grad.add_color_stop_rgba(1.0, r, g, b, 0.0);
+                let _ = cr.set_source(&grad);
+                cr.rectangle(0.0, mid_y - 0.5, width as f64, 1.0);
+                let _ = cr.fill();
+                return;
+            }
+
+            let n_bars = 72usize;
+            let slot = width as f64 / n_bars as f64;
+            cr.set_source_rgba(
+                color.red() as f64,
+                color.green() as f64,
+                color.blue() as f64,
+                0.88,
+            );
+
+            for i in 0..n_bars {
+                let amplitude = if data.is_empty() {
+                    0.025
+                } else {
+                    let idx = i * data.len() / n_bars;
+                    (data.get(idx).copied().unwrap_or(0.0) * 5.0).clamp(0.025, 1.0)
+                };
+                let bar_height = amplitude as f64 * (height as f64 - 8.0);
+                let x = i as f64 * slot + 1.0;
+                let y = mid_y - bar_height / 2.0;
+                cr.rectangle(x, y, (slot - 3.0).max(2.0), bar_height.max(3.0));
+            }
+            let _ = cr.fill();
+        });
+        card.append(&waveform_area);
+
+        let seg_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        seg_box.set_margin_start(22);
+        seg_box.set_margin_end(22);
+        seg_box.set_margin_top(0);
+        seg_box.set_margin_bottom(4);
+        seg_box.set_height_request(46);
+        seg_box.set_visible(false);
+        let mut seg_cells = Vec::with_capacity(N_SEGS);
+        for _ in 0..N_SEGS {
+            let cell = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            cell.add_css_class("mp-seg");
+            cell.set_hexpand(true);
+            cell.set_valign(gtk::Align::Center);
+            cell.set_size_request(-1, 4);
+            seg_box.append(&cell);
+            seg_cells.push(cell);
+        }
+        card.append(&seg_box);
+
+        // Transcript body.
+        let scrolled = gtk::ScrolledWindow::new();
+        scrolled.add_css_class("transcript-card-body");
+        scrolled.set_vexpand(true);
+        scrolled.set_propagate_natural_height(true);
+        // Floor tall enough that the centred empty-state (glyph + title + subtitle,
+        // plus the list margins) is never clipped when idle; below this the
+        // ScrolledWindow would shrink and lop the top off the glyph.
+        scrolled.set_min_content_height(150);
+        scrolled.set_max_content_height(520);
+        scrolled.set_hscrollbar_policy(gtk::PolicyType::Never);
+        scrolled.set_overlay_scrolling(true);
+        scrolled.set_margin_start(22);
+        scrolled.set_margin_end(22);
+        scrolled.set_margin_top(10);
+        scrolled.set_margin_bottom(12);
+
+        let bubble_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        bubble_list.set_valign(gtk::Align::Start);
+        bubble_list.set_margin_start(20);
+        bubble_list.set_margin_end(20);
+        bubble_list.set_margin_top(20);
+        bubble_list.set_margin_bottom(20);
+
+        let empty_state = gtk::Box::new(gtk::Orientation::Vertical, 7);
+        empty_state.add_css_class("transcript-empty-state");
+        empty_state.set_vexpand(true);
+        empty_state.set_valign(gtk::Align::Center);
+        empty_state.set_halign(gtk::Align::Center);
+
+        let empty_glyph = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        empty_glyph.add_css_class("transcript-empty-glyph");
+        empty_glyph.set_halign(gtk::Align::Center);
+        empty_glyph.set_valign(gtk::Align::Center);
+        let empty_icon = gtk::Image::from_icon_name("audio-input-microphone-symbolic");
+        empty_icon.set_pixel_size(22);
+        empty_icon.set_halign(gtk::Align::Center);
+        empty_icon.set_valign(gtk::Align::Center);
+        empty_icon.set_hexpand(true);
+        empty_icon.set_vexpand(true);
+        empty_glyph.append(&empty_icon);
+        empty_state.append(&empty_glyph);
+
+        let placeholder = gtk::Label::new(Some(&gettext("Ready when you are")));
+        placeholder.add_css_class("transcript-empty-title");
+        empty_state.append(&placeholder);
+
+        let empty_subtitle = gtk::Label::new(Some(&gettext(
+            "Start recording and your words will appear here in real time.",
+        )));
+        empty_subtitle.add_css_class("transcript-empty-subtitle");
+        empty_state.append(&empty_subtitle);
+        bubble_list.append(&empty_state);
+        scrolled.set_child(Some(&bubble_list));
+        card.append(&scrolled);
+
+        // Card footer: variant | copied state | AI actions | copy/save | stop.
+        let controls_row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        controls_row.add_css_class("transcript-card-footer");
+        controls_row.set_margin_start(22);
+        controls_row.set_margin_end(22);
+        controls_row.set_margin_bottom(14);
+
+        let variant_dropdown = gtk::DropDown::from_strings(&[&gettext("Raw")]);
+        variant_dropdown.add_css_class("variant-dropdown");
+        variant_dropdown.set_valign(gtk::Align::Center);
+        variant_dropdown.set_tooltip_text(Some(&gettext("Switch between the raw transcript and AI versions")));
+        controls_row.append(&variant_dropdown);
+
+        let view = self.clone();
+        variant_dropdown.connect_selected_notify(move |dd| {
+            if view.imp().variant_syncing.get() {
+                return;
+            }
+            if let Some(cb) = view.imp().variant_callback.borrow().as_ref() {
+                cb(dd.selected() as usize);
+            }
+        });
+
+        let footer_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        footer_spacer.set_hexpand(true);
+        controls_row.append(&footer_spacer);
+
+        let copied_badge = gtk::Label::new(Some(&gettext("✓  Copied to clipboard")));
+        copied_badge.add_css_class("copied-badge");
+        copied_badge.set_visible(false);
+        controls_row.append(&copied_badge);
+
+        let actions_btn = gtk::MenuButton::new();
+        actions_btn.add_css_class("transform-action");
+        actions_btn.add_css_class("ai-action");
+        actions_btn.set_visible(false);
+        actions_btn.set_tooltip_text(Some(&gettext("Transform this text with AI")));
+        let actions_content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        let actions_icon = gtk::Image::from_icon_name("com.chrisdaggas.speech-to-text-ai");
+        actions_icon.set_pixel_size(16);
+        actions_content.append(&actions_icon);
+        actions_content.append(&gtk::Label::new(Some(&gettext("Actions"))));
+        actions_btn.set_child(Some(&actions_content));
+
+        let actions_popover = gtk::Popover::new();
+        actions_popover.add_css_class("menu");
+        actions_popover.set_has_arrow(false);
+        actions_popover.set_position(gtk::PositionType::Top);
+        let actions_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        actions_popover.set_child(Some(&actions_list));
+        actions_btn.set_popover(Some(&actions_popover));
+        let action_group = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+        action_group.add_css_class("transcript-action-group");
+        controls_row.append(&action_group);
+        action_group.append(&actions_btn);
+
+        let voice_edit_btn = gtk::Button::new();
+        let voice_content = adw::ButtonContent::new();
+        voice_content.set_icon_name("document-edit-symbolic");
+        voice_content.set_label(&gettext("Voice edit"));
+        voice_edit_btn.set_child(Some(&voice_content));
+        voice_edit_btn.add_css_class("transform-action");
+        voice_edit_btn.set_visible(false);
+        let view = self.clone();
+        voice_edit_btn.connect_clicked(move |_| {
+            if let Some(cb) = view.imp().voice_edit_callback.borrow().as_ref() {
+                cb();
+            }
+        });
+        action_group.append(&voice_edit_btn);
+
+        fn footer_button(icon: &str, label: &str) -> gtk::Button {
+            let button = gtk::Button::new();
+            let content = adw::ButtonContent::new();
+            content.set_icon_name(icon);
+            content.set_label(label);
+            button.set_child(Some(&content));
+            button.add_css_class("footer-action");
+            button
+        }
+
+        let copy_btn = footer_button("edit-copy-symbolic", &gettext("Copy"));
+        let view = self.clone();
+        copy_btn.connect_clicked(move |_| {
+            if let Some(cb) = view.imp().action_cb.borrow().as_ref() {
+                cb(ControlAction::Copy);
+            }
+            if let Some(badge) = view.imp().copied_badge.borrow().as_ref() {
+                badge.set_visible(true);
+                let badge = badge.downgrade();
+                glib::timeout_add_local_once(std::time::Duration::from_millis(1400), move || {
+                    if let Some(badge) = badge.upgrade() {
+                        badge.set_visible(false);
+                    }
+                });
+            }
+        });
+        action_group.append(&copy_btn);
+
+        let save_btn = footer_button("document-save-symbolic", &gettext("Save"));
+        let view = self.clone();
+        save_btn.connect_clicked(move |_| {
+            if let Some(cb) = view.imp().action_cb.borrow().as_ref() {
+                cb(ControlAction::Save);
+            }
+        });
+        action_group.append(&save_btn);
+
+        // Cancel sits just before Stop and is shown only while recording: it
+        // discards the take, whereas Stop finalises and transcribes it.
+        let cancel_btn = footer_button("process-stop-symbolic", &gettext("Cancel"));
+        cancel_btn.add_css_class("footer-cancel");
+        cancel_btn.set_visible(false);
+        let view = self.clone();
+        cancel_btn.connect_clicked(move |_| {
+            if let Some(cb) = view.imp().action_cb.borrow().as_ref() {
+                cb(ControlAction::Cancel);
+            }
+        });
+        action_group.append(&cancel_btn);
+
+        let stop_btn = footer_button("media-playback-stop-symbolic", &gettext("Stop"));
+        stop_btn.add_css_class("destructive-action");
+        stop_btn.add_css_class("footer-stop");
+        stop_btn.set_visible(false);
+        let view = self.clone();
+        stop_btn.connect_clicked(move |_| {
+            if let Some(cb) = view.imp().action_cb.borrow().as_ref() {
+                cb(ControlAction::Stop);
+            }
+        });
+        action_group.append(&stop_btn);
+        card.append(&controls_row);
+
+        self.append(&card);
+
+        let summary_expander = gtk::Expander::new(Some(&gettext("Summary & chapters")));
+        summary_expander.set_margin_start(22);
+        summary_expander.set_margin_end(22);
+        summary_expander.set_visible(false);
+        let summary_body = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        let summary_label = gtk::Label::new(None);
+        summary_label.set_wrap(true);
+        summary_label.set_xalign(0.0);
+        summary_label.set_selectable(true);
+        summary_body.append(&summary_label);
+        let chapters_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        summary_body.append(&chapters_box);
+        summary_expander.set_child(Some(&summary_body));
+        self.append(&summary_expander);
+
+        let page_spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        page_spacer.set_vexpand(true);
+        page_spacer.set_visible(false);
+        self.append(&page_spacer);
+
+        // Retained as a hidden state holder for the existing confidence API.
+        let confidence_bar = gtk::LevelBar::new();
+        confidence_bar.set_min_value(0.0);
+        confidence_bar.set_max_value(1.0);
+        confidence_bar.set_visible(false);
+
+        *imp.bubble_list.borrow_mut() = Some(bubble_list);
+        *imp.scrolled_window.borrow_mut() = Some(scrolled);
+        *imp.placeholder.borrow_mut() = Some(placeholder);
+        *imp.empty_state.borrow_mut() = Some(empty_state);
+        *imp.empty_subtitle.borrow_mut() = Some(empty_subtitle);
+        *imp.confidence_bar.borrow_mut() = Some(confidence_bar);
+        *imp.confidence_label.borrow_mut() = Some(confidence_label);
+        *imp.timer_label.borrow_mut() = Some(timer_label);
+        *imp.stats_label.borrow_mut() = Some(stats_label);
+        *imp.recording_icon.borrow_mut() = Some(rec_icon);
+        *imp.transcript_card.borrow_mut() = Some(card);
+        *imp.footer_cancel_btn.borrow_mut() = Some(cancel_btn);
+        *imp.footer_stop_btn.borrow_mut() = Some(stop_btn);
+        *imp.copied_badge.borrow_mut() = Some(copied_badge);
+        *imp.waveform_area.borrow_mut() = Some(waveform_area);
+        *imp.seg_box.borrow_mut() = Some(seg_box);
+        *imp.seg_cells.borrow_mut() = seg_cells;
+        *imp.controls_row.borrow_mut() = Some(controls_row);
+        *imp.actions_btn.borrow_mut() = Some(actions_btn);
+        *imp.actions_list.borrow_mut() = Some(actions_list);
+        *imp.variant_dropdown.borrow_mut() = Some(variant_dropdown);
+        *imp.voice_edit_btn.borrow_mut() = Some(voice_edit_btn);
+        *imp.summary_expander.borrow_mut() = Some(summary_expander);
+        *imp.summary_label.borrow_mut() = Some(summary_label);
+        *imp.chapters_box.borrow_mut() = Some(chapters_box);
+
+        let drop_target = gtk::DropTarget::new(
+            gtk::gio::File::static_type(),
+            gtk::gdk::DragAction::COPY,
+        );
+        let view_weak = self.downgrade();
+        drop_target.connect_drop(move |_, value, _x, _y| {
+            let Some(view) = view_weak.upgrade() else { return false };
+            let Ok(file) = value.get::<gtk::gio::File>() else { return false };
+            let Some(path) = file.path() else { return false };
+            if let Some(callback) = view.imp().drop_callback.borrow().as_ref() {
+                callback(path);
+                return true;
+            }
+            false
+        });
+        self.add_controller(drop_target);
+
+        // The session card only appears once there is something to show; the
+        // idle page belongs to the capture stage alone.
+        self.sync_card_visibility();
+    }
+
+    /// The session card is always on screen: toggling it used to change the
+    /// page's minimum height, which forced the whole window to resize whenever
+    /// a recording started. Idle it simply shows the empty state.
+    fn sync_card_visibility(&self) {
+        if let Some(card) = self.imp().transcript_card.borrow().as_ref() {
+            card.set_visible(true);
+        }
+    }
+
+    #[allow(dead_code)]
+    fn setup_legacy_ui(&self) {
         let imp = self.imp();
         self.add_css_class("transcript-view");
 
@@ -435,6 +859,7 @@ impl TranscriptView {
     fn create_bubble(&self, text: &str, index: usize) -> (gtk::Box, gtk::Label) {
         let bubble = gtk::Box::new(gtk::Orientation::Vertical, 0);
         bubble.add_css_class("message-bubble");
+        bubble.set_focusable(true);
 
         let overlay = gtk::Overlay::new();
 
@@ -483,14 +908,29 @@ impl TranscriptView {
         });
         bubble.add_controller(gesture);
 
+        let keys = gtk::EventControllerKey::new();
+        let view_weak = self.downgrade();
+        keys.connect_key_pressed(move |_, key, _, _| {
+            if matches!(key, gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter | gtk::gdk::Key::space) {
+                if let Some(view) = view_weak.upgrade() {
+                    if let Some(cb) = view.imp().message_selected_cb.borrow().as_ref() {
+                        cb(index);
+                    }
+                }
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
+        });
+        bubble.add_controller(keys);
+
         (bubble, label)
     }
 
     /// Append a new message bubble and return its (stable) index. Auto-selects it.
     pub fn add_message(&self, text: &str) -> usize {
         let imp = self.imp();
-        if let Some(placeholder) = imp.placeholder.borrow().as_ref() {
-            placeholder.set_visible(false);
+        if let Some(empty_state) = imp.empty_state.borrow().as_ref() {
+            empty_state.set_visible(false);
         }
         let index = imp.message_labels.borrow().len();
         let (bubble, label) = self.create_bubble(text, index);
@@ -501,6 +941,7 @@ impl TranscriptView {
         imp.message_labels.borrow_mut().push(label);
         imp.messages.borrow_mut().push(text.to_string());
         self.set_selected_message(index);
+        self.sync_card_visibility();
         self.scroll_to_bottom();
         index
     }
@@ -547,8 +988,14 @@ impl TranscriptView {
             self.clear_live_preview();
             return;
         }
-        if let Some(placeholder) = imp.placeholder.borrow().as_ref() {
-            placeholder.set_visible(false);
+        // Current Session is single-result: while tentative live text exists,
+        // show it instead of the previous finalized transcription. The previous
+        // result is only hidden and can be restored on Cancel/failure.
+        for bubble in imp.message_bubbles.borrow().iter() {
+            bubble.set_visible(false);
+        }
+        if let Some(empty_state) = imp.empty_state.borrow().as_ref() {
+            empty_state.set_visible(false);
         }
         // Reuse the existing preview label if present, else build one.
         if let Some(lbl) = imp.live_preview_label.borrow().as_ref() {
@@ -571,6 +1018,7 @@ impl TranscriptView {
         }
         *imp.live_preview.borrow_mut() = Some(bubble);
         *imp.live_preview_label.borrow_mut() = Some(label);
+        self.sync_card_visibility();
         self.scroll_to_bottom();
     }
 
@@ -584,6 +1032,10 @@ impl TranscriptView {
         }
         *imp.live_preview.borrow_mut() = None;
         *imp.live_preview_label.borrow_mut() = None;
+        for bubble in imp.message_bubbles.borrow().iter() {
+            bubble.set_visible(true);
+        }
+        self.sync_card_visibility();
     }
 
     fn scroll_to_bottom(&self) {
@@ -618,10 +1070,10 @@ impl TranscriptView {
         imp.selected_idx.set(-1);
 
         if let Some(list) = imp.bubble_list.borrow().as_ref() {
-            // Remove all children except the placeholder
+            // Remove all children except the native empty-state container.
             while let Some(child) = list.last_child() {
-                if let Some(placeholder) = imp.placeholder.borrow().as_ref() {
-                    if &child == placeholder.upcast_ref::<gtk::Widget>() {
+                if let Some(empty_state) = imp.empty_state.borrow().as_ref() {
+                    if &child == empty_state.upcast_ref::<gtk::Widget>() {
                         break;
                     }
                 }
@@ -629,14 +1081,15 @@ impl TranscriptView {
             }
         }
 
-        if let Some(placeholder) = imp.placeholder.borrow().as_ref() {
-            placeholder.set_visible(true);
+        if let Some(empty_state) = imp.empty_state.borrow().as_ref() {
+            empty_state.set_visible(true);
         }
 
         self.set_confidence(0.0);
         self.set_stats(0, None);
         self.hide_result_controls();
         self.clear_summary();
+        self.sync_card_visibility();
     }
 
     /// Update confidence indicator (0.0 - 1.0).
@@ -647,9 +1100,13 @@ impl TranscriptView {
         }
         if let Some(label) = imp.confidence_label.borrow().as_ref() {
             if confidence > 0.0 {
-                label.set_text(&format!("{:.0}%", confidence * 100.0));
+                label.set_text(&format!(
+                    "· {:.0}% {}",
+                    confidence * 100.0,
+                    gettext("confidence")
+                ));
             } else {
-                label.set_text("—");
+                label.set_text("");
             }
         }
     }
@@ -667,7 +1124,7 @@ impl TranscriptView {
     pub fn set_stats(&self, words: usize, wpm: Option<u32>) {
         if let Some(l) = self.imp().stats_label.borrow().as_ref() {
             if words == 0 {
-                l.set_text("");
+                l.set_text(&gettext("0 words · 0 WPM"));
                 return;
             }
             let word_label = if words == 1 { gettext("word") } else { gettext("words") };
@@ -741,10 +1198,15 @@ impl TranscriptView {
         let imp = self.imp();
         let Some(dd) = imp.variant_dropdown.borrow().clone() else { return };
         imp.variant_syncing.set(true);
-        let refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+        let fallback = gettext("Raw");
+        let refs: Vec<&str> = if labels.is_empty() {
+            vec![fallback.as_str()]
+        } else {
+            labels.iter().map(|s| s.as_str()).collect()
+        };
         dd.set_model(Some(&gtk::StringList::new(&refs)));
         dd.set_selected(active as u32);
-        dd.set_visible(labels.len() > 1);
+        dd.set_visible(refs.len() > 1);
         imp.variant_syncing.set(false);
     }
 
@@ -851,6 +1313,8 @@ impl TranscriptView {
     pub fn hide_result_controls(&self) {
         let imp = self.imp();
         if let Some(d) = imp.variant_dropdown.borrow().as_ref() {
+            d.set_model(Some(&gtk::StringList::new(&[&gettext("Raw")]))) ;
+            d.set_selected(0);
             d.set_visible(false);
         }
         if let Some(b) = imp.actions_btn.borrow().as_ref() {
@@ -863,13 +1327,75 @@ impl TranscriptView {
 
     /// Set the recording state.
     pub fn set_recording(&self, recording: bool) {
-        self.imp().is_recording.set(recording);
+        let imp = self.imp();
+        imp.is_recording.set(recording);
+        if recording {
+            imp.decoding.set(false);
+            if let Some(s) = imp.seg_box.borrow().as_ref() {
+                s.set_visible(false);
+            }
+            for c in imp.seg_cells.borrow().iter() {
+                c.remove_css_class("on");
+            }
+        }
+        // While live with no words yet, the empty state doubles as feedback.
+        if let Some(label) = imp.placeholder.borrow().as_ref() {
+            let text = if recording {
+                gettext("Listening…")
+            } else {
+                gettext("Ready when you are")
+            };
+            label.set_text(&text);
+        }
+        if let Some(label) = imp.empty_subtitle.borrow().as_ref() {
+            let text = if recording {
+                gettext("Your words will appear here in a moment.")
+            } else {
+                gettext("Start recording and your words will appear here in real time.")
+            };
+            label.set_text(&text);
+        }
+        if let Some(card) = imp.transcript_card.borrow().as_ref() {
+            card.remove_css_class("recording");
+            if recording {
+                card.add_css_class("recording");
+            }
+        }
+        if let Some(icon) = imp.recording_icon.borrow().as_ref() {
+            icon.remove_css_class("recording-pulse");
+            icon.remove_css_class("dim-label");
+            if recording {
+                icon.add_css_class("recording-pulse");
+            } else {
+                icon.add_css_class("dim-label");
+            }
+        }
+        if let Some(button) = imp.footer_cancel_btn.borrow().as_ref() {
+            button.set_visible(recording);
+        }
+        if let Some(button) = imp.footer_stop_btn.borrow().as_ref() {
+            button.set_visible(recording);
+        }
+        // The waveform slot stays occupied unless the seg bar has replaced it;
+        // hiding it here would change the card height and resize the window.
+        if !imp.decoding.get() {
+            if let Some(area) = imp.waveform_area.borrow().as_ref() {
+                area.set_visible(true);
+            }
+        }
         if !recording {
-            self.imp().waveform_data.borrow_mut().clear();
-            if let Some(area) = self.imp().waveform_area.borrow().as_ref() {
+            imp.waveform_data.borrow_mut().clear();
+            if let Some(area) = imp.waveform_area.borrow().as_ref() {
                 area.queue_draw();
             }
         }
+        self.sync_card_visibility();
+    }
+
+    /// Dispatch transcript-footer actions through the same MainWindow action
+    /// handler used by the hero controls.
+    pub fn connect_action<F: Fn(ControlAction) + 'static>(&self, callback: F) {
+        *self.imp().action_cb.borrow_mut() = Some(Rc::new(callback));
     }
 
     /// Update waveform amplitude data and trigger a redraw.
@@ -895,6 +1421,7 @@ impl TranscriptView {
             return;
         }
         imp.decoding.set(true);
+        self.sync_card_visibility();
 
         let view_weak = self.downgrade();
         glib::timeout_add_local(std::time::Duration::from_millis(90), move || {
@@ -937,6 +1464,7 @@ impl TranscriptView {
         if let Some(s) = imp.seg_box.borrow().as_ref() {
             s.set_visible(true);
         }
+        self.sync_card_visibility();
         let cells = imp.seg_cells.borrow();
         let n = cells.len();
         if n == 0 {
@@ -959,12 +1487,15 @@ impl TranscriptView {
         if let Some(s) = imp.seg_box.borrow().as_ref() {
             s.set_visible(false);
         }
+        // Restore the waveform into the shared slot regardless of state, so the
+        // card keeps a constant height and the window never resizes.
         if let Some(w) = imp.waveform_area.borrow().as_ref() {
             w.set_visible(true);
         }
         for c in imp.seg_cells.borrow().iter() {
             c.remove_css_class("on");
         }
+        self.sync_card_visibility();
     }
 
     /// Get the full text content (all messages joined by newlines).

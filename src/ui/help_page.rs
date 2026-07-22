@@ -50,6 +50,8 @@ impl HelpPage {
     }
 
     fn setup_ui(&self) {
+        self.add_css_class("help-page");
+
         // Page header
         let header_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
         header_box.set_margin_start(24);

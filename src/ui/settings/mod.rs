@@ -38,6 +38,8 @@ const UNLIMITED_CLAMP: i32 = 1_000_000;
 /// the cap on every clamp it finds — the preference groups then fill the whole
 /// available width of the content area.
 pub fn fill_preferences_width(page: &impl IsA<gtk::Widget>) {
+    page.add_css_class("settings-page");
+
     fn widen(widget: &gtk::Widget) {
         if let Some(clamp) = widget.downcast_ref::<adw::ClampScrollable>() {
             clamp.set_maximum_size(UNLIMITED_CLAMP);

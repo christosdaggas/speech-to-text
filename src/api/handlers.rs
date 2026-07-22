@@ -16,7 +16,10 @@ use hyper::{header, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use super::server::{json_error, json_ok};
-use super::{Job, Resp, ServerState, MAX_API_UPLOAD_BYTES, REQUEST_TIMEOUT_SECS};
+use super::{
+    Job, Resp, ServerState, BODY_FRAME_TIMEOUT_SECS, MAX_API_UPLOAD_BYTES,
+    REQUEST_TIMEOUT_SECS,
+};
 use crate::config::AppConfig;
 use crate::recording::{DictationMode, DictationParams};
 
@@ -100,6 +103,10 @@ pub(super) fn models(state: &ServerState) -> Resp {
 // ── POST /v1/transcribe ──────────────────────────────────────────────────────
 
 pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> Resp {
+    let _upload_permit = match state.uploads.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => return too_busy(),
+    };
     let query = req.uri().query().unwrap_or("").to_string();
     let content_type = req
         .headers()
@@ -126,6 +133,9 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
         Err(ReadErr::TooLarge) => {
             return json_error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "Upload exceeds the size limit")
         }
+        Err(ReadErr::Timeout) => {
+            return json_error(StatusCode::REQUEST_TIMEOUT, "read_timeout", "Upload stalled")
+        }
         Err(ReadErr::Io(e)) => return json_error(StatusCode::BAD_REQUEST, "read_failed", &e),
     };
 
@@ -151,25 +161,41 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
 
     let config = AppConfig::load();
     let mut params = DictationParams::from_config(&config);
-    apply_overrides(&mut params, &fields);
+    if let Err(message) = apply_overrides(&mut params, &fields) {
+        return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+    }
 
     let translate_to = fields
         .get("translate_to")
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
+    if let Some(target) = translate_to.as_deref() {
+        if let Err(message) = validate_text_parameter("translate_to", target, 64) {
+            return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+        }
+    }
     let include_segments = fields.get("segments").map(|v| v != "false").unwrap_or(true);
 
-    let temp = match write_temp(&audio_bytes) {
-        Ok(t) => t,
-        Err(e) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "temp_failed", &e),
+    let temp = match tokio::task::spawn_blocking(move || write_temp(&audio_bytes)).await {
+        Ok(Ok(t)) => t,
+        Ok(Err(e)) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "temp_failed", &e),
+        Err(e) => {
+            return json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "temp_failed",
+                &format!("Temporary-file task failed: {e}"),
+            )
+        }
     };
 
     // Hand off to the inference worker; bounded queue ⇒ 429 when full.
     let (reply_tx, reply_rx) = async_channel::bounded(1);
+    let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let job = Job {
         audio: temp,
         params,
         reply: reply_tx,
+        cancelled: cancelled.clone(),
     };
     if state.jobs.try_send(job).is_err() {
         return too_busy();
@@ -186,7 +212,10 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
         Ok(Err(_)) => {
             return json_error(StatusCode::INTERNAL_SERVER_ERROR, "worker_gone", "Worker unavailable")
         }
-        Err(_) => return json_error(StatusCode::GATEWAY_TIMEOUT, "timeout", "Transcription timed out"),
+        Err(_) => {
+            cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            return json_error(StatusCode::GATEWAY_TIMEOUT, "timeout", "Transcription timed out");
+        }
     };
 
     // Optional LLM translation of the transcript to an arbitrary language.
@@ -234,12 +263,21 @@ pub(super) async fn translate(req: Request<Incoming>) -> Resp {
         Err(ReadErr::TooLarge) => {
             return json_error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "Body exceeds the size limit")
         }
+        Err(ReadErr::Timeout) => {
+            return json_error(StatusCode::REQUEST_TIMEOUT, "read_timeout", "Request body stalled")
+        }
         Err(ReadErr::Io(e)) => return json_error(StatusCode::BAD_REQUEST, "read_failed", &e),
     };
     let parsed: TranslateReq = match serde_json::from_slice(&body) {
         Ok(p) => p,
         Err(e) => return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_json", &e.to_string()),
     };
+    if let Err(message) = validate_text_parameter("text", &parsed.text, 1024 * 1024) {
+        return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+    }
+    if let Err(message) = validate_text_parameter("target_language", &parsed.target_language, 64) {
+        return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+    }
     let config = AppConfig::load();
     match llm_translate(&config, &parsed.text, &parsed.target_language).await {
         Ok(t) => json_ok(&serde_json::json!({ "translated_text": t })),
@@ -251,6 +289,7 @@ pub(super) async fn translate(req: Request<Incoming>) -> Resp {
 
 enum ReadErr {
     TooLarge,
+    Timeout,
     Io(String),
 }
 
@@ -258,7 +297,14 @@ enum ReadErr {
 async fn read_capped(req: Request<Incoming>, cap: usize) -> Result<Vec<u8>, ReadErr> {
     let mut body = req.into_body();
     let mut buf: Vec<u8> = Vec::new();
-    while let Some(next) = body.frame().await {
+    loop {
+        let next = tokio::time::timeout(
+            std::time::Duration::from_secs(BODY_FRAME_TIMEOUT_SECS),
+            body.frame(),
+        )
+        .await
+        .map_err(|_| ReadErr::Timeout)?;
+        let Some(next) = next else { break };
         let frame = next.map_err(|e| ReadErr::Io(e.to_string()))?;
         if let Ok(data) = frame.into_data() {
             if buf.len() + data.len() > cap {
@@ -316,13 +362,23 @@ async fn extract_multipart(
 /// Apply request overrides onto config-derived params. The API contract: the
 /// Whisper `translate` flag defaults OFF (it does NOT inherit the GUI's
 /// "Translate to English" toggle); an explicit `language` overrides auto-detect.
-fn apply_overrides(params: &mut DictationParams, fields: &HashMap<String, String>) {
+fn apply_overrides(
+    params: &mut DictationParams,
+    fields: &HashMap<String, String>,
+) -> Result<(), String> {
     params.translate = matches!(
         fields.get("translate").map(|s| s.as_str()),
         Some("true") | Some("1")
     );
     if let Some(lang) = fields.get("language") {
         let lang = lang.trim();
+        if !lang.is_empty() && !lang.eq_ignore_ascii_case("auto") {
+            let valid = (2..=16).contains(&lang.len())
+                && lang.bytes().all(|b| b.is_ascii_alphabetic() || b == b'-');
+            if !valid {
+                return Err("language must be a 2-16 character language code".into());
+            }
+        }
         params.language_code = if lang.is_empty() || lang.eq_ignore_ascii_case("auto") {
             None
         } else {
@@ -330,19 +386,44 @@ fn apply_overrides(params: &mut DictationParams, fields: &HashMap<String, String
         };
     }
     if let Some(beam) = fields.get("beam_size").and_then(|s| s.parse::<u32>().ok()) {
+        if !(1..=8).contains(&beam) {
+            return Err("beam_size must be between 1 and 8".into());
+        }
         params.beam_size = beam;
+    } else if fields.contains_key("beam_size") {
+        return Err("beam_size must be an integer between 1 and 8".into());
     }
     if let Some(temp) = fields.get("temperature").and_then(|s| s.parse::<f32>().ok()) {
+        if !temp.is_finite() || !(0.0..=1.0).contains(&temp) {
+            return Err("temperature must be a finite number between 0 and 1".into());
+        }
         params.temperature = temp;
+    } else if fields.contains_key("temperature") {
+        return Err("temperature must be a finite number between 0 and 1".into());
     }
     if let Some(prompt) = fields.get("initial_prompt") {
+        validate_text_parameter("initial_prompt", prompt, 8 * 1024)?;
         if !prompt.trim().is_empty() {
             params.initial_prompt = Some(prompt.clone());
         }
     }
     if let Some(mode) = fields.get("mode") {
+        if !matches!(mode.as_str(), "plain" | "message" | "email" | "note" | "code_prompt") {
+            return Err("mode must be plain, message, email, note, or code_prompt".into());
+        }
         params.mode = DictationMode::from_config_str(mode);
     }
+    Ok(())
+}
+
+fn validate_text_parameter(name: &str, value: &str, max_bytes: usize) -> Result<(), String> {
+    if value.contains('\0') {
+        return Err(format!("{name} must not contain NUL characters"));
+    }
+    if value.len() > max_bytes {
+        return Err(format!("{name} exceeds the {max_bytes}-byte limit"));
+    }
+    Ok(())
 }
 
 /// Translate `text` into `target_lang` via the configured LLM (the same path
@@ -386,4 +467,51 @@ fn too_busy() -> Resp {
         .header(header::RETRY_AFTER, "2")
         .body(Full::new(Bytes::from(body)))
         .unwrap_or_else(|_| Response::new(Full::new(Bytes::from_static(b"{}"))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params() -> DictationParams {
+        DictationParams::from_config(&AppConfig::default())
+    }
+
+    #[test]
+    fn rejects_nul_and_oversized_prompt_overrides() {
+        let mut request_params = params();
+        let fields = HashMap::from([("initial_prompt".to_string(), "bad\0prompt".to_string())]);
+        assert!(apply_overrides(&mut request_params, &fields).is_err());
+
+        let mut request_params = params();
+        let fields = HashMap::from([("initial_prompt".to_string(), "x".repeat(8193))]);
+        assert!(apply_overrides(&mut request_params, &fields).is_err());
+    }
+
+    #[test]
+    fn validates_numeric_and_language_overrides() {
+        for (key, value) in [
+            ("temperature", "NaN"),
+            ("temperature", "1.1"),
+            ("beam_size", "0"),
+            ("beam_size", "9"),
+            ("language", "el\0"),
+            ("language", "not a language"),
+        ] {
+            let mut params = params();
+            let fields = HashMap::from([(key.to_string(), value.to_string())]);
+            assert!(apply_overrides(&mut params, &fields).is_err(), "{key}={value}");
+        }
+
+        let mut params = params();
+        let fields = HashMap::from([
+            ("temperature".to_string(), "0.2".to_string()),
+            ("beam_size".to_string(), "4".to_string()),
+            ("language".to_string(), "el".to_string()),
+        ]);
+        assert!(apply_overrides(&mut params, &fields).is_ok());
+        assert_eq!(params.temperature, 0.2);
+        assert_eq!(params.beam_size, 4);
+        assert_eq!(params.language_code.as_deref(), Some("el"));
+    }
 }

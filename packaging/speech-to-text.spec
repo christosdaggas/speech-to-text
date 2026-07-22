@@ -11,12 +11,12 @@
 %global appid com.chrisdaggas.speech-to-text
 
 Name:           speech-to-text
-Version:        1.4.0
+Version:        1.5.0
 Release:        1%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
 License:        MIT
-URL:            https://github.com/chrisdaggas/speech-to-text
+URL:            https://github.com/christosdaggas/speech-to-text
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  rust
@@ -28,6 +28,8 @@ BuildRequires:  clang
 BuildRequires:  gtk4-devel
 BuildRequires:  libadwaita-devel
 BuildRequires:  alsa-lib-devel
+BuildRequires:  vulkan-loader-devel
+BuildRequires:  glslc
 BuildRequires:  glib2-devel
 BuildRequires:  gettext
 BuildRequires:  desktop-file-utils
@@ -36,6 +38,7 @@ BuildRequires:  libappstream-glib
 Requires:       gtk4
 Requires:       libadwaita
 Requires:       alsa-lib
+Requires:       vulkan-loader
 
 %description
 Speech to Text is a GTK4/libadwaita desktop application for Linux that
@@ -50,7 +53,7 @@ configure, and a startup update check — both can be disabled.
 %build
 # whisper-rs ships pregenerated bindings; avoid the bindgen/libclang dependency.
 export WHISPER_DONT_GENERATE_BINDINGS=1
-cargo build --release --locked
+cargo build --release --locked --features vulkan
 
 %install
 # Binary
@@ -63,6 +66,8 @@ install -Dm0644 data/icons/hicolor/scalable/apps/%{appid}.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg
 install -Dm0644 data/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg \
     %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg
+install -Dm0644 data/icons/hicolor/scalable/apps/%{appid}-ai.svg \
+    %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{appid}-ai.svg
 install -Dm0644 data/%{appid}.metainfo.xml \
     %{buildroot}%{_metainfodir}/%{appid}.metainfo.xml
 
@@ -85,11 +90,17 @@ appstream-util validate-relax --nonet \
 %{_bindir}/%{name}
 %{_datadir}/applications/%{appid}.desktop
 %{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg
+%{_datadir}/icons/hicolor/scalable/apps/%{appid}-ai.svg
 %{_datadir}/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg
 %{_metainfodir}/%{appid}.metainfo.xml
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-1
+- Verified and resumable model/runtime downloads
+- Faster bounded inference and more reliable recording workflows
+- Expanded History, safer AI integration, and refined application UI
+
 * Mon Jun 08 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.4.0-1
 - Fixed: mini panel intermittent "Generic whisper error, code -6" on Vulkan GPUs with larger models / wider beam search. Mini panel now uses a clean batch decode.
 - Fixed: borderline audio no longer breaks a transcription — whisper's built-in temperature retry re-enabled (temperature_inc = 0.2).

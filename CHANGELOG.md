@@ -3,6 +3,37 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] — 2026-07-22
+
+### Added
+
+- Resumable Whisper model downloads with checksum verification before installation.
+- Full-text History search, transcript detail views, file-transcription persistence, and corrupt-file backups.
+- Endpoint-specific AI consent, explicit auto-summary opt-in, and bounded provider responses.
+- A dedicated What's New window with grouped release highlights.
+
+### Changed
+
+- Redesigned the workspace, Settings, History, Help, model selector, navigation, and light-theme cards for a more consistent interface.
+- Made hidden startup genuinely lazy so background launch does not create the main window or load a model.
+- Moved inference to bounded workers and limited live previews to the latest audio tail for lower latency and memory use.
+- Improved audio conditioning, non-blocking capture, sidecar deadlines, and release artifact verification.
+- Simplified Current Session to show either the latest completed transcription or the active live preview.
+
+### Fixed
+
+- Fixed pause and resume state, global shortcuts, automatic language persistence, onboarding races, and cancellation handling.
+- Prevented stale transcription, AI, and paste callbacks from overwriting newer operations.
+- Hardened active-record handling, setup recovery, file transcription, and history persistence.
+- Fixed sidebar scroll shadows, navigation-row clipping, keyboard behavior, and compact-layout inconsistencies.
+- Fixed the What's New action opening an About dialog and release-note markup failing to parse.
+
+### Security
+
+- Pinned and verified downloadable runtimes, models, and sidecars before use.
+- Added local API validation, admission limits, bounded queues, timeouts, safer CORS, and stronger token handling.
+- Kept AI credentials out of plaintext settings and made release signing fail closed when signing material is unavailable.
+
 ## [1.4.0] — 2026-06-08
 
 ### Added

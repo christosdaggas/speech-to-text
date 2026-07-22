@@ -62,6 +62,7 @@ mod imp {
         pub preset_temp_spin: RefCell<Option<adw::SpinRow>>,
         pub translate_combo: RefCell<Option<adw::ComboRow>>,
         pub auto_switch: RefCell<Option<adw::SwitchRow>>,
+        pub auto_summary_switch: RefCell<Option<adw::SwitchRow>>,
 
         // System-wide transform
         pub selection_switch: RefCell<Option<adw::SwitchRow>>,
@@ -292,6 +293,12 @@ impl LlmPage {
             .build();
         over_group.add(&auto_switch);
 
+        let auto_summary_switch = adw::SwitchRow::builder()
+            .title(gettext("Automatically summarize long transcripts").as_str())
+            .subtitle(gettext("Sends long transcripts to the configured endpoint after transcription (off by default)").as_str())
+            .build();
+        over_group.add(&auto_summary_switch);
+
         self.add(&over_group);
 
         // ── System-wide transform ───────────────────────────────────
@@ -336,6 +343,7 @@ impl LlmPage {
         *imp.preset_temp_spin.borrow_mut() = Some(preset_temp_spin);
         *imp.translate_combo.borrow_mut() = Some(translate_combo);
         *imp.auto_switch.borrow_mut() = Some(auto_switch);
+        *imp.auto_summary_switch.borrow_mut() = Some(auto_summary_switch);
         *imp.selection_switch.borrow_mut() = Some(selection_switch);
         *imp.selection_shortcut_entry.borrow_mut() = Some(selection_shortcut_entry);
 
@@ -372,6 +380,9 @@ impl LlmPage {
         }
         if let Some(s) = imp.auto_switch.borrow().as_ref() {
             s.set_active(cfg.llm_auto_apply);
+        }
+        if let Some(s) = imp.auto_summary_switch.borrow().as_ref() {
+            s.set_active(cfg.llm_auto_summary);
         }
         if let Some(s) = imp.selection_switch.borrow().as_ref() {
             s.set_active(cfg.llm_selection_enabled);
@@ -442,6 +453,9 @@ impl LlmPage {
         if let Some(s) = imp.auto_switch.borrow().as_ref() {
             s.set_active(cfg.llm_auto_apply);
         }
+        if let Some(s) = imp.auto_summary_switch.borrow().as_ref() {
+            s.set_active(cfg.llm_auto_summary);
+        }
         if let Some(s) = imp.selection_switch.borrow().as_ref() {
             s.set_active(cfg.llm_selection_enabled);
         }
@@ -491,10 +505,48 @@ impl LlmPage {
         dialog.present(Some(self));
     }
 
+    fn save_endpoint(&self, url: &str) {
+        let mut config = AppConfig::load();
+        let old_scope = crate::llm::consent_scope(&config.llm_api_url);
+        let new_scope = crate::llm::consent_scope(url);
+        let consent_invalidated = old_scope != new_scope
+            && (config.llm_enabled || config.llm_consent_given);
+
+        config.llm_api_url = url.to_string();
+        if consent_invalidated {
+            config.llm_enabled = false;
+            config.llm_consent_given = false;
+            config.llm_consent_endpoint = None;
+        }
+        config.save();
+
+        if consent_invalidated {
+            self.imp().loading.set(true);
+            if let Some(enable) = self.imp().enable_switch.borrow().as_ref() {
+                enable.set_active(false);
+            }
+            self.imp().loading.set(false);
+            self.warn_dialog(
+                gettext("LLM consent required").as_str(),
+                gettext("The LLM destination changed. Review the new endpoint and enable the LLM again to consent.").as_str(),
+            );
+        }
+    }
+
     /// First-time privacy consent before enabling "Improve with AI", naming the
     /// host transcript text would be sent to.
     fn confirm_llm_enable(&self, switch: &adw::SwitchRow) {
         let cfg = AppConfig::load();
+        let Some(consent_scope) = crate::llm::consent_scope(&cfg.llm_api_url) else {
+            self.imp().loading.set(true);
+            switch.set_active(false);
+            self.imp().loading.set(false);
+            self.warn_dialog(
+                gettext("Endpoint not allowed").as_str(),
+                gettext("Enter a valid, allowed LLM endpoint before enabling the integration.").as_str(),
+            );
+            return;
+        };
         let host = crate::llm::endpoint_host(&cfg.llm_api_url)
             .unwrap_or_else(|| gettext("the configured endpoint"));
         let body = gettext(
@@ -517,6 +569,7 @@ impl LlmPage {
                 let mut c = AppConfig::load();
                 c.llm_enabled = true;
                 c.llm_consent_given = true;
+                c.llm_consent_endpoint = Some(consent_scope.clone());
                 c.save();
                 if !c.llm_api_url.trim().is_empty() {
                     page.refresh_models();
@@ -541,7 +594,10 @@ impl LlmPage {
                 }
                 if s.is_active() {
                     let mut c = AppConfig::load();
-                    if c.llm_consent_given {
+                    let consent_matches = crate::llm::consent_scope(&c.llm_api_url)
+                        .as_ref()
+                        == c.llm_consent_endpoint.as_ref();
+                    if c.llm_consent_given && consent_matches {
                         c.llm_enabled = true;
                         c.save();
                         if !c.llm_api_url.trim().is_empty() {
@@ -573,9 +629,7 @@ impl LlmPage {
                 if let Some(e) = page.imp().url_entry.borrow().as_ref() {
                     e.set_text(url);
                 }
-                let mut cfg = AppConfig::load();
-                cfg.llm_api_url = url.to_string();
-                cfg.save();
+                page.save_endpoint(url);
                 page.refresh_models();
             });
         }
@@ -584,14 +638,13 @@ impl LlmPage {
             let page = self.clone();
             e.connect_apply(move |e| {
                 let url = e.text().to_string();
-                let mut c = AppConfig::load();
-                c.llm_api_url = url.clone();
-                c.save();
-                page.refresh_models();
                 // Give immediate feedback if the URL would be rejected at send time.
                 if let Err(err) = crate::llm::validate_endpoint(&url) {
                     page.warn_dialog(gettext("Endpoint not allowed").as_str(), &err.user_message());
+                    return;
                 }
+                page.save_endpoint(&url);
+                page.refresh_models();
             });
         }
 
@@ -787,6 +840,18 @@ impl LlmPage {
                 let mut c = AppConfig::load();
                 c.llm_auto_apply = s.is_active();
                 c.save();
+            });
+        }
+
+        if let Some(s) = imp.auto_summary_switch.borrow().as_ref() {
+            let page = self.clone();
+            s.connect_active_notify(move |s| {
+                if page.imp().loading.get() {
+                    return;
+                }
+                let mut config = AppConfig::load();
+                config.llm_auto_summary = s.is_active();
+                config.save();
             });
         }
 

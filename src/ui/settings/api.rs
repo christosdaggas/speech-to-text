@@ -31,6 +31,7 @@ mod imp {
         pub token_row: RefCell<Option<adw::ActionRow>>,
         pub token_label: RefCell<Option<gtk::Label>>,
         pub status_label: RefCell<Option<gtk::Label>>,
+        pub current_token: RefCell<Option<String>>,
     }
 
     #[glib::object_subclass]
@@ -134,7 +135,7 @@ impl ApiPage {
         let token_label = gtk::Label::new(Some(&gettext("Hidden — enable the server to create it")));
         token_label.add_css_class("dim-label");
         token_label.add_css_class("monospace");
-        token_label.set_selectable(true);
+        token_label.set_selectable(false);
         token_label.set_wrap(true);
         token_label.set_max_width_chars(40);
         token_label.set_xalign(1.0);
@@ -232,13 +233,9 @@ impl ApiPage {
         // Copy the token to the clipboard.
         let page = self.clone();
         copy_btn.connect_clicked(move |_| {
-            if let Some(label) = page.imp().token_label.borrow().as_ref() {
-                let text = label.text().to_string();
-                if !text.is_empty() {
-                    if let Some(display) = gtk::gdk::Display::default() {
-                        display.clipboard().set_text(&text);
-                    }
-                }
+            let token = page.imp().current_token.borrow().clone();
+            if let (Some(token), Some(display)) = (token, gtk::gdk::Display::default()) {
+                display.clipboard().set_text(&token);
             }
         });
 
@@ -246,21 +243,36 @@ impl ApiPage {
         let page = self.clone();
         regen_btn.connect_clicked(move |_| {
             let page = page.clone();
-            let (tx, rx) = async_channel::bounded::<String>(1);
+            let (tx, rx) = async_channel::bounded::<Result<String, String>>(1);
             tokio_runtime().spawn(async move {
                 let token = crate::api::generate_token();
-                let _ = crate::secrets::store_api_token(&token).await;
-                let _ = tx.send(token).await;
+                let result = crate::secrets::store_api_token(&token)
+                    .await
+                    .map(|_| token)
+                    .map_err(|error| crate::error::redact_secrets(&error.to_string()));
+                let _ = tx.send(result).await;
             });
             glib::spawn_future_local(async move {
-                if let Ok(token) = rx.recv().await {
-                    if let Some(label) = page.imp().token_label.borrow().as_ref() {
-                        label.set_text(&token);
-                        label.remove_css_class("dim-label");
-                    }
-                    if AppConfig::load().api_server_enabled {
-                        if let Some(app) = Self::app() {
-                            app.restart_api_server();
+                if let Ok(result) = rx.recv().await {
+                    match result {
+                        Ok(token) => {
+                            *page.imp().current_token.borrow_mut() = Some(token);
+                            if let Some(label) = page.imp().token_label.borrow().as_ref() {
+                                label.set_text("••••••••••••");
+                                label.remove_css_class("dim-label");
+                            }
+                            if AppConfig::load().api_server_enabled {
+                                if let Some(app) = Self::app() {
+                                    app.restart_api_server();
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            if let Some(label) = page.imp().token_label.borrow().as_ref() {
+                                label.set_text(&gettext("Keyring error — token unchanged"));
+                                label.add_css_class("dim-label");
+                            }
+                            tracing::warn!("Could not regenerate API token: {error}");
                         }
                     }
                 }
@@ -293,6 +305,7 @@ impl ApiPage {
     /// or a placeholder when token auth is off / none exists yet.
     fn refresh_token_display(&self) {
         let config = AppConfig::load();
+        *self.imp().current_token.borrow_mut() = None;
         if let Some(label) = self.imp().token_label.borrow().as_ref() {
             label.add_css_class("dim-label");
             if !config.api_token_enabled {
@@ -311,7 +324,8 @@ impl ApiPage {
             if let Some(label) = page.imp().token_label.borrow().as_ref() {
                 match token {
                     Some(t) if !t.is_empty() => {
-                        label.set_text(&t);
+                        *page.imp().current_token.borrow_mut() = Some(t);
+                        label.set_text("••••••••••••");
                         label.remove_css_class("dim-label");
                     }
                     _ => {

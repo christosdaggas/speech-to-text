@@ -1,0 +1,4 @@
+[env]
+# bindgen with libclang 22 (Fedora 44) emits opaque structs for whisper.h,
+# breaking the whisper-rs build; fall back to whisper-rs-sys' bundled bindings.
+WHISPER_DONT_GENERATE_BINDINGS = "1"

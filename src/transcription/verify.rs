@@ -92,8 +92,22 @@ pub async fn github_asset_sha256(
 /// Fetch the published LFS SHA-256 of a file in a HuggingFace repo (via the
 /// tree API `lfs.oid`). `None` if the file isn't LFS-tracked or unavailable.
 pub async fn hf_lfs_sha256(client: &reqwest::Client, repo: &str, path: &str) -> Option<String> {
+    hf_lfs_sha256_with_token(client, repo, path, None).await
+}
+
+/// Authenticated variant for gated HuggingFace repositories.
+pub async fn hf_lfs_sha256_with_token(
+    client: &reqwest::Client,
+    repo: &str,
+    path: &str,
+    token: Option<&str>,
+) -> Option<String> {
     let url = format!("https://huggingface.co/api/models/{repo}/tree/main?recursive=true");
-    let resp = client.get(&url).send().await.ok()?;
+    let mut request = client.get(&url);
+    if let Some(token) = token.filter(|token| !token.is_empty()) {
+        request = request.bearer_auth(token);
+    }
+    let resp = request.send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
@@ -106,15 +120,44 @@ pub async fn hf_lfs_sha256(client: &reqwest::Client, repo: &str, path: &str) -> 
     None
 }
 
-/// Pinned, known-good hashes for fixed-URL artifacts. Empty entries are filled
-/// at release time (see `scripts/` / SECURITY.md); when an artifact is listed
-/// here verification is mandatory and fails closed.
-#[allow(dead_code)] // populated at release time; verification fails closed when set
-pub fn pinned(_key: &str) -> Option<&'static str> {
-    // Intentionally empty for now: provider-declared hashes (HF lfs oid /
-    // GitHub asset digest) are verified automatically at download time. Release
-    // hardening pins the runtime ZIPs here once their digests are recorded.
-    None
+/// Pinned, known-good hashes for fixed runtime URLs. These are the trust anchor
+/// when the provider API is unavailable; changing a runtime URL/version requires
+/// updating its pin after independently verifying the new release artifact.
+pub fn pinned(key: &str) -> Option<&'static str> {
+    match key {
+        "cohere-runtime-v0.1.1-linux-x86_64" => {
+            Some("a018ff8ec6f0b04d591356af1436b3a2676c810d524b97394b017f70a2734039")
+        }
+        "qwen-runtime-v0.2.0-linux-x86_64" => {
+            Some("4e3e0018a25969df5f24e33010de1318fa5856878e94a6b2ab91aaa2096027a1")
+        }
+        _ => None,
+    }
+}
+
+/// Verify a fixed runtime against its local pin and, when available, require
+/// the provider-published digest to agree with that pin as well.
+pub fn verify_pinned_file(
+    path: &Path,
+    key: &str,
+    published_sha256: Option<&str>,
+) -> AppResult<()> {
+    let expected = pinned(key).ok_or_else(|| {
+        AppError::ModelDownloadFailed(format!(
+            "No trusted checksum is pinned for runtime artifact '{key}'."
+        ))
+    })?;
+
+    if let Some(published) = published_sha256 {
+        if !expected.eq_ignore_ascii_case(published.trim()) {
+            let _ = std::fs::remove_file(path);
+            return Err(AppError::ModelDownloadFailed(format!(
+                "Published checksum for runtime artifact '{key}' conflicts with the trusted local pin."
+            )));
+        }
+    }
+
+    verify_file(path, expected)
 }
 
 fn to_hex(bytes: &[u8]) -> String {
@@ -137,6 +180,19 @@ mod tests {
             sha256_hex(b"abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn fixed_runtime_pins_are_present_and_well_formed() {
+        for key in [
+            "cohere-runtime-v0.1.1-linux-x86_64",
+            "qwen-runtime-v0.2.0-linux-x86_64",
+        ] {
+            let hash = pinned(key).expect("fixed runtime must have a pin");
+            assert_eq!(hash.len(), 64);
+            assert!(hash.bytes().all(|b| b.is_ascii_hexdigit()));
+        }
+        assert!(pinned("unknown").is_none());
     }
 
     #[test]

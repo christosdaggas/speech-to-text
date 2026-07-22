@@ -119,6 +119,11 @@ pub struct AppConfig {
     #[serde(default)]
     pub llm_consent_given: bool,
 
+    /// Normalized scheme/host/port for which consent was granted. A changed
+    /// endpoint invalidates consent even when the legacy boolean remains true.
+    #[serde(default)]
+    pub llm_consent_endpoint: Option<String>,
+
     /// OpenAI-compatible base URL (e.g. http://localhost:1234/v1).
     #[serde(default = "default_llm_url")]
     pub llm_api_url: String,
@@ -134,6 +139,11 @@ pub struct AppConfig {
     /// Auto-improve the transcript after every dictation (uses the active preset).
     #[serde(default)]
     pub llm_auto_apply: bool,
+
+    /// Automatically summarize long transcripts. Separate from auto-improve so
+    /// enabling an LLM connection alone never triggers background data sends.
+    #[serde(default)]
+    pub llm_auto_summary: bool,
 
     /// Index of the active preset in `llm_presets`.
     #[serde(default)]
@@ -280,10 +290,12 @@ impl Default for AppConfig {
             translate_to_english: false,
             llm_enabled: false,
             llm_consent_given: false,
+            llm_consent_endpoint: None,
             llm_api_url: default_llm_url(),
             llm_model: String::new(),
             llm_temperature: default_llm_temperature(),
             llm_auto_apply: false,
+            llm_auto_summary: false,
             llm_active_preset: 0,
             llm_presets: default_llm_presets(),
             llm_selection_shortcut: default_selection_shortcut(),
@@ -455,6 +467,15 @@ impl AppConfig {
                         }
                         Err(e) => {
                             warn!("Failed to parse config file: {}, using defaults", e);
+                            let backup = config_path.with_extension(format!(
+                                "json.corrupt-{}",
+                                chrono::Utc::now().timestamp()
+                            ));
+                            if let Err(rename_error) = std::fs::rename(&config_path, &backup) {
+                                warn!("Failed to preserve corrupt config: {}", rename_error);
+                            } else {
+                                warn!("Preserved corrupt config at {:?}", backup);
+                            }
                         }
                     }
                 }
@@ -760,6 +781,8 @@ mod tests {
         assert!(!cfg.auto_paste, "auto-paste should be off for new installs");
         assert!(!cfg.llm_enabled);
         assert!(!cfg.llm_consent_given);
+        assert!(cfg.llm_consent_endpoint.is_none());
+        assert!(!cfg.llm_auto_summary);
         assert!(cfg.update_check_enabled, "update check defaults on (documented)");
     }
 

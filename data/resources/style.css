@@ -3,54 +3,76 @@
 /* SPDX-License-Identifier: MIT */
 
 /*
- * Theming Strategy:
- *   - GTK4 / libadwaita (v1.5) with AdwStyleManager
- *   - All colors derive from libadwaita semantic named colors
- *   - Native style classes used wherever possible
- *   - Custom CSS only for app-specific surfaces
- *   - Works on GNOME, COSMIC (via libadwaita fallback), KDE (Adwaita rendering)
+ * Design system (UI proposal):
+ *   A refined libadwaita aesthetic — elevated cards, vivid semantic badges,
+ *   a prominent record action, and a calm, legible transcript surface.
  *
- * Libadwaita named colors used:
- *   Surface roles:  @window_bg_color, @window_fg_color,
- *                   @view_bg_color, @view_fg_color,
- *                   @headerbar_bg_color, @headerbar_fg_color,
- *                   @sidebar_bg_color, @sidebar_fg_color,
- *                   @secondary_sidebar_bg_color, @secondary_sidebar_fg_color,
- *                   @card_bg_color, @card_fg_color,
- *                   @dialog_bg_color, @dialog_fg_color,
- *                   @popover_bg_color, @popover_fg_color
- *   Accent:         @accent_bg_color, @accent_fg_color, @accent_color
- *   Semantic:       @success_bg_color, @success_fg_color, @success_color,
- *                   @warning_bg_color, @warning_fg_color, @warning_color,
- *                   @error_bg_color, @error_fg_color, @error_color,
- *                   @destructive_bg_color, @destructive_fg_color, @destructive_color
- *   Borders/shade:  @shade_color, @headerbar_shade_color
+ * Theming strategy:
+ *   - GTK4 / libadwaita (v1.5) with AdwStyleManager (light / dark / system)
+ *   - Every colour derives from a libadwaita semantic named colour so the
+ *     stylesheet is correct in all three themes without per-theme branches.
+ *   - Native style classes are augmented, never blindly redefined.
  *
- * Native style classes relied upon (not overridden here):
- *   .background, .view, .card, .suggested-action, .destructive-action,
- *   .flat, .dim-label, .accent, .success, .warning, .error,
- *   .title-1 .. .title-4, .caption, .boxed-list, .navigation-sidebar,
- *   .toolbar, headerbar, popover.menu
+ * Semantic named colours used (provided by libadwaita):
+ *   Surfaces  @window_bg_color @window_fg_color @view_bg_color @view_fg_color
+ *             @headerbar_bg_color @headerbar_fg_color @sidebar_bg_color
+ *             @sidebar_fg_color @card_bg_color @card_fg_color
+ *             @dialog_bg_color @popover_bg_color @popover_fg_color
+ *   Accent    @accent_bg_color @accent_fg_color @accent_color
+ *   Status    @success_*  @warning_*  @error_*  @destructive_*
+ *   Borders   @shade_color @headerbar_shade_color
+ *
+ * App accent palette:
+ *   translate (accent blue) ........ @accent_bg_color
+ *   improve-with-AI (violet) ....... #9141ac
+ *   privacy / offline (green) ...... @success_bg_color
+ *   recording (red) ............... @error_bg_color
  */
 
 /* ========================================
-   Sidebar
+   Sidebar — Modern Design
    ======================================== */
 
 .navigation-sidebar {
     background-color: transparent;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* The default GtkScrolledWindow undershoot draws a horizontal shadow over the
+ * first visible navigation row after scrolling, making its icon look clipped. */
+.sidebar-scroll,
+.sidebar-scroll > viewport {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.sidebar-scroll undershoot,
+.sidebar-scroll undershoot.top,
+.sidebar-scroll undershoot.bottom,
+.sidebar-scroll overshoot {
+    background: none;
+    border: none;
+    box-shadow: none;
 }
 
 .sidebar-box {
     background-color: @sidebar_bg_color;
     color: @sidebar_fg_color;
-    transition: all 200ms ease-out;
+    border-right: 1px solid alpha(@shade_color, 0.18);
+    transition: background-color 200ms ease-out;
+}
+
+/* Brand mark in the sidebar header gets a vivid green tile (matches app icon). */
+.sidebar-box .brand-mark {
+    background-color: @success_bg_color;
+    border-radius: 8px;
+    padding: 3px;
 }
 
 /* ========================================
    Scoped Popover: Theme Popover
-   Only strip background on the theme-menu popover,
-   not on every popover in the application.
    ======================================== */
 
 popover.stt-theme-menu {
@@ -69,13 +91,12 @@ popover.stt-theme-menu > contents {
     color: @popover_fg_color;
     border-radius: 12px;
     border: 1px solid alpha(@shade_color, 0.5);
-    box-shadow: 0 2px 8px alpha(black, 0.15);
+    box-shadow: 0 6px 18px alpha(black, 0.18);
     padding: 0;
 }
 
 /* ========================================
-   Cards & Containers
-   (Augment native .card — do not redefine base)
+   Cards — elevated, lift on hover
    ======================================== */
 
 .card {
@@ -83,8 +104,28 @@ popover.stt-theme-menu > contents {
 }
 
 .card:hover {
-    box-shadow: 0 4px 12px alpha(black, 0.12);
+    box-shadow: 0 6px 16px alpha(black, 0.14);
     border-color: alpha(@accent_color, 0.25);
+}
+
+/* ========================================
+   Privacy / Offline badge (header)
+   Always-truthful: transcription is local.
+   ======================================== */
+
+.offline-badge {
+    background-color: alpha(@success_bg_color, 0.16);
+    color: @success_color;
+    border: 1px solid alpha(@success_bg_color, 0.35);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 0.85em;
+    font-weight: 700;
+}
+
+.offline-badge image {
+    color: @success_color;
+    -gtk-icon-size: 13px;
 }
 
 /* ========================================
@@ -95,10 +136,12 @@ popover.stt-theme-menu > contents {
     background-color: transparent;
 }
 
+/* Transcript surface: framed as a soft card */
 .transcript-frame {
-    background-color: alpha(@view_bg_color, 0.5);
-    border: 1px solid alpha(@shade_color, 0.35);
-    border-radius: 8px;
+    background-color: alpha(@view_bg_color, 0.65);
+    border: 1px solid alpha(@shade_color, 0.30);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px alpha(black, 0.05);
 }
 
 .transcript-text {
@@ -113,16 +156,18 @@ popover.stt-theme-menu > contents {
    ======================================== */
 
 .message-bubble {
-    background-color: alpha(@card_bg_color, 0.6);
-    border: 1px solid alpha(@shade_color, 0.35);
-    border-radius: 10px;
-    padding: 12px;
+    background-color: alpha(@card_bg_color, 0.72);
+    border: 1px solid alpha(@shade_color, 0.30);
+    border-radius: 12px;
+    padding: 12px 14px;
     margin-bottom: 8px;
-    transition: background-color 150ms ease;
+    box-shadow: 0 1px 2px alpha(black, 0.04);
+    transition: background-color 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
 }
 
 .message-bubble:hover {
-    background-color: alpha(@card_bg_color, 0.85);
+    background-color: alpha(@card_bg_color, 0.95);
+    box-shadow: 0 3px 10px alpha(black, 0.08);
 }
 
 .message-bubble:focus-within {
@@ -139,7 +184,7 @@ popover.stt-theme-menu > contents {
 /* Transient live-preview bubble shown while recording. */
 .message-bubble.live-preview {
     border-style: dashed;
-    opacity: 0.75;
+    opacity: 0.78;
 }
 
 .bubble-text {
@@ -153,10 +198,7 @@ popover.stt-theme-menu > contents {
     transition: opacity 150ms ease;
 }
 
-.bubble-copy-btn:hover {
-    opacity: 1.0;
-}
-
+.bubble-copy-btn:hover,
 .bubble-copy-btn:focus {
     opacity: 1.0;
 }
@@ -164,7 +206,6 @@ popover.stt-theme-menu > contents {
 /* ========================================
    Transform-action buttons (Actions dropdown + Voice edit)
    Rounded rectangle like the HTML mockup, NOT a full pill.
-   App CSS loads at PRIORITY_APPLICATION, so this wins over libadwaita's .pill.
    ======================================== */
 
 .transform-action,
@@ -173,20 +214,23 @@ popover.stt-theme-menu > contents {
 }
 
 /* ========================================
-   Waveform Visualizer
+   Waveform / bottom panel
    ======================================== */
 
 .bottom-panel,
-.controls-area,
-.controls-panel,
 .status-bar {
     background-color: @sidebar_bg_color;
 }
 
+.controls-area,
+.controls-panel {
+    background-color: transparent;
+}
+
 .waveform-frame {
     background-color: alpha(@view_bg_color, 0.5);
-    border: 1px solid alpha(@shade_color, 0.35);
-    border-radius: 8px;
+    border: 1px solid alpha(@shade_color, 0.30);
+    border-radius: 10px;
     padding: 0;
 }
 
@@ -213,7 +257,7 @@ popover.stt-theme-menu > contents {
 }
 
 /* ========================================
-   Recording Indicator
+   Recording Indicator + pulse rings
    ======================================== */
 
 .recording-indicator {
@@ -230,31 +274,90 @@ popover.stt-theme-menu > contents {
     animation: recording-pulse 1.2s ease-in-out infinite;
 }
 
+/* Concentric expanding rings drawn around the record button while live. */
+@keyframes record-ring {
+    0%   { opacity: 0.55; }
+    100% { opacity: 0.0; }
+}
+
 /* ========================================
-   Controls Panel
+   Controls — hero record zone
    ======================================== */
 
 .controls-panel {
-    background-color: @sidebar_bg_color;
+    background-color: transparent;
+    padding: 0 12px 10px;
 }
 
-/* Squarer corners on the control-bar buttons (smaller radius). */
 .controls-panel button {
-    border-radius: 6px;
+    border-radius: 8px;
+}
+
+/* Hero zone: title + big circular record button + hint. */
+.hero-zone {
+    padding: 18px 16px 6px;
+}
+
+.hero-title {
+    font-size: 1.15em;
+    font-weight: 700;
+    color: @window_fg_color;
+    margin-bottom: 14px;
+}
+
+.hero-hint {
+    font-size: 0.85em;
+    color: alpha(@window_fg_color, 0.55);
+    margin-top: 10px;
+}
+
+/* The big circular record button. */
+.hero-record {
+    min-width: 78px;
+    min-height: 78px;
+    padding: 0;
+    box-shadow: 0 6px 18px alpha(@accent_color, 0.40);
+    transition: box-shadow 180ms ease;
+}
+.hero-record:hover {
+    box-shadow: 0 9px 24px alpha(@accent_color, 0.52);
+}
+.hero-record image {
+    -gtk-icon-size: 30px;
+}
+
+/* Live state: red stop square with a soft pulsing glow. */
+.hero-recording {
+    background-color: @error_bg_color;
+    color: @error_fg_color;
+    box-shadow: 0 6px 18px alpha(@error_color, 0.45);
+    animation: hero-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes hero-pulse {
+    0%, 100% {
+        box-shadow: 0 6px 18px alpha(@error_color, 0.45);
+    }
+    50% {
+        box-shadow: 0 6px 18px alpha(@error_color, 0.45), 0 0 0 10px alpha(@error_color, 0.16);
+    }
 }
 
 /* Mode toggles get a vivid, colourful background when ACTIVE so it's obvious
-   they're on (Translate = accent blue, Improve with AI = purple). */
+   they're on (Translate = accent blue, Improve with AI = violet). */
 .translate-toggle:checked {
     background-color: @accent_bg_color;
     color: @accent_fg_color;
+    box-shadow: 0 3px 10px alpha(@accent_color, 0.30);
 }
 .translate-toggle:checked:hover {
     background-image: image(alpha(white, 0.08));
 }
+
 .ai-toggle:checked {
     background-color: #9141ac;
     color: #ffffff;
+    box-shadow: 0 3px 10px alpha(#9141ac, 0.35);
 }
 .ai-toggle:checked:hover {
     background-image: image(alpha(white, 0.08));
@@ -262,8 +365,6 @@ popover.stt-theme-menu > contents {
 
 /* ========================================
    Custom Action: Stop Button
-   (suggested-action and destructive-action are native libadwaita —
-    stop-action is app-specific for the "stop recording" action)
    ======================================== */
 
 .stop-action {
@@ -294,9 +395,9 @@ popover.stt-theme-menu > contents {
 
 .status-bar {
     background-color: @sidebar_bg_color;
-    border-top: 1px solid alpha(@shade_color, 0.35);
+    border-top: 1px solid alpha(@shade_color, 0.30);
     padding: 4px 12px;
-    min-height: 24px;
+    min-height: 26px;
 }
 
 /* ========================================
@@ -304,9 +405,11 @@ popover.stt-theme-menu > contents {
    ======================================== */
 
 .gpu-status-panel .card {
-    background-color: alpha(@sidebar_fg_color, 0.04);
-    border-radius: 10px;
-    padding: 8px 12px;
+    background-color: alpha(@sidebar_fg_color, 0.05);
+    border: 1px solid alpha(@shade_color, 0.30);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px alpha(black, 0.05);
 }
 
 .gpu-status-panel levelbar block.filled {
@@ -329,27 +432,29 @@ popover.stt-theme-menu > contents {
 .model-loaded {
     background-color: @success_bg_color;
     color: @success_fg_color;
-    border-radius: 4px;
-    padding: 2px 8px;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-weight: 700;
 }
 
 .model-loading {
     background-color: @warning_bg_color;
     color: @warning_fg_color;
-    border-radius: 4px;
-    padding: 2px 8px;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-weight: 700;
 }
 
 .model-error {
     background-color: @error_bg_color;
     color: @error_fg_color;
-    border-radius: 4px;
-    padding: 2px 8px;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-weight: 700;
 }
 
 /* ========================================
-   Header Status Indicator
-   (Theme-aware dot replacing hardcoded RGB in draw_func)
+   Header Status Indicator dot
    ======================================== */
 
 .status-dot {
@@ -370,18 +475,22 @@ popover.stt-theme-menu > contents {
    ======================================== */
 
 .history-row {
-    background-color: transparent;
-    border-radius: 8px;
-    padding: 8px;
-    transition: background-color 150ms ease;
+    background-color: alpha(@view_bg_color, 0.5);
+    border: 1px solid alpha(@shade_color, 0.28);
+    border-radius: 12px;
+    padding: 10px 12px;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 
 .history-row:hover {
-    background-color: alpha(@view_fg_color, 0.05);
+    background-color: @card_bg_color;
+    border-color: alpha(@accent_color, 0.35);
+    box-shadow: 0 4px 12px alpha(black, 0.10);
 }
 
 .history-row:focus-within {
-    background-color: alpha(@accent_color, 0.08);
+    background-color: alpha(@accent_color, 0.10);
+    border-color: @accent_bg_color;
 }
 
 /* ========================================
@@ -402,37 +511,55 @@ popover.stt-theme-menu > contents {
 
 .caption-heading {
     font-size: 0.85em;
-    font-weight: bold;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: alpha(@window_fg_color, 0.55);
 }
 
 /* ========================================
-   Navigation
+   Navigation — Modern Design
    ======================================== */
 
 .nav-row-box {
-    min-height: 24px;
+    min-height: 32px;
+    border-radius: 10px;
+    transition: background-color 120ms ease, color 120ms ease;
 }
 
 .nav-label {
-    transition: opacity 150ms ease-out;
+    font-size: 0.92em;
+    font-weight: 500;
+    transition: opacity 150ms ease-out, color 120ms ease;
 }
 
 .navigation-sidebar row {
-    padding: 8px 12px;
-    margin: 2px 6px;
-    border-radius: 6px;
-    transition: background-color 150ms ease;
+    padding: 2px 6px;
+    margin: 1px 8px;
+    border-radius: 10px;
+    min-height: 36px;
+    transition: background-color 120ms ease;
 }
 
 .navigation-sidebar row:selected {
-    background-color: alpha(@accent_color, 0.15);
+    background-color: alpha(@accent_bg_color, 0.14);
+}
+
+.navigation-sidebar row:selected .nav-label {
+    font-weight: 600;
+    color: @accent_bg_color;
+}
+
+.navigation-sidebar row:selected .nav-row-box image {
+    color: @accent_bg_color;
 }
 
 .navigation-sidebar row:hover:not(:selected) {
-    background-color: alpha(@accent_color, 0.07);
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.navigation-sidebar row:hover:not(:selected) .nav-label {
+    color: @window_fg_color;
 }
 
 /* Remove dark background from selected language in combo dropdowns */
@@ -442,8 +569,18 @@ comborow popover listview row:selected {
 
 /* ---- Collapsed sidebar overrides ---- */
 .sidebar-collapsed .navigation-sidebar row {
-    padding: 8px 4px;
-    margin: 2px 2px;
+    padding: 0;
+    margin: 2px 4px;
+    min-height: 40px;
+}
+
+.sidebar-collapsed .navigation-sidebar .nav-row-box {
+    min-height: 40px;
+    margin: 0;
+}
+
+.sidebar-collapsed .navigation-sidebar image {
+    margin: 0;
 }
 
 /* ========================================
@@ -458,7 +595,6 @@ comborow popover listview row:selected {
 }
 
 .theme-default {
-    /* Visual indicator: half-light/half-dark split with fixed colors */
     background: conic-gradient(from 135deg, #ffffff 0deg, #ffffff 180deg, #303030 180deg, #303030 360deg);
     background-size: 100% 100%;
     background-origin: border-box;
@@ -508,7 +644,7 @@ comborow popover listview row:selected {
    ======================================== */
 
 .menu-item {
-    border-radius: 6px;
+    border-radius: 8px;
     margin: 1px 0;
     transition: background-color 100ms ease;
 }
@@ -528,14 +664,13 @@ comborow popover listview row:selected {
 
 /* ========================================
    Update Banner
-   (Uses semantic error/destructive colors instead of hardcoded hex)
    ======================================== */
 
 .update-banner {
-    background-color: alpha(@error_color, 0.15);
-    border: 1px solid alpha(@error_color, 0.3);
-    border-radius: 6px;
-    padding: 6px 10px;
+    background-color: alpha(@error_color, 0.14);
+    border: 1px solid alpha(@error_color, 0.30);
+    border-radius: 10px;
+    padding: 7px 11px;
     margin-bottom: 4px;
 }
 
@@ -545,7 +680,7 @@ comborow popover listview row:selected {
 
 .update-banner .update-link {
     font-size: 0.9em;
-    font-weight: 600;
+    font-weight: 700;
     color: @error_color;
     padding: 0;
     min-height: 0;
@@ -553,7 +688,7 @@ comborow popover listview row:selected {
 
 .update-banner-label {
     font-size: 0.85em;
-    font-weight: 600;
+    font-weight: 700;
     color: @error_color;
 }
 
@@ -577,9 +712,8 @@ comborow popover listview row:selected {
     padding: 10px 12px;
 }
 
-/* ── Mini Panel "instrument" redesign (Option M) ────────────────── */
+/* ── Mini Panel "instrument" redesign ────────────────── */
 
-/* Header state dot (red recording / green ready) */
 .mp-dot {
     min-width: 10px;
     min-height: 10px;
@@ -590,13 +724,11 @@ comborow popover listview row:selected {
 .mp-dot.ok  { background-color: @success_color; }
 .mp-state { font-weight: 700; }
 
-/* Dim technical metadata */
 .mp-meta {
     font-size: 12px;
     color: alpha(@window_fg_color, 0.55);
 }
 
-/* Big tabular timer + centiseconds */
 .mp-timer {
     font-size: 40px;
     font-weight: 700;
@@ -612,7 +744,6 @@ comborow popover listview row:selected {
 }
 .mp-wave { background-color: transparent; }
 
-/* LED level meter (green → amber → red) */
 .mp-led {
     min-width: 9px;
     min-height: 9px;
@@ -623,7 +754,6 @@ comborow popover listview row:selected {
 .mp-led.on.y { background-color: @warning_color; }
 .mp-led.on.r { background-color: @error_color; }
 
-/* Indeterminate decode segments — follow the GNOME accent */
 .mp-seg {
     min-width: 4px;
     min-height: 13px;
@@ -633,7 +763,6 @@ comborow popover listview row:selected {
 }
 .mp-seg.on { background-color: @accent_bg_color; }
 
-/* Transcript text inside a bordered card so the result page isn't empty */
 .mp-transcript { font-size: 15px; }
 .mp-transcript-box {
     background-color: alpha(@window_fg_color, 0.04);
@@ -643,7 +772,6 @@ comborow popover listview row:selected {
     min-height: 84px;
 }
 
-/* "Copied" badge */
 .mp-badge {
     font-size: 10px;
     font-weight: 700;
@@ -655,7 +783,6 @@ comborow popover listview row:selected {
     margin: 2px;
 }
 
-/* Buttons: rounded; New=suggested(blue), Copy=success(green), Paste=destructive(red) */
 .mp-btn {
     border-radius: 8px;
     font-weight: 600;
@@ -666,15 +793,2117 @@ comborow popover listview row:selected {
     color: @success_fg_color;
 }
 
-/* Body background matches the main window's sidebar colour */
 .mini-panel {
     background-color: @sidebar_bg_color;
 }
 
-/* Top bar uses the same colour as the main window's header bar */
 .mini-panel headerbar {
     background-color: @headerbar_bg_color;
     background-image: none;
     box-shadow: none;
     border-bottom: 1px solid alpha(@window_fg_color, 0.10);
+}
+
+/* ========================================
+   Mockup-accurate main window composition
+   ======================================== */
+
+.brand-mark {
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0;
+    color: white;
+    background-color: @success_bg_color;
+    border-radius: 8px;
+}
+
+.header-page-title {
+    font-size: 1.05em;
+    font-weight: 700;
+    margin-left: 8px;
+}
+
+.header-model {
+    background-color: @card_bg_color;
+    border: 1px solid alpha(@shade_color, 0.28);
+    border-radius: 999px;
+    padding: 2px 8px 2px 10px;
+}
+
+.header-model-dropdown,
+.header-model-dropdown button {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+}
+
+/* The dropdown arrow is a separate symbolic image and did not inherit the
+ * label foreground reliably after switching from dark to light. */
+.light-theme .header-model,
+.light-theme .header-model-dropdown,
+.light-theme .header-model-dropdown button,
+.light-theme .header-model-dropdown image,
+.light-theme .header-model-dropdown arrow {
+    color: @window_fg_color;
+}
+
+/* Light settings use flat, outlined groups. Libadwaita's boxed-list elevation
+ * is useful in dark mode but looks like a heavy floating panel on white. */
+.light-theme .settings-page preferencesgroup > box > box,
+.light-theme .settings-page list.boxed-list,
+.light-theme .settings-page list.content,
+.light-theme .settings-page list.boxed-list-separate > row,
+.light-theme .settings-page .card,
+.light-theme .settings-page .card:hover {
+    box-shadow: none;
+}
+
+.offline-badge {
+    padding: 5px 13px;
+    margin-right: 4px;
+}
+
+.sidebar-section-header {
+    margin-top: 14px;
+    margin-bottom: 6px;
+    margin-left: 4px;
+    color: alpha(@sidebar_fg_color, 0.45);
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.navigation-sidebar row.sidebar-section-row,
+.navigation-sidebar row.sidebar-section-row:hover {
+    background: transparent;
+    padding: 0;
+    margin: 0 8px;
+    min-height: 28px;
+    box-shadow: none;
+}
+
+.navigation-sidebar row {
+    padding: 2px 6px;
+    margin: 1px 8px;
+    border-radius: 10px;
+}
+
+.navigation-sidebar row:selected {
+    background-color: alpha(@accent_bg_color, 0.14);
+}
+
+.controls-area,
+.controls-panel {
+    background-color: transparent;
+}
+
+.controls-panel {
+    padding: 0;
+}
+
+.hero-zone {
+    padding: 30px 20px 8px;
+}
+
+.hero-state {
+    border-radius: 999px;
+    padding: 4px 12px;
+    margin-bottom: 16px;
+    font-size: 0.78em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.hero-state.ready {
+    color: @success_color;
+    background-color: alpha(@success_bg_color, 0.14);
+}
+
+.hero-state.recording {
+    color: @error_color;
+    background-color: alpha(@error_bg_color, 0.13);
+}
+
+.hero-state-dot {
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 999px;
+}
+
+.hero-state.ready .hero-state-dot {
+    background-color: @success_color;
+}
+
+.hero-state.recording .hero-state-dot {
+    background-color: @error_color;
+}
+
+.hero-title {
+    font-size: 1.65em;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.hero-subtitle,
+.hero-hint {
+    color: alpha(@window_fg_color, 0.56);
+}
+
+.hero-subtitle {
+    font-size: 0.96em;
+    margin-bottom: 18px;
+}
+
+button.hero-record {
+    min-width: 96px;
+    min-height: 96px;
+    border-radius: 999px;
+    padding: 0;
+    box-shadow: 0 9px 24px alpha(@accent_color, 0.38);
+}
+
+button.hero-record:hover {
+    box-shadow: 0 11px 28px alpha(@accent_color, 0.48);
+}
+
+button.hero-record.hero-recording {
+    background-color: @error_bg_color;
+    color: @error_fg_color;
+    box-shadow: 0 9px 24px alpha(@error_color, 0.38);
+}
+
+.hero-hint {
+    font-size: 0.88em;
+    margin-top: 13px;
+}
+
+.hero-mode-row {
+    margin-top: 12px;
+    margin-bottom: 2px;
+}
+
+.mode-switcher {
+    background-color: alpha(@card_bg_color, 0.86);
+    border: 1px solid alpha(@shade_color, 0.28);
+    border-radius: 999px;
+    padding: 3px;
+}
+
+.mode-switcher .mode-chip {
+    background: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    color: alpha(@window_fg_color, 0.62);
+    font-weight: 600;
+}
+
+.mode-switcher .mode-chip:checked {
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 600;
+}
+
+.transcript-view {
+    background-color: transparent;
+}
+
+.transcript-card {
+    background-color: @card_bg_color;
+    border: 1px solid alpha(@shade_color, 0.30);
+    border-radius: 14px;
+    box-shadow: 0 3px 12px alpha(black, 0.09);
+}
+
+.transcript-card.recording {
+    border-color: alpha(@accent_color, 0.34);
+}
+
+.transcript-card-header {
+    padding: 11px 16px;
+    border-bottom: 1px solid alpha(@shade_color, 0.24);
+}
+
+.transcript-timer {
+    font-weight: 700;
+}
+
+.transcript-metadata {
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.88em;
+}
+
+.transcript-card-body {
+    background-color: transparent;
+    border-top: 1px solid alpha(@shade_color, 0.18);
+}
+
+.transcript-placeholder {
+    color: alpha(@window_fg_color, 0.48);
+    font-size: 1.02em;
+}
+
+.transcript-card .message-bubble {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 12px;
+}
+
+.transcript-card .message-bubble.selected {
+    background-color: transparent;
+    border: none;
+}
+
+.transcript-card .bubble-text {
+    font-size: 1.08em;
+    line-height: 1.62;
+}
+
+.transcript-card-footer {
+    padding: 10px 14px;
+    background-color: alpha(@sidebar_bg_color, 0.78);
+    border-top: 1px solid alpha(@shade_color, 0.25);
+    border-radius: 0 0 14px 14px;
+}
+
+.variant-dropdown,
+.variant-dropdown button,
+.footer-action,
+.ai-action {
+    border-radius: 10px;
+}
+
+.ai-action {
+    color: #9141ac;
+    background-color: alpha(#9141ac, 0.14);
+    border: none;
+    font-weight: 700;
+}
+
+.copied-badge {
+    color: @success_color;
+    background-color: alpha(@success_bg_color, 0.14);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-weight: 700;
+}
+
+.footer-stop {
+    padding-left: 14px;
+    padding-right: 14px;
+    font-weight: 700;
+}
+
+.waveform {
+    color: @accent_bg_color;
+    background-color: transparent;
+}
+
+/* ========================================
+   Status Bar — Modern Design
+   ======================================== */
+
+.status-bar {
+    min-height: 28px;
+    background-color: @sidebar_bg_color;
+    border-top: 1px solid alpha(@shade_color, 0.18);
+    padding: 2px 16px;
+}
+
+.status-bar caption,
+.status-bar .caption {
+    font-size: 0.82em;
+    font-weight: 500;
+}
+
+.gpu-status-panel .card {
+    background-color: @card_bg_color;
+    border-radius: 12px;
+    box-shadow: 0 2px 7px alpha(black, 0.10);
+}
+
+/* ========================================
+   Final Apple + Adwaita transcription page
+   ======================================== */
+
+.transcription-page {
+    background-color: @window_bg_color;
+    background-image: linear-gradient(135deg,
+        alpha(@accent_bg_color, 0.035),
+        alpha(#9141ac, 0.025));
+}
+
+.transcription-content,
+.controls-area,
+.controls-panel,
+.transcript-view {
+    background-color: transparent;
+}
+
+.controls-panel {
+    margin-left: 28px;
+    margin-right: 28px;
+    padding: 0;
+}
+
+.hero-zone {
+    min-height: 225px;
+    padding: 24px 18px 20px;
+    border-bottom: 1px solid alpha(@shade_color, 0.26);
+}
+
+.hero-copy {
+    padding-left: 0;
+}
+
+.hero-kicker {
+    margin-bottom: 7px;
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.hero-state {
+    padding: 0;
+    margin-bottom: 10px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.88em;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.hero-state.ready {
+    color: @success_color;
+    background: transparent;
+}
+
+.hero-state.recording {
+    color: @error_color;
+    background: transparent;
+}
+
+.hero-state-dot {
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 999px;
+}
+
+.hero-title {
+    margin-bottom: 7px;
+    color: @window_fg_color;
+    font-size: 1.85em;
+    font-weight: 700;
+}
+
+.hero-subtitle {
+    color: alpha(@window_fg_color, 0.62);
+    font-size: 1.0em;
+    line-height: 1.5;
+}
+
+.hero-hint {
+    margin-top: 20px;
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.88em;
+}
+
+.hero-action {
+    min-width: 174px;
+}
+
+button.hero-record,
+button.hero-record.suggested-action,
+button.hero-record.hero-recording {
+    min-width: 104px;
+    min-height: 104px;
+    padding: 0;
+    color: white;
+    background-color: #ff453a;
+    background-image: linear-gradient(#ff6259, #ff3b30);
+    border: 6px solid alpha(white, 0.88);
+    border-radius: 999px;
+    box-shadow: 0 12px 26px alpha(#ff3b30, 0.26), 0 0 0 1px alpha(black, 0.08);
+}
+
+button.hero-record:hover,
+button.hero-record.suggested-action:hover {
+    background-image: linear-gradient(#ff7068, #ff453a);
+    box-shadow: 0 15px 32px alpha(#ff3b30, 0.32), 0 0 0 1px alpha(black, 0.08);
+}
+
+button.hero-record.hero-recording {
+    animation: hero-pulse 1.3s ease-in-out infinite;
+}
+
+.hero-record-label {
+    margin-top: 8px;
+    color: alpha(@window_fg_color, 0.62);
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.hero-mode-row {
+    min-height: 58px;
+    padding: 10px 18px;
+    margin: 0;
+    border-bottom: 1px solid alpha(@shade_color, 0.26);
+    background-color: transparent;
+}
+
+.mode-label {
+    color: alpha(@window_fg_color, 0.58);
+    font-size: 0.85em;
+    font-weight: 700;
+}
+
+.mode-switcher {
+    padding: 2px;
+    border: none;
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.08);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 30px;
+    padding: 4px 13px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: alpha(@window_fg_color, 0.62);
+    font-weight: 600;
+}
+
+.mode-switcher .mode-chip:checked {
+    color: @card_fg_color;
+    background-color: @card_bg_color;
+    box-shadow: 0 2px 5px alpha(black, 0.12);
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 32px;
+    padding: 4px 12px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.transcript-card {
+    margin-top: 0;
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.transcript-card.recording {
+    border: none;
+}
+
+.transcript-card-header {
+    min-height: 50px;
+    padding: 10px 18px;
+    background: transparent;
+    border-bottom: none;
+}
+
+.transcript-section-title {
+    margin-right: 8px;
+    color: @window_fg_color;
+    font-size: 0.95em;
+    font-weight: 700;
+}
+
+.transcript-card .waveform {
+    margin-left: 18px;
+    margin-right: 18px;
+    color: @accent_bg_color;
+    opacity: 0.35;
+    border-top: 1px solid alpha(@shade_color, 0.22);
+    border-bottom: 1px solid alpha(@shade_color, 0.22);
+    transition: opacity 180ms ease;
+}
+
+.transcript-card.recording .waveform {
+    opacity: 1.0;
+}
+
+.transcript-card-body {
+    background: transparent;
+    border: none;
+}
+
+.transcript-empty-state {
+    color: alpha(@window_fg_color, 0.55);
+}
+
+.transcript-empty-glyph {
+    min-width: 46px;
+    min-height: 46px;
+    margin-bottom: 4px;
+    color: @accent_color;
+    background-color: alpha(@accent_bg_color, 0.14);
+    border-radius: 14px;
+}
+
+.transcript-empty-title {
+    color: @window_fg_color;
+    font-size: 1.0em;
+    font-weight: 700;
+}
+
+.transcript-empty-subtitle {
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.88em;
+}
+
+.transcript-card .message-bubble,
+.transcript-card .message-bubble.selected {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
+.transcript-card-footer {
+    min-height: 52px;
+    padding: 9px 18px;
+    background: transparent;
+    border-top: 1px solid alpha(@shade_color, 0.22);
+    border-radius: 0;
+}
+
+.variant-dropdown,
+.variant-dropdown button,
+.footer-action,
+.ai-action,
+.transform-action,
+.transform-action > button {
+    border-radius: 10px;
+}
+
+/* ========================================
+   Native polish pass
+   ======================================== */
+
+.transcription-page {
+    background-color: @window_bg_color;
+    background-image: none;
+}
+
+.hero-zone {
+    min-height: 205px;
+    padding: 20px 12px 17px;
+}
+
+.hero-title {
+    font-size: 1.7em;
+}
+
+.hero-action {
+    min-width: 150px;
+}
+
+button.hero-record,
+button.hero-record.suggested-action,
+button.hero-record.hero-recording {
+    min-width: 96px;
+    min-height: 96px;
+    background-color: #ff453a;
+    background-image: none;
+    border: 3px solid alpha(white, 0.62);
+    box-shadow: none;
+}
+
+button.hero-record:hover,
+button.hero-record.suggested-action:hover,
+button.hero-record.hero-recording:hover {
+    background-color: #ff5148;
+    background-image: none;
+    box-shadow: none;
+}
+
+.hero-mode-row {
+    min-height: 52px;
+    padding: 8px 12px;
+}
+
+.mode-switcher {
+    padding: 2px;
+    background-color: alpha(@window_fg_color, 0.055);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 28px;
+    padding: 2px 12px;
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 30px;
+    padding: 3px 10px;
+    border: 1px solid alpha(@shade_color, 0.30);
+    background-color: alpha(@card_bg_color, 0.56);
+    box-shadow: none;
+}
+
+.translate-toggle:checked,
+.ai-toggle:checked {
+    box-shadow: none;
+}
+
+.transcript-card .mp-seg {
+    min-height: 4px;
+    border-radius: 999px;
+    background-color: alpha(@window_fg_color, 0.09);
+}
+
+.transcript-card .mp-seg.on {
+    background-color: @accent_bg_color;
+}
+
+.transcript-card-footer {
+    min-height: 46px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.footer-action,
+.variant-dropdown,
+.variant-dropdown button {
+    min-height: 30px;
+    padding: 3px 9px;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+.footer-action:hover,
+.variant-dropdown button:hover {
+    background-color: alpha(@window_fg_color, 0.07);
+}
+
+.ai-action {
+    min-height: 30px;
+    padding: 3px 10px;
+    background-color: alpha(#9141ac, 0.11);
+    box-shadow: none;
+}
+
+.gpu-status-panel {
+    margin-top: 6px;
+}
+
+.gpu-status-panel .card,
+.gpu-status-panel .card:hover {
+    background-color: transparent;
+    border: none;
+    border-top: 1px solid alpha(@shade_color, 0.20);
+    border-radius: 0;
+    box-shadow: none;
+    padding: 10px 12px;
+}
+
+/* ========================================
+   Cohesive interaction and toolbar system
+   ======================================== */
+
+headerbar.sidebar-headerbar,
+headerbar.content-headerbar {
+    min-height: 52px;
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom: 1px solid alpha(@shade_color, 0.20);
+    box-shadow: none;
+}
+
+headerbar.sidebar-headerbar {
+    background-color: @sidebar_bg_color;
+}
+
+.hero-mode-row {
+    min-height: 44px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 14px;
+    background-color: alpha(@card_bg_color, 0.62);
+    box-shadow: 0 1px 3px alpha(black, 0.07);
+}
+
+.mode-label {
+    color: alpha(@window_fg_color, 0.48);
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.mode-switcher {
+    padding: 2px;
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.07);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 30px;
+    padding: 3px 12px;
+    border-radius: 8px;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.mode-switcher .mode-chip:hover:not(:checked) {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.055);
+}
+
+.mode-switcher .mode-chip:checked {
+    background-color: @card_bg_color;
+    color: @card_fg_color;
+    box-shadow: 0 1px 3px alpha(black, 0.14);
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 32px;
+    padding: 3px 11px;
+    border: none;
+    border-radius: 10px;
+    background-color: transparent;
+    box-shadow: none;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.hero-toggle:hover {
+    background-color: alpha(@window_fg_color, 0.07);
+}
+
+.tool-toggle-content {
+    color: inherit;
+}
+
+.translate-toggle:checked {
+    color: @accent_fg_color;
+    background-color: @accent_bg_color;
+}
+
+.ai-toggle:checked {
+    color: white;
+    background-color: #9141ac;
+}
+
+.transcript-card-body {
+    background-color: alpha(@card_bg_color, 0.42);
+    border: 1px solid alpha(@shade_color, 0.24);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px alpha(black, 0.05);
+}
+
+.transcript-card .message-bubble,
+.transcript-card .message-bubble.selected {
+    margin-bottom: 10px;
+}
+
+.transcript-card-footer {
+    min-height: 44px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 12px;
+    background-color: alpha(@card_bg_color, 0.38);
+}
+
+.footer-action,
+.variant-dropdown,
+.variant-dropdown button {
+    min-height: 30px;
+    padding: 3px 10px;
+    border: 1px solid alpha(@shade_color, 0.22);
+    border-radius: 9px;
+    background-color: alpha(@card_bg_color, 0.82);
+    box-shadow: 0 1px 2px alpha(black, 0.06);
+    transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.footer-action:hover,
+.variant-dropdown button:hover {
+    background-color: @card_bg_color;
+    border-color: alpha(@accent_color, 0.24);
+}
+
+.ai-action {
+    min-height: 30px;
+    padding: 3px 10px;
+    border: none;
+    border-radius: 9px;
+    background-color: alpha(#9141ac, 0.13);
+    color: #9141ac;
+    box-shadow: none;
+}
+
+/* Restrained recording workspace */
+
+.hero-zone {
+    min-height: 178px;
+    padding: 20px 14px 14px;
+    border-bottom: none;
+}
+
+.hero-state {
+    margin-bottom: 7px;
+}
+
+.hero-title {
+    margin-bottom: 5px;
+    font-size: 1.58em;
+}
+
+.hero-subtitle {
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+.hero-hint {
+    margin-top: 14px;
+    font-size: 0.82em;
+}
+
+.hero-action {
+    min-width: 148px;
+}
+
+.hero-mode-row {
+    min-height: 38px;
+    margin: 0;
+    padding: 4px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.mode-switcher {
+    padding: 2px;
+    border-radius: 9px;
+    background-color: alpha(@window_fg_color, 0.065);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 28px;
+    padding: 2px 11px;
+    border-radius: 7px;
+    font-size: 0.9em;
+}
+
+.mode-switcher .mode-chip:checked {
+    color: @window_fg_color;
+    background-color: alpha(@card_bg_color, 0.92);
+    box-shadow: 0 1px 3px alpha(black, 0.12);
+}
+
+separator.tool-separator {
+    min-height: 20px;
+    min-width: 1px;
+    background-color: alpha(@shade_color, 0.42);
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 30px;
+    padding: 2px 9px;
+    border: none;
+    border-radius: 8px;
+    color: alpha(@window_fg_color, 0.70);
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.9em;
+}
+
+.hero-toggle:hover,
+.hero-toggle:checked:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.065);
+}
+
+.translate-toggle:checked,
+.ai-toggle:checked {
+    color: @accent_color;
+    background-color: alpha(@accent_bg_color, 0.11);
+}
+
+.transcript-card {
+    margin-top: 8px;
+}
+
+.transcript-card-header {
+    min-height: 44px;
+    padding: 7px 18px;
+}
+
+.transcript-card-body {
+    background-color: alpha(@card_bg_color, 0.38);
+    border: none;
+    border-radius: 16px;
+    box-shadow: none;
+}
+
+.transcript-empty-glyph {
+    min-width: 42px;
+    min-height: 42px;
+    background-color: alpha(@accent_bg_color, 0.10);
+}
+
+.transcript-card-footer {
+    min-height: 40px;
+    padding: 4px 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+.transcript-action-group {
+    padding: 3px;
+    border-radius: 11px;
+    background-color: alpha(@window_fg_color, 0.055);
+}
+
+.transcript-action-group .footer-action,
+.transcript-action-group .ai-action,
+.transcript-action-group .transform-action,
+.transcript-action-group .transform-action > button {
+    min-height: 28px;
+    padding: 2px 9px;
+    border: none;
+    border-radius: 8px;
+    color: alpha(@window_fg_color, 0.78);
+    background: transparent;
+    box-shadow: none;
+}
+
+.transcript-action-group .footer-action:hover,
+.transcript-action-group .ai-action:hover,
+.transcript-action-group .transform-action:hover,
+.transcript-action-group .transform-action > button:hover {
+    color: @window_fg_color;
+    background-color: alpha(@card_bg_color, 0.82);
+}
+
+.variant-dropdown,
+.variant-dropdown button {
+    min-height: 28px;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* ========================================
+   Final recording workspace redesign
+   ======================================== */
+
+.transcription-page {
+    background-color: @window_bg_color;
+    background-image: none;
+}
+
+.workspace-surface {
+    margin-left: 30px;
+    margin-right: 30px;
+    margin-top: 20px;
+    margin-bottom: 24px;
+    padding: 0;
+    background-color: alpha(@card_bg_color, 0.55);
+    border: 1px solid alpha(@window_fg_color, 0.07);
+    border-radius: 24px;
+    box-shadow: 0 24px 60px alpha(black, 0.10), 0 2px 6px alpha(black, 0.05);
+}
+
+.controls-panel {
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.hero-zone {
+    min-height: 148px;
+    padding: 22px 24px 12px;
+    border-bottom: none;
+}
+
+.hero-title {
+    margin-bottom: 4px;
+    color: @window_fg_color;
+    font-size: 1.50em;
+    font-weight: 700;
+    letter-spacing: -0.012em;
+}
+
+.hero-subtitle {
+    color: alpha(@window_fg_color, 0.62);
+    font-size: 0.94em;
+    line-height: 1.42;
+}
+
+.hero-hint {
+    margin-top: 9px;
+    color: alpha(@window_fg_color, 0.50);
+    font-size: 0.80em;
+}
+
+.hero-action {
+    min-width: 120px;
+}
+
+button.hero-record,
+button.hero-record.suggested-action,
+button.hero-record.hero-recording {
+    min-width: 72px;
+    min-height: 72px;
+    padding: 0;
+    color: white;
+    background-color: #e44339;
+    background-image: none;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px alpha(#e44339, 0.22);
+}
+
+button.hero-record:hover,
+button.hero-record.suggested-action:hover,
+button.hero-record.hero-recording:hover {
+    background-color: #ee5147;
+    background-image: none;
+    box-shadow: 0 13px 28px alpha(#e44339, 0.27);
+}
+
+button.hero-record.hero-recording {
+    animation: none;
+}
+
+.hero-state {
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.hero-state.ready {
+    color: @success_color;
+}
+
+.hero-state.recording {
+    color: @error_color;
+}
+
+.hero-state-dot {
+    min-width: 7px;
+    min-height: 7px;
+    border-radius: 999px;
+}
+
+.hero-record-label {
+    margin-top: 0;
+}
+
+.hero-mode-row {
+    min-height: 42px;
+    margin: 0;
+    padding: 0 26px 14px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.mode-switcher {
+    padding: 3px;
+    border-radius: 12px;
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 30px;
+    padding: 3px 14px;
+    border-radius: 9px;
+    color: alpha(@window_fg_color, 0.62);
+    font-size: 0.88em;
+    font-weight: 600;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.mode-switcher .mode-chip:hover:not(:checked) {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.mode-switcher .mode-chip:checked {
+    color: @window_fg_color;
+    background-color: @card_bg_color;
+    box-shadow: 0 1px 4px alpha(black, 0.10);
+}
+
+separator.tool-separator {
+    min-height: 22px;
+    min-width: 1px;
+    background-color: alpha(@shade_color, 0.25);
+    margin: 0 2px;
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 30px;
+    padding: 3px 11px;
+    border: none;
+    border-radius: 8px;
+    color: alpha(@window_fg_color, 0.64);
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 600;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.hero-toggle:hover,
+.hero-toggle:checked:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.translate-toggle:checked,
+.ai-toggle:checked {
+    color: @accent_color;
+    background-color: alpha(@accent_bg_color, 0.10);
+}
+
+.transcript-view {
+    background: transparent;
+}
+
+.transcript-card {
+    margin-top: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.transcript-card.recording {
+    border: none;
+}
+
+.transcript-card-header {
+    min-height: 46px;
+    padding: 10px 0 8px;
+    background: transparent;
+    border-bottom: 1px solid alpha(@shade_color, 0.14);
+}
+
+.transcript-section-title {
+    margin-right: 4px;
+    color: @window_fg_color;
+    font-size: 0.91em;
+    font-weight: 700;
+}
+
+.transcript-card .waveform {
+    color: alpha(@window_fg_color, 0.30);
+    opacity: 0.55;
+    border-top: none;
+    border-bottom: 1px solid alpha(@shade_color, 0.14);
+    transition: opacity 180ms ease;
+}
+
+.transcript-card.recording .waveform {
+    color: @error_color;
+    opacity: 1.0;
+}
+
+.transcript-card-body {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.transcript-empty-state {
+    color: alpha(@window_fg_color, 0.52);
+}
+
+.transcript-empty-glyph {
+    min-width: 44px;
+    min-height: 44px;
+    margin-bottom: 3px;
+    color: @accent_color;
+    background-color: alpha(@accent_bg_color, 0.08);
+    border-radius: 14px;
+}
+
+.transcript-empty-title {
+    color: @window_fg_color;
+    font-size: 0.98em;
+    font-weight: 700;
+}
+
+.transcript-empty-subtitle {
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.86em;
+}
+
+.transcript-card .message-bubble,
+.transcript-card .message-bubble.selected {
+    margin-bottom: 10px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.transcript-card-footer {
+    min-height: 40px;
+    padding: 8px 0 0;
+    border: none;
+    border-top: 1px solid alpha(@shade_color, 0.14);
+    border-radius: 0;
+    background: transparent;
+}
+
+.transcript-action-group {
+    padding: 2px;
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.040);
+}
+
+.transcript-action-group .footer-action,
+.transcript-action-group .ai-action,
+.transcript-action-group .transform-action,
+.transcript-action-group .transform-action > button {
+    min-height: 28px;
+    padding: 2px 9px;
+    border: none;
+    border-radius: 7px;
+    color: alpha(@window_fg_color, 0.72);
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.88em;
+    font-weight: 600;
+}
+
+.transcript-action-group .footer-action:hover,
+.transcript-action-group .ai-action:hover,
+.transcript-action-group .transform-action:hover,
+.transcript-action-group .transform-action > button:hover {
+    color: @window_fg_color;
+    background-color: alpha(@card_bg_color, 0.82);
+}
+
+.variant-dropdown,
+.variant-dropdown button {
+    min-height: 28px;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.88em;
+}
+
+.variant-dropdown button:hover {
+    background-color: alpha(@window_fg_color, 0.05);
+}
+
+/* ========================================
+   V4 — centred capture stage + single-surface session card
+   (final layer: overrides the passes above)
+   ======================================== */
+
+/* --- Stage: everything centres on the record orb --- */
+
+.hero-zone {
+    min-height: 0;
+    padding: 22px 0 16px;
+    border: none;
+    background-image: radial-gradient(circle farthest-side at 50% 42%,
+        alpha(#ff453a, 0.06), alpha(#ff453a, 0));
+}
+
+/* Orb sits beside the text column (was stacked on top) — keeps the zone short. */
+.hero-text {
+    margin: 0;
+}
+
+button.hero-record,
+button.hero-record.suggested-action,
+button.hero-record.hero-recording {
+    min-width: 84px;
+    min-height: 84px;
+    padding: 0;
+    color: white;
+    background-color: #e8362b;
+    background-image: linear-gradient(155deg, #ff6f63, #e8362b);
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 0 0 10px alpha(#ff453a, 0.07),
+                0 0 0 22px alpha(#ff453a, 0.035),
+                0 16px 38px alpha(#e43d33, 0.35),
+                inset 0 1px 0 alpha(white, 0.25);
+    transition: box-shadow 160ms ease;
+}
+
+button.hero-record:hover,
+button.hero-record.suggested-action:hover,
+button.hero-record.hero-recording:hover {
+    background-image: linear-gradient(155deg, #ff7d72, #f04136);
+    box-shadow: 0 0 0 12px alpha(#ff453a, 0.10),
+                0 0 0 26px alpha(#ff453a, 0.05),
+                0 18px 44px alpha(#e43d33, 0.42),
+                inset 0 1px 0 alpha(white, 0.28);
+}
+
+/* Expanding-ring pulse while live. */
+@keyframes orb-pulse {
+    0% {
+        box-shadow: 0 0 0 0 alpha(@error_color, 0.35),
+                    0 16px 38px alpha(#e43d33, 0.35),
+                    inset 0 1px 0 alpha(white, 0.25);
+    }
+    100% {
+        box-shadow: 0 0 0 26px alpha(@error_color, 0.0),
+                    0 16px 38px alpha(#e43d33, 0.35),
+                    inset 0 1px 0 alpha(white, 0.25);
+    }
+}
+
+button.hero-record.hero-recording {
+    animation: orb-pulse 1.5s ease-out infinite;
+}
+
+.hero-state {
+    margin-top: 0;
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 0.74em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.hero-state.ready {
+    color: @success_color;
+    background-color: alpha(@success_color, 0.10);
+    border: 1px solid alpha(@success_color, 0.22);
+}
+
+.hero-state.recording {
+    color: @error_color;
+    background-color: alpha(@error_color, 0.10);
+    border: 1px solid alpha(@error_color, 0.22);
+}
+
+.hero-state.ready .hero-state-dot {
+    background-color: @success_color;
+    box-shadow: 0 0 8px alpha(@success_color, 0.85);
+}
+
+.hero-state.recording .hero-state-dot {
+    background-color: @error_color;
+    box-shadow: 0 0 8px alpha(@error_color, 0.85);
+    animation: recording-pulse 1.2s ease-in-out infinite;
+}
+
+.hero-title {
+    margin-top: 8px;
+    margin-bottom: 0;
+    font-size: 1.5em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.hero-subtitle {
+    margin-top: 4px;
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.92em;
+    line-height: 1.45;
+}
+
+.hero-hint {
+    margin-top: 12px;
+    padding: 5px 16px;
+    border-radius: 999px;
+    border: 1px solid alpha(@window_fg_color, 0.07);
+    background-color: alpha(@window_fg_color, 0.045);
+    color: alpha(@window_fg_color, 0.52);
+    font-size: 0.78em;
+    font-weight: 600;
+}
+
+/* Pause / Cancel — visible only while recording. */
+.rec-tools {
+    margin-top: 12px;
+}
+
+.rec-tools .rec-tool {
+    min-height: 34px;
+    padding: 4px 16px;
+    border: 1px solid alpha(@shade_color, 0.25);
+    border-radius: 999px;
+    color: alpha(@window_fg_color, 0.78);
+    background-color: alpha(@card_bg_color, 0.65);
+    box-shadow: 0 1px 3px alpha(black, 0.04);
+    font-size: 0.86em;
+    font-weight: 600;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.rec-tools .rec-tool:hover {
+    color: @window_fg_color;
+    background-color: @card_bg_color;
+    border-color: alpha(@shade_color, 0.40);
+}
+
+.rec-tools .rec-tool.destructive-action {
+    color: @error_color;
+    border-color: alpha(@error_color, 0.25);
+    background-color: alpha(@error_color, 0.06);
+}
+
+.rec-tools .rec-tool.destructive-action:hover {
+    background-color: alpha(@error_color, 0.12);
+    border-color: alpha(@error_color, 0.35);
+}
+
+.hero-mode-row {
+    min-height: 0;
+    margin: 0;
+    padding: 16px 0 22px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.mode-switcher {
+    padding: 4px;
+    border: 1px solid alpha(@window_fg_color, 0.06);
+    border-radius: 999px;
+    background-color: alpha(@window_fg_color, 0.05);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 30px;
+    padding: 3px 16px;
+    border-radius: 999px;
+    color: alpha(@window_fg_color, 0.60);
+    font-size: 0.88em;
+    font-weight: 600;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.mode-switcher .mode-chip:hover:not(:checked) {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.mode-switcher .mode-chip:checked {
+    color: @accent_fg_color;
+    background-color: @accent_bg_color;
+    background-image: linear-gradient(160deg, shade(@accent_bg_color, 1.14), shade(@accent_bg_color, 0.94));
+    box-shadow: 0 2px 10px alpha(@accent_bg_color, 0.38);
+}
+
+separator.tool-separator {
+    min-height: 0;
+    min-width: 0;
+    margin: 0 3px;
+    background: transparent;
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 32px;
+    padding: 3px 14px;
+    border: 1px solid alpha(@window_fg_color, 0.09);
+    border-radius: 999px;
+    color: alpha(@window_fg_color, 0.66);
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 600;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.hero-toggle:hover,
+.hero-toggle:checked:hover {
+    color: @window_fg_color;
+    border-color: alpha(@window_fg_color, 0.16);
+    background-color: alpha(@window_fg_color, 0.05);
+}
+
+.translate-toggle:checked,
+.ai-toggle:checked {
+    color: @accent_color;
+    border-color: alpha(@accent_bg_color, 0.35);
+    background-color: alpha(@accent_bg_color, 0.12);
+}
+
+.open-file-btn {
+    color: alpha(@window_fg_color, 0.68);
+}
+
+/* --- Session card: one surface, no card-in-card --- */
+
+.transcript-card-header {
+    min-height: 42px;
+    padding: 10px 20px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+}
+
+.transcript-section-title {
+    color: alpha(@window_fg_color, 0.55);
+    font-size: 0.76em;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+}
+
+.transcript-empty-glyph {
+    min-width: 54px;
+    min-height: 54px;
+    margin-bottom: 6px;
+    color: @accent_color;
+    border-radius: 999px;
+    background-color: alpha(@accent_bg_color, 0.10);
+    background-image: linear-gradient(160deg, alpha(@accent_bg_color, 0.20), alpha(@accent_bg_color, 0.05));
+}
+
+.transcript-card-body {
+    background: none;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* Bubbles become quiet rows with a clear hover + selection state. */
+.transcript-card .message-bubble {
+    margin-bottom: 4px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    background-color: transparent;
+    box-shadow: none;
+    transition: background-color 140ms ease;
+}
+
+.transcript-card .message-bubble:hover {
+    background-color: alpha(@window_fg_color, 0.045);
+}
+
+.transcript-card .message-bubble.selected {
+    margin-bottom: 4px;
+    padding: 8px 14px 8px 11px;
+    border: none;
+    border-left: 3px solid @accent_bg_color;
+    border-radius: 10px;
+    background: none;
+    background-color: alpha(@accent_bg_color, 0.09);
+    box-shadow: none;
+}
+
+.transcript-card .message-bubble.live-preview,
+.transcript-card .message-bubble.live-preview:hover {
+    background-color: transparent;
+    border: none;
+    padding: 8px 14px;
+}
+
+/* ========================================
+   V5 — Minimal Apple-style recording area
+   (final layer: overrides every pass above)
+   ======================================== */
+
+/* The right content area is one flat surface: white in light, dark grey in dark
+   (both are @card_bg_color). The recording "card" blends straight into it — no
+   border, no shadow, no separate fill. */
+.transcription-page {
+    background-color: @card_bg_color;
+    background-image: none;
+}
+
+.workspace-surface {
+    margin: 8px 24px 14px;
+    padding: 0;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* --- Hero: orb beside text, calm and clean (no red glow) --- */
+.hero-zone {
+    min-height: 0;
+    padding: 24px 22px 18px;
+    border: none;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+    background-image: none;
+}
+
+.hero-text {
+    margin: 0;
+}
+
+button.hero-record,
+button.hero-record.suggested-action,
+button.hero-record.hero-recording {
+    min-width: 72px;
+    min-height: 72px;
+    padding: 0;
+    color: white;
+    background-color: #ff3b30;
+    background-image: none;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 1px 3px alpha(black, 0.20), inset 0 1px 0 alpha(white, 0.18);
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+    animation: none;
+}
+
+button.hero-record:hover,
+button.hero-record.suggested-action:hover,
+button.hero-record.hero-recording:hover {
+    background-color: #ff544a;
+    background-image: none;
+    box-shadow: 0 2px 6px alpha(black, 0.24), inset 0 1px 0 alpha(white, 0.20);
+}
+
+button.hero-record.hero-recording {
+    background-color: #ff3b30;
+    border-radius: 22px;
+    animation: none;
+}
+
+.hero-state {
+    margin-top: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    background-color: transparent;
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.hero-state.ready {
+    color: #34c759;
+    background: none;
+    background-color: transparent;
+    border: none;
+}
+
+.hero-state.recording {
+    color: #ff3b30;
+    background: none;
+    background-color: transparent;
+    border: none;
+}
+
+.hero-state.ready .hero-state-dot {
+    background-color: #34c759;
+    box-shadow: none;
+}
+
+.hero-state.recording .hero-state-dot {
+    background-color: #ff3b30;
+    box-shadow: none;
+}
+
+.hero-title {
+    margin-top: 6px;
+    margin-bottom: 0;
+    color: @window_fg_color;
+    font-size: 1.38em;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.hero-subtitle {
+    margin-top: 3px;
+    color: alpha(@window_fg_color, 0.52);
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.hero-hint {
+    margin-top: 11px;
+    padding: 0;
+    border: none;
+    background: none;
+    background-color: transparent;
+    color: alpha(@window_fg_color, 0.40);
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+/* Pause / Cancel — the same quiet pill family, shown only while recording. */
+.rec-tools {
+    margin-top: 13px;
+}
+
+.rec-tools .rec-tool {
+    min-height: 30px;
+    padding: 3px 15px;
+    border: none;
+    border-radius: 8px;
+    color: alpha(@window_fg_color, 0.80);
+    background-color: alpha(@window_fg_color, 0.07);
+    box-shadow: none;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.rec-tools .rec-tool:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.12);
+}
+
+.rec-tools .rec-tool.destructive-action {
+    color: #ff3b30;
+    background-color: alpha(#ff3b30, 0.10);
+}
+
+.rec-tools .rec-tool.destructive-action:hover {
+    background-color: alpha(#ff3b30, 0.17);
+}
+
+/* --- Mode row: one Apple segmented control + matching action buttons --- */
+.hero-mode-row {
+    min-height: 0;
+    margin: 0;
+    padding: 14px 22px 18px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.mode-switcher {
+    padding: 2px;
+    border: none;
+    border-radius: 9px;
+    background-color: alpha(@window_fg_color, 0.07);
+}
+
+.mode-switcher .mode-chip {
+    min-height: 28px;
+    padding: 3px 14px;
+    border-radius: 7px;
+    color: alpha(@window_fg_color, 0.62);
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 500;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.mode-switcher .mode-chip:hover:not(:checked) {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.05);
+}
+
+.mode-switcher .mode-chip:checked {
+    color: @window_fg_color;
+    background-color: @card_bg_color;
+    background-image: none;
+    box-shadow: 0 1px 2px alpha(black, 0.14);
+}
+
+/* Translate / Enhance / Open file — identical quiet buttons. */
+.hero-actions {
+    /* uniform 8px gaps set on the box in code */
+}
+
+.hero-toggle,
+.hero-toggle > button {
+    min-height: 32px;
+    padding: 4px 14px;
+    border: none;
+    border-radius: 8px;
+    color: alpha(@window_fg_color, 0.74);
+    background-color: alpha(@window_fg_color, 0.07);
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 500;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.hero-toggle:hover,
+.hero-toggle:checked:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.12);
+    border: none;
+}
+
+.translate-toggle:checked,
+.ai-toggle:checked {
+    color: white;
+    background-color: @accent_bg_color;
+    border: none;
+}
+
+.open-file-btn {
+    color: alpha(@window_fg_color, 0.74);
+}
+
+/* --- Session card: quiet header, hairline rules, no cut glyph --- */
+.transcript-card-header {
+    min-height: 0;
+    padding: 14px 0 9px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+}
+
+.transcript-section-title {
+    color: alpha(@window_fg_color, 0.42);
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.transcript-card .waveform {
+    color: @accent_color;
+    opacity: 0.85;
+    border-top: none;
+    border-bottom: none;
+}
+
+.transcript-card.recording .waveform {
+    color: #ff3b30;
+    opacity: 1.0;
+}
+
+.transcript-empty-glyph {
+    min-width: 0;
+    min-height: 0;
+    padding: 15px;
+    margin-bottom: 6px;
+    color: @accent_color;
+    background-color: alpha(@accent_bg_color, 0.12);
+    background-image: none;
+    border-radius: 999px;
+}
+
+.transcript-empty-title {
+    color: @window_fg_color;
+    font-size: 0.95em;
+    font-weight: 600;
+}
+
+.transcript-empty-subtitle {
+    color: alpha(@window_fg_color, 0.48);
+    font-size: 0.85em;
+}
+
+.transcript-card-footer {
+    min-height: 0;
+    padding: 9px 0 0;
+    border: none;
+    border-top: 1px solid alpha(@window_fg_color, 0.06);
+    background: transparent;
+}
+
+.transcript-action-group {
+    padding: 2px;
+    border-radius: 9px;
+    background-color: alpha(@window_fg_color, 0.05);
+}
+
+.transcript-action-group .footer-action,
+.transcript-action-group .ai-action,
+.transcript-action-group .transform-action,
+.transcript-action-group .transform-action > button {
+    min-height: 28px;
+    padding: 3px 11px;
+    border: none;
+    border-radius: 7px;
+    color: alpha(@window_fg_color, 0.74);
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 500;
+}
+
+.transcript-action-group .footer-action:hover,
+.transcript-action-group .ai-action:hover,
+.transcript-action-group .transform-action:hover,
+.transcript-action-group .transform-action > button:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.09);
+}
+
+.transcript-action-group .footer-cancel {
+    color: alpha(@window_fg_color, 0.72);
+}
+
+.transcript-action-group .footer-cancel:hover {
+    color: @window_fg_color;
+    background-color: alpha(@window_fg_color, 0.10);
+}
+
+.transcript-action-group .footer-stop {
+    color: #ff3b30;
+    background-color: alpha(#ff3b30, 0.10);
+}
+
+.transcript-action-group .footer-stop:hover {
+    background-color: alpha(#ff3b30, 0.17);
+}
+
+.variant-dropdown,
+.variant-dropdown button {
+    min-height: 28px;
+    padding: 3px 9px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.86em;
+    font-weight: 500;
+    color: alpha(@window_fg_color, 0.7);
+}
+
+.variant-dropdown button:hover {
+    background-color: alpha(@window_fg_color, 0.07);
+}
+
+/* Thin, unobtrusive scrollbars (fade-in overlay). */
+.transcript-card-body scrollbar {
+    background: transparent;
+    border: none;
+}
+
+.transcript-card-body scrollbar slider {
+    min-width: 7px;
+    min-height: 7px;
+    border-radius: 8px;
+    background-color: alpha(@window_fg_color, 0.20);
+}
+
+.transcript-card-body scrollbar slider:hover {
+    background-color: alpha(@window_fg_color, 0.36);
+}
+
+/* ========================================
+   Final light-theme card treatment
+   ========================================
+   Keep every settings/history surface consistent: slightly darker than the
+   white page, one real light-grey border, and no elevation shadow. This final
+   layer intentionally overrides both libadwaita's boxed-list shadow and all
+   earlier experimental card passes in this file. Dark mode is unchanged. */
+.light-theme .settings-page list.boxed-list,
+.light-theme .settings-page list.content,
+.light-theme .settings-page list.boxed-list-separate > row,
+.light-theme .settings-page .card,
+.light-theme .history-page list.boxed-list,
+.light-theme .history-page list.content,
+.light-theme .history-page list.boxed-list-separate > row,
+.light-theme .history-page .card,
+.light-theme .help-page .card {
+    background-color: alpha(@window_fg_color, 0.035);
+    border: 1px solid alpha(@window_fg_color, 0.13);
+    box-shadow: none;
+}
+
+.light-theme .settings-page list.boxed-list:hover,
+.light-theme .settings-page list.content:hover,
+.light-theme .settings-page list.boxed-list-separate > row:hover,
+.light-theme .settings-page .card:hover,
+.light-theme .history-page list.boxed-list:hover,
+.light-theme .history-page list.content:hover,
+.light-theme .history-page list.boxed-list-separate > row:hover,
+.light-theme .history-page .card:hover,
+.light-theme .help-page .card:hover {
+    border-color: alpha(@window_fg_color, 0.13);
+    box-shadow: none;
+}
+
+/* Match the header model selector to the same flat light-theme surfaces. */
+.light-theme .header-model {
+    background-color: alpha(@window_fg_color, 0.035);
+    border: 1px solid alpha(@window_fg_color, 0.13);
+    box-shadow: none;
+}
+
+.light-theme .header-model:hover {
+    background-color: alpha(@window_fg_color, 0.055);
+    border-color: alpha(@window_fg_color, 0.13);
+    box-shadow: none;
+}
+
+/* Final sidebar row geometry. One authoritative height replaces the older
+ * overlapping min-height + padding + child-margin rules that clipped glyphs and
+ * label ascenders at fractional display/font scaling. */
+.navigation-sidebar row:not(.sidebar-section-row) {
+    min-height: 46px;
+    padding: 0 8px;
+    margin: 2px 8px;
+    border: none;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.navigation-sidebar row:not(.sidebar-section-row) .nav-row-box {
+    min-height: 46px;
+    margin: 0;
+    padding: 0;
+}
+
+.navigation-sidebar row:not(.sidebar-section-row) .nav-label {
+    min-height: 24px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.navigation-sidebar row:not(.sidebar-section-row) image {
+    min-height: 24px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.sidebar-collapsed .navigation-sidebar row:not(.sidebar-section-row),
+.sidebar-collapsed .navigation-sidebar row:not(.sidebar-section-row) .nav-row-box {
+    min-height: 46px;
 }

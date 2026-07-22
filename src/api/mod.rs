@@ -20,6 +20,7 @@ mod server;
 
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
 
 use bytes::Bytes;
 use http_body_util::Full;
@@ -39,9 +40,19 @@ pub const MAX_API_UPLOAD_BYTES: usize = 256 * 1024 * 1024;
 /// clip, without letting a stuck client pin a worker forever.
 pub const REQUEST_TIMEOUT_SECS: u64 = 600;
 
+/// Maximum idle time between request-body frames. Local uploads should make
+/// steady progress; this prevents slow clients from holding admission slots.
+pub const BODY_FRAME_TIMEOUT_SECS: u64 = 30;
+
 /// Inference queue depth. The single worker runs one job at a time (matching the
 /// engine Mutex); excess concurrent requests get 429.
 const JOB_QUEUE_DEPTH: usize = 2;
+
+/// Limit expensive body buffering before requests reach the inference queue.
+const MAX_CONCURRENT_UPLOADS: usize = 2;
+
+/// Bound keep-alive connections and their Tokio tasks.
+const MAX_API_CONNECTIONS: usize = 16;
 
 /// One transcription job handed to the inference worker.
 struct Job {
@@ -49,6 +60,7 @@ struct Job {
     audio: tempfile::TempPath,
     params: DictationParams,
     reply: async_channel::Sender<Result<DictationOutcome, String>>,
+    cancelled: Arc<AtomicBool>,
 }
 
 /// Shared server state (cheap to clone; one per connection task).
@@ -58,6 +70,10 @@ struct ServerState {
     token: Option<Arc<String>>,
     /// Bounded queue to the inference worker.
     jobs: async_channel::Sender<Job>,
+    /// Admission control acquired before an upload body is read into memory.
+    uploads: Arc<tokio::sync::Semaphore>,
+    /// Connection limit shared by the accept loop.
+    connections: Arc<tokio::sync::Semaphore>,
     /// Model catalog (for `GET /v1/models`).
     catalog: Arc<ModelCatalog>,
 }
@@ -140,6 +156,8 @@ pub fn start(
     let state = ServerState {
         token: token.map(Arc::new),
         jobs: job_tx,
+        uploads: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_UPLOADS)),
+        connections: Arc::new(tokio::sync::Semaphore::new(MAX_API_CONNECTIONS)),
         catalog,
     };
 
@@ -161,7 +179,13 @@ fn worker_loop(
     jobs: async_channel::Receiver<Job>,
 ) {
     while let Ok(job) = jobs.recv_blocking() {
-        let result = run_job(&engine, &job);
+        if job.cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+            continue;
+        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_job(&engine, &job)
+        }))
+        .unwrap_or_else(|_| Err("Transcription worker recovered from an invalid request.".into()));
         let _ = job.reply.send_blocking(result);
         // `job.audio` (TempPath) drops here → the temp file is unlinked.
     }

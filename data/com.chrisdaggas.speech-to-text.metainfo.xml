@@ -74,6 +74,20 @@
   </keywords>
 
   <releases>
+    <release version="1.5.0" date="2026-07-22">
+      <description>
+        <p>A faster, safer, and more polished release for everyday dictation and transcription.</p>
+        <ul>
+          <li>Verified and resumable runtime and model downloads</li>
+          <li>Bounded inference, non-blocking audio capture, and smoother live previews</li>
+          <li>Reliable pause, resume, shortcuts, language selection, onboarding, and cancellation</li>
+          <li>Expanded History with file transcriptions, full-text search, detail views, and recovery</li>
+          <li>Privacy-first AI consent, explicit automation controls, and safer credentials</li>
+          <li>A refined workspace, Settings, History, Help, navigation, and light-theme styling</li>
+          <li>Hardened local API access and fail-closed release signing</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-06-08">
       <description>
         <p>Mini panel reliability and UI cleanup.</p>

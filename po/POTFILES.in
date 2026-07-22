@@ -16,6 +16,9 @@ src/ui/settings/microphone.rs
 src/ui/settings/model.rs
 src/ui/settings/performance.rs
 src/ui/settings/dictation.rs
+src/ui/settings/dictionary.rs
+src/ui/settings/llm.rs
+src/ui/settings/api.rs
 src/ui/widgets/gpu_status.rs
 src/ui/widgets/model_row.rs
 src/ui/widgets/theme_popover.rs

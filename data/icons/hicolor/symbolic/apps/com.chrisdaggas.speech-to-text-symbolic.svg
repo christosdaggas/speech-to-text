@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="16" height="16" viewBox="-3 -8 257 257" version="1.1" color="#ffffff" xmlns="http://www.w3.org/2000/svg">
+<!-- The viewBox is padded to 1/0.7 of the artwork's bounds, centred on the same
+     point, so the glyph draws at 70% (30% smaller) inside the tray's icon box.
+     Artwork coordinates are untouched; only the canvas around them grew. -->
+<svg width="16" height="16" viewBox="-58.07 -63.07 367.14 367.14" version="1.1" color="#ffffff" xmlns="http://www.w3.org/2000/svg">
   <title>Speech to Text</title>
   <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color:#ffffff; }</style>
   <!-- Monochrome line-art of the app logo: the microphone body with its dotted

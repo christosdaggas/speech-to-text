@@ -17,9 +17,11 @@ what I can, but as a spare-time project I can't promise a fixed timeline.
 
 ## Verifying downloads
 
-Each release includes a `SHA256SUMS` file so you can confirm a download wasn't
-corrupted or tampered with:
+Future releases are required by CI to include `SHA256SUMS` and its detached GPG
+signature. A trusted public key has not yet been published, so existing unsigned
+artifacts provide checksums for corruption detection, not publisher authenticity.
+Once `KEYS` contains the real key, verify both the signature and checksums with:
 
 ```sh
-sha256sum -c SHA256SUMS
+./scripts/verify-release.sh
 ```

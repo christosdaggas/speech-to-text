@@ -14,9 +14,11 @@
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{SyncSender, TrySendError};
 
 
 use crate::audio::AudioCapture;
+use crate::audio::buffer::RawAudioSnapshot;
 use crate::audio::capture::RecordingState;
 use crate::error::AppResult;
 use crate::transcription::engine::TranscriptionResult;
@@ -339,7 +341,12 @@ pub fn ensure_engine_loaded(
     engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
     config: &crate::config::AppConfig,
 ) -> Result<(), String> {
-    if engine.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+    if engine
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|loaded| loaded.model_id() == config.selected_model)
+    {
         return Ok(());
     }
 
@@ -364,7 +371,10 @@ pub fn ensure_engine_loaded(
 
     // Re-check under the lock: another thread may have loaded it meanwhile.
     let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
-    if guard.is_none() {
+    if !guard
+        .as_ref()
+        .is_some_and(|engine| engine.model_id() == config.selected_model)
+    {
         *guard = Some(loaded);
     }
     Ok(())
@@ -401,15 +411,55 @@ pub struct RecordingController {
     engine: Arc<Mutex<Option<TranscriptionEngine>>>,
     model_catalog: Arc<ModelCatalog>,
     owner: Cell<RecordingOwner>,
+    inference_tx: SyncSender<InferenceJob>,
+}
+
+enum InferenceAudio {
+    Prepared(Vec<f32>),
+    Raw(RawAudioSnapshot),
+}
+
+struct InferenceJob {
+    audio: InferenceAudio,
+    params: DictationParams,
+    duration_secs: f32,
+    reply: async_channel::Sender<Result<DictationOutcome, String>>,
 }
 
 impl RecordingController {
     pub fn new() -> Rc<Self> {
+        let engine = Arc::new(Mutex::new(None));
+        let (inference_tx, inference_rx) = std::sync::mpsc::sync_channel::<InferenceJob>(2);
+        let worker_engine = engine.clone();
+        std::thread::Builder::new()
+            .name("gui-transcribe".into())
+            .spawn(move || {
+                while let Ok(job) = inference_rx.recv() {
+                    let audio = match job.audio {
+                        InferenceAudio::Prepared(audio) => audio,
+                        InferenceAudio::Raw(snapshot) => snapshot.condition(),
+                    };
+                    let result = if audio.is_empty() {
+                        Err("No clear speech detected — try speaking closer to the microphone".into())
+                    } else {
+                        run_transcription(
+                            &worker_engine,
+                            &audio,
+                            &job.params,
+                            job.duration_secs,
+                        )
+                    };
+                    let _ = job.reply.send_blocking(result);
+                }
+            })
+            .expect("failed to start transcription worker");
+
         Rc::new(Self {
             audio: Arc::new(Mutex::new(AudioCapture::new())),
-            engine: Arc::new(Mutex::new(None)),
+            engine,
             model_catalog: Arc::new(ModelCatalog::new()),
             owner: Cell::new(RecordingOwner::None),
+            inference_tx,
         })
     }
 
@@ -477,6 +527,13 @@ impl RecordingController {
         cap.stop_recording()
     }
 
+    /// Stop capture and detach raw audio without conditioning it on the caller's
+    /// thread. Use with [`Self::transcribe_snapshot_async`].
+    pub fn stop_snapshot(&self) -> AppResult<RawAudioSnapshot> {
+        let mut cap = self.audio.lock().unwrap_or_else(|e| e.into_inner());
+        cap.stop_recording_snapshot()
+    }
+
     /// Stop capturing and discard the audio.
     pub fn cancel(&self) {
         let mut cap = self.audio.lock().unwrap_or_else(|e| e.into_inner());
@@ -509,9 +566,9 @@ impl RecordingController {
 
     /// Non-destructive snapshot of the audio captured so far (mono 16 kHz), for
     /// live transcription while recording continues.
-    pub fn live_snapshot(&self) -> Vec<f32> {
+    pub fn live_snapshot(&self, max_samples: usize) -> Vec<f32> {
         self.audio.lock()
-            .map(|c| c.snapshot_mono_16khz())
+            .map(|c| c.snapshot_mono_16khz(max_samples))
             .unwrap_or_default()
     }
 
@@ -526,12 +583,40 @@ impl RecordingController {
         duration_secs: f32,
     ) -> async_channel::Receiver<Result<DictationOutcome, String>> {
         let (sender, receiver) = async_channel::bounded(1);
-        let engine = self.engine.clone();
-        std::thread::spawn(move || {
-            let result = run_transcription(&engine, &audio, &params, duration_secs);
-            let _ = sender.send_blocking(result);
+        self.enqueue_inference(InferenceJob {
+            audio: InferenceAudio::Prepared(audio),
+            params,
+            duration_secs,
+            reply: sender,
         });
         receiver
+    }
+
+    /// Condition detached raw audio and transcribe it entirely on a worker.
+    pub fn transcribe_snapshot_async(
+        &self,
+        snapshot: RawAudioSnapshot,
+        params: DictationParams,
+        duration_secs: f32,
+    ) -> async_channel::Receiver<Result<DictationOutcome, String>> {
+        let (sender, receiver) = async_channel::bounded(1);
+        self.enqueue_inference(InferenceJob {
+            audio: InferenceAudio::Raw(snapshot),
+            params,
+            duration_secs,
+            reply: sender,
+        });
+        receiver
+    }
+
+    fn enqueue_inference(&self, job: InferenceJob) {
+        if let Err(error) = self.inference_tx.try_send(job) {
+            let (job, message) = match error {
+                TrySendError::Full(job) => (job, "Transcription queue is full; retry shortly."),
+                TrySendError::Disconnected(job) => (job, "Transcription worker is unavailable."),
+            };
+            let _ = job.reply.try_send(Err(message.into()));
+        }
     }
 
 }

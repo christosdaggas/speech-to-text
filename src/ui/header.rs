@@ -29,6 +29,7 @@ mod imp {
         pub model_ids: Rc<RefCell<Vec<String>>>,
         pub status_label: RefCell<Option<gtk::Label>>,
         pub status_icon: RefCell<Option<gtk::Image>>,
+        pub page_title_label: RefCell<Option<gtk::Label>>,
         pub header_bar: RefCell<Option<adw::HeaderBar>>,
         pub theme_popover: RefCell<Option<ThemePopover>>,
     }
@@ -68,6 +69,80 @@ impl HeaderControls {
     }
 
     fn setup_ui(&self) {
+        let imp = self.imp();
+
+        let header_bar = adw::HeaderBar::new();
+        header_bar.add_css_class("content-headerbar");
+        header_bar.set_height_request(52);
+        header_bar.set_show_start_title_buttons(false);
+        // Prevent AdwHeaderBar from injecting the window title in the centre;
+        // the page title is intentionally left-aligned like the mockup.
+        header_bar.set_title_widget(Some(&gtk::Label::new(None)));
+
+        let page_title = gtk::Label::new(Some(&gettext("Transcription")));
+        page_title.add_css_class("header-page-title");
+        page_title.set_xalign(0.0);
+        header_bar.pack_start(&page_title);
+
+        // Kept as the authoritative microphone selector for existing sync code;
+        // microphone choice is presented in Settings instead of crowding this bar.
+        let mic_model = gtk::StringList::new(&["Built-in Audio"]);
+        let mic_dropdown = gtk::DropDown::new(Some(mic_model), gtk::Expression::NONE);
+        Self::configure_fixed_width_dropdown(
+            &mic_dropdown,
+            Self::MIC_DROPDOWN_WIDTH,
+            20,
+        );
+
+        let menu_button = gtk::MenuButton::new();
+        menu_button.set_icon_name("view-more-symbolic");
+        menu_button.set_tooltip_text(Some(gettext("Main menu").as_str()));
+        let theme_popover = ThemePopover::new();
+        menu_button.set_popover(Some(&theme_popover));
+        header_bar.pack_end(&menu_button);
+
+        let model_box = gtk::Box::new(gtk::Orientation::Horizontal, 7);
+        model_box.add_css_class("header-model");
+        let model_icon = gtk::Image::from_icon_name("emblem-system-symbolic");
+        model_icon.set_pixel_size(15);
+        model_box.append(&model_icon);
+
+        let model_list = gtk::StringList::new(&["Tiny", "Base", "Small", "Medium", "Large"]);
+        let model_dropdown = gtk::DropDown::new(Some(model_list), gtk::Expression::NONE);
+        model_dropdown.add_css_class("header-model-dropdown");
+        model_dropdown.set_tooltip_text(Some(gettext("Select model").as_str()));
+        Self::configure_fixed_width_dropdown(
+            &model_dropdown,
+            150,
+            18,
+        );
+        model_box.append(&model_dropdown);
+
+        let status_icon = gtk::Image::from_icon_name("media-record-symbolic");
+        status_icon.set_pixel_size(11);
+        status_icon.add_css_class("status-dot");
+        status_icon.add_css_class("error");
+        model_box.append(&status_icon);
+        header_bar.pack_end(&model_box);
+
+        // Retained for the existing model-status update API. The visible status
+        // is the coloured dot inside the model capsule.
+        let status_label = gtk::Label::new(Some(&gettext("No Model")));
+        status_label.set_visible(false);
+
+        self.append(&header_bar);
+
+        *imp.mic_dropdown.borrow_mut() = Some(mic_dropdown);
+        *imp.model_dropdown.borrow_mut() = Some(model_dropdown);
+        *imp.status_label.borrow_mut() = Some(status_label);
+        *imp.status_icon.borrow_mut() = Some(status_icon);
+        *imp.page_title_label.borrow_mut() = Some(page_title);
+        *imp.header_bar.borrow_mut() = Some(header_bar);
+        *imp.theme_popover.borrow_mut() = Some(theme_popover);
+    }
+
+    #[allow(dead_code)]
+    fn setup_legacy_ui(&self) {
         let imp = self.imp();
 
         let header_bar = adw::HeaderBar::new();
@@ -140,14 +215,30 @@ impl HeaderControls {
 
         header_bar.set_title_widget(Some(&center_box));
 
-        // === Right side: Hamburger menu ===
+        // === Right side: Privacy badge + Hamburger menu ===
         // (The language indicator now lives in the bottom status bar.)
+        //
+        // Always-truthful badge: transcription is local regardless of the
+        // optional network features (model downloads, AI, API).
         let menu_button = gtk::MenuButton::new();
         menu_button.set_icon_name("open-menu-symbolic");
         menu_button.set_tooltip_text(Some(gettext("Main menu").as_str()));
         let theme_popover = ThemePopover::new();
         menu_button.set_popover(Some(&theme_popover));
         header_bar.pack_end(&menu_button);
+
+        let privacy_badge = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+        privacy_badge.add_css_class("offline-badge");
+        privacy_badge.set_tooltip_text(Some(
+            gettext("Transcription is 100% local — audio never leaves your device").as_str(),
+        ));
+        let shield_icon = gtk::Image::from_icon_name("security-high-symbolic");
+        shield_icon.set_pixel_size(13);
+        let privacy_label = gtk::Label::new(Some(gettext("Local · Private").as_str()));
+        privacy_badge.append(&shield_icon);
+        privacy_badge.append(&privacy_label);
+        // pack_end inserts right-to-left, so this lands just left of the menu.
+        header_bar.pack_end(&privacy_badge);
 
         self.append(&header_bar);
 
@@ -158,6 +249,12 @@ impl HeaderControls {
         *imp.status_icon.borrow_mut() = Some(status_icon);
         *imp.header_bar.borrow_mut() = Some(header_bar);
         *imp.theme_popover.borrow_mut() = Some(theme_popover);
+    }
+
+    pub fn set_page_title(&self, title: &str) {
+        if let Some(label) = self.imp().page_title_label.borrow().as_ref() {
+            label.set_text(title);
+        }
     }
 
     fn configure_fixed_width_dropdown(dropdown: &gtk::DropDown, width: i32, max_chars: i32) {

@@ -34,10 +34,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgtk-4-dev libadwaita-1-dev libasound2-dev \
-            cmake clang gettext desktop-file-utils
+            libvulkan-dev glslc cmake clang gettext desktop-file-utils
 
-      - name: Build release binary
-        run: cargo build --release
+      - name: Build Vulkan release binary
+        run: cargo build --release --locked --features vulkan
 
       - name: Generate SBOM (CycloneDX)
         run: |
@@ -55,21 +55,28 @@ jobs:
           # SHA256SUMS over every artifact — the integrity manifest.
           sha256sum * > SHA256SUMS
 
-      - name: Import GPG signing key
-        if: ${{ env.GPG_PRIVATE_KEY != '' }}
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-
-      - name: Sign the checksum manifest
-        if: ${{ env.GPG_PRIVATE_KEY != '' }}
+      - name: Require release signing credentials
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          gpg --batch --yes --pinentry-mode loopback \
-            --passphrase "$GPG_PASSPHRASE" \
+          test -n "$GPG_PRIVATE_KEY" || { echo "GPG_PRIVATE_KEY is required"; exit 1; }
+          test -n "$GPG_PASSPHRASE" || { echo "GPG_PASSPHRASE is required"; exit 1; }
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Sign the checksum manifest
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          printf '%s' "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 \
             --armor --detach-sign --output dist/SHA256SUMS.asc dist/SHA256SUMS
+          test -s dist/SHA256SUMS.asc
+          gpg --batch --verify dist/SHA256SUMS.asc dist/SHA256SUMS
 
       - name: Attach artifacts to the release
         uses: softprops/action-gh-release@v2

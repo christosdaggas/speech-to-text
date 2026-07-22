@@ -12,6 +12,7 @@
 //! blocking transcription worker.
 
 use serde::{Deserialize, Serialize};
+use futures::StreamExt;
 use std::net::IpAddr;
 use std::time::Duration;
 use url::Url;
@@ -139,10 +140,39 @@ pub fn endpoint_host(api_url: &str) -> Option<String> {
         .and_then(|u| u.host_str().map(|h| h.to_string()))
 }
 
+/// Stable consent identity. Paths are intentionally excluded because consent is
+/// about which network authority receives transcript text.
+pub fn consent_scope(api_url: &str) -> Option<String> {
+    let url = validate_endpoint(api_url).ok()?;
+    let host = url.host_str()?;
+    let port = url.port_or_known_default()?;
+    Some(format!("{}://{}:{}", url.scheme(), host.to_ascii_lowercase(), port))
+}
+
 fn http_client(timeout_secs: u64) -> AppResult<reqwest::Client> {
     Ok(reqwest::Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
+        .redirect(reqwest::redirect::Policy::none())
         .build()?)
+}
+
+async fn read_response_capped(
+    resp: reqwest::Response,
+    cap: u64,
+) -> AppResult<Vec<u8>> {
+    if resp.content_length().is_some_and(|len| len > cap) {
+        return Err(AppError::Transcription("LLM response is too large.".into()));
+    }
+    let mut body = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if body.len().saturating_add(chunk.len()) > cap as usize {
+            return Err(AppError::Transcription("LLM response is too large.".into()));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 /// Send a chat-completion request and return the assistant's reply text.
@@ -183,23 +213,16 @@ pub async fn chat(cfg: &LlmConfig, system_prompt: &str, user_text: &str) -> AppR
     let resp = req.send().await?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let txt = resp.text().await.unwrap_or_default();
+        let bytes = read_response_capped(resp, 8 * 1024).await.unwrap_or_default();
+        let txt = String::from_utf8_lossy(&bytes);
         let snippet: String = txt.chars().take(200).collect();
         // The upstream body can echo back the request (including any key) — redact.
         let snippet = crate::error::redact_secrets(&snippet);
         return Err(AppError::Transcription(format!("LLM HTTP {status}: {snippet}")));
     }
 
-    // Reject implausibly large responses (DoS guard) before buffering the body.
-    if let Some(len) = resp.content_length() {
-        if len > crate::limits::MAX_LLM_RESPONSE_BYTES {
-            return Err(AppError::Transcription(
-                "LLM response is too large.".into(),
-            ));
-        }
-    }
-
-    let parsed: ChatResponse = resp.json().await?;
+    let bytes = read_response_capped(resp, crate::limits::MAX_LLM_RESPONSE_BYTES).await?;
+    let parsed: ChatResponse = serde_json::from_slice(&bytes)?;
     let content = parsed
         .choices
         .into_iter()
@@ -225,7 +248,8 @@ pub async fn list_models(cfg: &LlmConfig) -> AppResult<Vec<String>> {
     if !resp.status().is_success() {
         return Err(AppError::Transcription(format!("LLM HTTP {}", resp.status())));
     }
-    let parsed: ModelsResponse = resp.json().await?;
+    let bytes = read_response_capped(resp, crate::limits::MAX_LLM_RESPONSE_BYTES).await?;
+    let parsed: ModelsResponse = serde_json::from_slice(&bytes)?;
     Ok(parsed.data.into_iter().map(|m| m.id).collect())
 }
 
@@ -296,6 +320,22 @@ mod tests {
     fn endpoint_handles_trailing_slash() {
         assert_eq!(endpoint("http://localhost:1234/v1", "chat/completions"), "http://localhost:1234/v1/chat/completions");
         assert_eq!(endpoint("http://localhost:1234/v1/", "models"), "http://localhost:1234/v1/models");
+    }
+
+    #[test]
+    fn consent_scope_normalizes_authority_and_ignores_path() {
+        assert_eq!(
+            consent_scope("https://Example.COM/v1"),
+            Some("https://example.com:443".to_string())
+        );
+        assert_eq!(
+            consent_scope("https://example.com:443/other"),
+            Some("https://example.com:443".to_string())
+        );
+        assert_ne!(
+            consent_scope("https://example.com/v1"),
+            consent_scope("https://other.example/v1")
+        );
     }
 
     #[test]
