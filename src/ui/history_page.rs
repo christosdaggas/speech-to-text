@@ -4,16 +4,16 @@
 
 //! Transcription history page with search and management.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 
 /// A single history entry.
 ///
@@ -137,7 +137,9 @@ impl HistoryPage {
         let placeholder = adw::StatusPage::new();
         placeholder.set_icon_name(Some("document-open-recent-symbolic"));
         placeholder.set_title(gettext("No Transcriptions Yet").as_str());
-        placeholder.set_description(Some(gettext("Your transcription history will appear here").as_str()));
+        placeholder.set_description(Some(
+            gettext("Your transcription history will appear here").as_str(),
+        ));
         list_box.set_placeholder(Some(placeholder.upcast_ref::<gtk::Widget>()));
 
         scrolled.set_child(Some(&list_box));
@@ -148,7 +150,9 @@ impl HistoryPage {
         let placeholder_ref = placeholder.clone();
         search_entry.connect_search_changed(move |entry| {
             let query = entry.text().to_string().to_lowercase();
-            let Some(page) = page_weak.upgrade() else { return };
+            let Some(page) = page_weak.upgrade() else {
+                return;
+            };
             for history_entry in page.imp().entries.borrow().iter() {
                 if let Some(row) = page.imp().rows.borrow().get(&history_entry.id) {
                     let searchable = format!(
@@ -172,7 +176,9 @@ impl HistoryPage {
 
         let page_weak = self.downgrade();
         list_box.connect_row_activated(move |_, activated| {
-            let Some(page) = page_weak.upgrade() else { return };
+            let Some(page) = page_weak.upgrade() else {
+                return;
+            };
             let id = page
                 .imp()
                 .rows
@@ -204,9 +210,12 @@ impl HistoryPage {
     pub fn confirm_clear_all(&self) {
         let dialog = adw::AlertDialog::new(
             Some(gettext("Clear all history?").as_str()),
-            Some(gettext(
-                "This permanently deletes every saved transcription. This cannot be undone.",
-            ).as_str()),
+            Some(
+                gettext(
+                    "This permanently deletes every saved transcription. This cannot be undone.",
+                )
+                .as_str(),
+            ),
         );
         dialog.add_response("cancel", gettext("Cancel").as_str());
         dialog.add_response("clear", gettext("Clear All").as_str());
@@ -238,12 +247,16 @@ impl HistoryPage {
     fn add_entry_row(&self, list_box: &gtk::ListBox, entry: &HistoryEntry) {
         let mut subtitle = format!(
             "{} • {} • {}",
-            entry.timestamp, entry.language, format_duration(entry.duration_secs)
+            entry.timestamp,
+            entry.language,
+            format_duration(entry.duration_secs)
         );
         // Word count (and words-per-minute when the clip is long enough).
         if let Some(words) = entry.word_count {
             subtitle.push_str(&format!(" • {} {}", words, gettext("words")));
-            if let Some(wpm) = crate::ui::result_state::wpm(words as usize, entry.duration_secs as f32) {
+            if let Some(wpm) =
+                crate::ui::result_state::wpm(words as usize, entry.duration_secs as f32)
+            {
                 subtitle.push_str(&format!(" · {} wpm", wpm));
             }
         }
@@ -387,10 +400,8 @@ impl HistoryPage {
             Ok(e) => e,
             Err(e) => {
                 tracing::warn!("Failed to parse history: {}", e);
-                let backup = path.with_extension(format!(
-                    "json.corrupt-{}",
-                    chrono::Utc::now().timestamp()
-                ));
+                let backup =
+                    path.with_extension(format!("json.corrupt-{}", chrono::Utc::now().timestamp()));
                 if let Err(rename_error) = std::fs::rename(&path, &backup) {
                     tracing::warn!("Failed to preserve corrupt history: {}", rename_error);
                 } else {

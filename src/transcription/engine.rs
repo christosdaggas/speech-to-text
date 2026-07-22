@@ -61,26 +61,38 @@ impl TranscriptionEngine {
     }
 
     /// Load a Whisper model with optional GPU acceleration.
-    pub fn load_model_with_gpu(model_path: &Path, model_id: &str, use_gpu: bool) -> AppResult<Self> {
-        info!("Loading Whisper model from {:?} (GPU: {})", model_path, use_gpu);
+    pub fn load_model_with_gpu(
+        model_path: &Path,
+        model_id: &str,
+        use_gpu: bool,
+    ) -> AppResult<Self> {
+        info!(
+            "Loading Whisper model from {:?} (GPU: {})",
+            model_path, use_gpu
+        );
 
         if !model_path.exists() {
-            return Err(AppError::ModelNotFound(
-                format!("Model file not found: {:?}", model_path)
-            ));
+            return Err(AppError::ModelNotFound(format!(
+                "Model file not found: {:?}",
+                model_path
+            )));
         }
 
         let mut params = WhisperContextParameters::default();
         params.use_gpu(use_gpu);
 
         let ctx = WhisperContext::new_with_params(
-            model_path.to_str().ok_or_else(|| {
-                AppError::ModelLoadFailed("Invalid model path encoding".into())
-            })?,
+            model_path
+                .to_str()
+                .ok_or_else(|| AppError::ModelLoadFailed("Invalid model path encoding".into()))?,
             params,
-        ).map_err(|e| AppError::ModelLoadFailed(format!("Failed to load model: {}", e)))?;
+        )
+        .map_err(|e| AppError::ModelLoadFailed(format!("Failed to load model: {}", e)))?;
 
-        info!("Whisper model '{}' loaded successfully (GPU: {})", model_id, use_gpu);
+        info!(
+            "Whisper model '{}' loaded successfully (GPU: {})",
+            model_id, use_gpu
+        );
 
         Ok(Self {
             ctx,
@@ -138,7 +150,10 @@ impl TranscriptionEngine {
 
         let beam_size = beam_size.min(8); // whisper.cpp supports max 8 decoders
         let mut params = if beam_size > 1 {
-            FullParams::new(SamplingStrategy::BeamSearch { beam_size: beam_size as i32, patience: -1.0 })
+            FullParams::new(SamplingStrategy::BeamSearch {
+                beam_size: beam_size as i32,
+                patience: -1.0,
+            })
         } else {
             FullParams::new(SamplingStrategy::Greedy { best_of: 1 })
         };
@@ -178,15 +193,20 @@ impl TranscriptionEngine {
         }
 
         // Run transcription
-        let mut state = self.ctx.create_state()
+        let mut state = self
+            .ctx
+            .create_state()
             .map_err(|e| AppError::Transcription(format!("Failed to create state: {}", e)))?;
 
-        state.full(params, audio)
+        state
+            .full(params, audio)
             .map_err(|e| AppError::Transcription(format!("Transcription failed: {}", e)))?;
 
         // When auto-detecting, surface the language Whisper picked (ISO 639-1 code).
         let detected_language = if language.is_none() {
-            state.full_lang_id_from_state().ok()
+            state
+                .full_lang_id_from_state()
+                .ok()
                 .and_then(whisper_rs::get_lang_str)
                 .map(|s| s.to_string())
         } else {
@@ -194,7 +214,8 @@ impl TranscriptionEngine {
         };
 
         // Collect segments
-        let num_segments = state.full_n_segments()
+        let num_segments = state
+            .full_n_segments()
             .map_err(|e| AppError::Transcription(format!("Failed to get segments: {}", e)))?;
 
         let mut segments = Vec::with_capacity(num_segments as usize);
@@ -202,18 +223,21 @@ impl TranscriptionEngine {
         let mut total_confidence = 0.0f32;
 
         for i in 0..num_segments {
-            let start_ms = state.full_get_segment_t0(i)
-                .map_err(|e| AppError::Transcription(format!("Failed to get segment start: {}", e)))?
-                as i64 * 10; // whisper timestamps are in centiseconds
-            let end_ms = state.full_get_segment_t1(i)
+            let start_ms = state.full_get_segment_t0(i).map_err(|e| {
+                AppError::Transcription(format!("Failed to get segment start: {}", e))
+            })? as i64
+                * 10; // whisper timestamps are in centiseconds
+            let end_ms = state
+                .full_get_segment_t1(i)
                 .map_err(|e| AppError::Transcription(format!("Failed to get segment end: {}", e)))?
-                as i64 * 10;
-            let text = state.full_get_segment_text(i)
-                .map_err(|e| AppError::Transcription(format!("Failed to get segment text: {}", e)))?;
+                as i64
+                * 10;
+            let text = state.full_get_segment_text(i).map_err(|e| {
+                AppError::Transcription(format!("Failed to get segment text: {}", e))
+            })?;
 
             // Calculate average token probability for this segment
-            let n_tokens = state.full_n_tokens(i)
-                .unwrap_or(0);
+            let n_tokens = state.full_n_tokens(i).unwrap_or(0);
             let confidence = if n_tokens > 0 {
                 let mut sum = 0.0f32;
                 for t in 0..n_tokens {

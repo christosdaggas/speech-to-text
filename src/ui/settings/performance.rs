@@ -4,13 +4,13 @@
 
 //! CPU threads, GPU acceleration, and performance tuning settings.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::config::AppConfig;
@@ -70,7 +70,7 @@ impl PerformancePage {
         gpu_group.set_title(gettext("GPU Acceleration").as_str());
         gpu_group.set_description(Some(
             "Use GPU for faster transcription when available. \
-             Requires CUDA or OpenCL support."
+             Requires CUDA or OpenCL support.",
         ));
 
         let gpu_switch = adw::SwitchRow::builder()
@@ -108,12 +108,12 @@ impl PerformancePage {
         )));
 
         let threads_adjustment = gtk::Adjustment::new(
-            4.0,           // value
-            1.0,           // lower
-            max_threads,   // upper
-            1.0,           // step_increment
-            4.0,           // page_increment
-            0.0,           // page_size
+            4.0,         // value
+            1.0,         // lower
+            max_threads, // upper
+            1.0,         // step_increment
+            4.0,         // page_increment
+            0.0,         // page_size
         );
 
         let threads_spin = adw::SpinRow::builder()
@@ -139,12 +139,12 @@ impl PerformancePage {
         mem_group.add(&mem_row);
 
         let beam_adjustment = gtk::Adjustment::new(
-            5.0,   // value
-            1.0,   // lower
-            8.0,   // upper (whisper.cpp max decoders = 8)
-            1.0,   // step_increment
-            1.0,   // page_increment
-            0.0,   // page_size
+            5.0, // value
+            1.0, // lower
+            8.0, // upper (whisper.cpp max decoders = 8)
+            1.0, // step_increment
+            1.0, // page_increment
+            0.0, // page_size
         );
 
         let beam_spin = adw::SpinRow::builder()
@@ -156,12 +156,12 @@ impl PerformancePage {
 
         // Temperature
         let temp_adjustment = gtk::Adjustment::new(
-            0.0,   // value (default: 0.0 = greedy)
-            0.0,   // lower
-            1.0,   // upper
-            0.05,  // step_increment
-            0.1,   // page_increment
-            0.0,   // page_size
+            0.0,  // value (default: 0.0 = greedy)
+            0.0,  // lower
+            1.0,  // upper
+            0.05, // step_increment
+            0.1,  // page_increment
+            0.0,  // page_size
         );
 
         let temperature_spin = adw::SpinRow::builder()
@@ -177,7 +177,7 @@ impl PerformancePage {
         prompt_group.set_title(gettext("Custom Vocabulary").as_str());
         prompt_group.set_description(Some(
             "Provide an initial prompt to guide Whisper. \
-             Include domain-specific terms, proper nouns, or acronyms."
+             Include domain-specific terms, proper nouns, or acronyms.",
         ));
 
         let initial_prompt_entry = adw::EntryRow::builder()
@@ -292,8 +292,8 @@ impl PerformancePage {
         let (sender, receiver) = async_channel::bounded::<Option<String>>(1);
 
         std::thread::spawn(move || {
-            let result = crate::ui::widgets::gpu_status::detect_gpu_info()
-                .map(|(name, _driver, _vram)| {
+            let result =
+                crate::ui::widgets::gpu_status::detect_gpu_info().map(|(name, _driver, _vram)| {
                     crate::ui::widgets::gpu_status::shorten_gpu_name_public(&name)
                 });
             let _ = sender.send_blocking(result);

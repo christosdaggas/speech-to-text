@@ -13,16 +13,15 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
 
-
-use crate::audio::AudioCapture;
 use crate::audio::buffer::RawAudioSnapshot;
 use crate::audio::capture::RecordingState;
+use crate::audio::AudioCapture;
 use crate::error::AppResult;
 use crate::transcription::engine::TranscriptionResult;
-use crate::transcription::{ModelCatalog, TranscriptionEngine, postprocess};
+use crate::transcription::{postprocess, ModelCatalog, TranscriptionEngine};
 
 /// Which UI currently owns the recording session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,9 +87,9 @@ pub fn apply_mode(text: &str, mode: DictationMode) -> String {
         // Bulleted list, one bullet per sentence.
         DictationMode::Note => format_note(text),
         // Concise instruction: drop speech fillers, single paragraph, punctuated.
-        DictationMode::CodePrompt => {
-            ensure_terminal_punctuation(&capitalize_first(&strip_fillers(&collapse_whitespace(text))))
-        }
+        DictationMode::CodePrompt => ensure_terminal_punctuation(&capitalize_first(
+            &strip_fillers(&collapse_whitespace(text)),
+        )),
     }
 }
 
@@ -147,7 +146,11 @@ fn format_note(text: &str) -> String {
     if sentences.is_empty() {
         return String::new();
     }
-    sentences.iter().map(|s| format!("• {s}")).collect::<Vec<_>>().join("\n")
+    sentences
+        .iter()
+        .map(|s| format!("• {s}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Wrap the body in a simple email scaffold.
@@ -164,7 +167,9 @@ fn strip_fillers(text: &str) -> String {
     let kept: Vec<&str> = text
         .split_whitespace()
         .filter(|w| {
-            let core = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let core = w
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase();
             !FILLERS.contains(&core.as_str())
         })
         .collect();
@@ -251,9 +256,15 @@ pub fn run_transcription(
 ) -> Result<DictationOutcome, String> {
     if params.backend == "cohere" {
         if !crate::transcription::cohere::cohere_ready() {
-            return Err("Cohere is not set up. Go to Settings → Model to download the runtime and model.".to_string());
+            return Err(
+                "Cohere is not set up. Go to Settings → Model to download the runtime and model."
+                    .to_string(),
+            );
         }
-        match crate::transcription::cohere::transcribe_via_cli(audio, params.language_code.as_deref()) {
+        match crate::transcription::cohere::transcribe_via_cli(
+            audio,
+            params.language_code.as_deref(),
+        ) {
             Ok(r) => Ok(build_outcome(r, params, duration_secs)),
             Err(e) => Err(format!("{}", e)),
         }
@@ -261,7 +272,8 @@ pub fn run_transcription(
         if !crate::transcription::qwen::qwen_ready() {
             return Err("Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.".to_string());
         }
-        match crate::transcription::qwen::transcribe_via_cli(audio, params.language_code.as_deref()) {
+        match crate::transcription::qwen::transcribe_via_cli(audio, params.language_code.as_deref())
+        {
             Ok(r) => Ok(build_outcome(r, params, duration_secs)),
             Err(e) => Err(format!("{}", e)),
         }
@@ -305,7 +317,9 @@ pub fn run_transcription(
                 let Some((model_path, model_id)) = gpu_reload else {
                     return Err(format!("Transcription failed: {}", e));
                 };
-                tracing::warn!("GPU transcription failed ({e}); reloading '{model_id}' on CPU and retrying");
+                tracing::warn!(
+                    "GPU transcription failed ({e}); reloading '{model_id}' on CPU and retrying"
+                );
                 match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false) {
                     Ok(cpu_eng) => {
                         let retry = cpu_eng.transcribe(
@@ -359,15 +373,16 @@ pub fn ensure_engine_loaded(
     }
     let model_path = ModelCatalog::model_path(&model_id);
 
-    let loaded = match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, config.use_gpu) {
-        Ok(e) => e,
-        Err(e) if config.use_gpu && config.cpu_fallback => {
-            tracing::warn!("API: GPU model load failed ({e}); retrying on CPU");
-            TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false)
-                .map_err(|e2| format!("Failed to load model on GPU and CPU: {e2}"))?
-        }
-        Err(e) => return Err(format!("Failed to load model: {e}")),
-    };
+    let loaded =
+        match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, config.use_gpu) {
+            Ok(e) => e,
+            Err(e) if config.use_gpu && config.cpu_fallback => {
+                tracing::warn!("API: GPU model load failed ({e}); retrying on CPU");
+                TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false)
+                    .map_err(|e2| format!("Failed to load model on GPU and CPU: {e2}"))?
+            }
+            Err(e) => return Err(format!("Failed to load model: {e}")),
+        };
 
     // Re-check under the lock: another thread may have loaded it meanwhile.
     let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
@@ -380,10 +395,22 @@ pub fn ensure_engine_loaded(
     Ok(())
 }
 
-fn build_outcome(result: TranscriptionResult, params: &DictationParams, duration_secs: f32) -> DictationOutcome {
+fn build_outcome(
+    result: TranscriptionResult,
+    params: &DictationParams,
+    duration_secs: f32,
+) -> DictationOutcome {
     let confidence = result.average_confidence.unwrap_or(0.0);
-    let segments: Vec<(i64, i64, String)> = result.segments.iter()
-        .map(|s| (s.start_ms.unwrap_or(0), s.end_ms.unwrap_or(0), s.text.clone()))
+    let segments: Vec<(i64, i64, String)> = result
+        .segments
+        .iter()
+        .map(|s| {
+            (
+                s.start_ms.unwrap_or(0),
+                s.end_ms.unwrap_or(0),
+                s.text.clone(),
+            )
+        })
         .collect();
     let sanitized = postprocess::sanitize_transcript(&result.text, Some(confidence));
     // Apply personal-dictionary "heard → correct" replacements on the raw ASR
@@ -440,14 +467,12 @@ impl RecordingController {
                         InferenceAudio::Raw(snapshot) => snapshot.condition(),
                     };
                     let result = if audio.is_empty() {
-                        Err("No clear speech detected — try speaking closer to the microphone".into())
-                    } else {
-                        run_transcription(
-                            &worker_engine,
-                            &audio,
-                            &job.params,
-                            job.duration_secs,
+                        Err(
+                            "No clear speech detected — try speaking closer to the microphone"
+                                .into(),
                         )
+                    } else {
+                        run_transcription(&worker_engine, &audio, &job.params, job.duration_secs)
                     };
                     let _ = job.reply.send_blocking(result);
                 }
@@ -494,8 +519,7 @@ impl RecordingController {
     /// slot is free even when a previous owner wasn't released — otherwise a
     /// missed `release()` (or a panic) would wedge recording forever.
     pub fn try_acquire(&self, owner: RecordingOwner) -> bool {
-        let busy = self.state() != RecordingState::Idle
-            && self.owner.get() != RecordingOwner::None;
+        let busy = self.state() != RecordingState::Idle && self.owner.get() != RecordingOwner::None;
         if busy {
             return self.owner.get() == owner;
         }
@@ -553,13 +577,15 @@ impl RecordingController {
     }
 
     pub fn state(&self) -> RecordingState {
-        self.audio.lock()
+        self.audio
+            .lock()
             .map(|c| c.state())
             .unwrap_or(RecordingState::Idle)
     }
 
     pub fn recording_duration_secs(&self) -> f32 {
-        self.audio.lock()
+        self.audio
+            .lock()
             .map(|c| c.recording_duration_secs())
             .unwrap_or(0.0)
     }
@@ -567,7 +593,8 @@ impl RecordingController {
     /// Non-destructive snapshot of the audio captured so far (mono 16 kHz), for
     /// live transcription while recording continues.
     pub fn live_snapshot(&self, max_samples: usize) -> Vec<f32> {
-        self.audio.lock()
+        self.audio
+            .lock()
             .map(|c| c.snapshot_mono_16khz(max_samples))
             .unwrap_or_default()
     }
@@ -618,7 +645,6 @@ impl RecordingController {
             let _ = job.reply.try_send(Err(message.into()));
         }
     }
-
 }
 
 #[cfg(test)]
@@ -635,7 +661,10 @@ mod tests {
 
     #[test]
     fn unknown_mode_falls_back_to_plain() {
-        assert_eq!(DictationMode::from_config_str("nonsense"), DictationMode::Plain);
+        assert_eq!(
+            DictationMode::from_config_str("nonsense"),
+            DictationMode::Plain
+        );
     }
 
     #[test]
@@ -646,9 +675,15 @@ mod tests {
 
     #[test]
     fn message_mode_adds_terminal_punctuation_and_single_line() {
-        assert_eq!(apply_mode("Hello world", DictationMode::Message), "Hello world.");
+        assert_eq!(
+            apply_mode("Hello world", DictationMode::Message),
+            "Hello world."
+        );
         assert_eq!(apply_mode("Hi there.", DictationMode::Message), "Hi there.");
-        assert_eq!(apply_mode("line one\nline two", DictationMode::Message), "line one line two.");
+        assert_eq!(
+            apply_mode("line one\nline two", DictationMode::Message),
+            "line one line two."
+        );
     }
 
     #[test]
@@ -661,7 +696,10 @@ mod tests {
 
     #[test]
     fn note_mode_bullets_each_sentence() {
-        let out = apply_mode("Buy milk. Call the bank. Finish the report.", DictationMode::Note);
+        let out = apply_mode(
+            "Buy milk. Call the bank. Finish the report.",
+            DictationMode::Note,
+        );
         assert_eq!(out, "• Buy milk.\n• Call the bank.\n• Finish the report.");
     }
 
@@ -673,7 +711,13 @@ mod tests {
 
     #[test]
     fn empty_input_stays_empty_for_all_modes() {
-        for m in [DictationMode::Plain, DictationMode::Message, DictationMode::Email, DictationMode::Note, DictationMode::CodePrompt] {
+        for m in [
+            DictationMode::Plain,
+            DictationMode::Message,
+            DictationMode::Email,
+            DictationMode::Note,
+            DictationMode::CodePrompt,
+        ] {
             assert_eq!(apply_mode("   ", m), "");
         }
     }

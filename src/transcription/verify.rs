@@ -26,8 +26,9 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 pub fn sha256_file(path: &Path) -> AppResult<String> {
     let mut file = std::fs::File::open(path)?;
     let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher)
-        .map_err(|e| AppError::Transcription(format!("Hashing failed for {}: {e}", path.display())))?;
+    std::io::copy(&mut file, &mut hasher).map_err(|e| {
+        AppError::Transcription(format!("Hashing failed for {}: {e}", path.display()))
+    })?;
     Ok(to_hex(&hasher.finalize()))
 }
 
@@ -137,11 +138,7 @@ pub fn pinned(key: &str) -> Option<&'static str> {
 
 /// Verify a fixed runtime against its local pin and, when available, require
 /// the provider-published digest to agree with that pin as well.
-pub fn verify_pinned_file(
-    path: &Path,
-    key: &str,
-    published_sha256: Option<&str>,
-) -> AppResult<()> {
+pub fn verify_pinned_file(path: &Path, key: &str, published_sha256: Option<&str>) -> AppResult<()> {
     let expected = pinned(key).ok_or_else(|| {
         AppError::ModelDownloadFailed(format!(
             "No trusted checksum is pinned for runtime artifact '{key}'."
@@ -214,7 +211,10 @@ mod tests {
     fn normalize_oid_forms() {
         let hex = "a".repeat(64);
         assert_eq!(normalize_hf_oid(&hex).as_deref(), Some(hex.as_str()));
-        assert_eq!(normalize_hf_oid(&format!("sha256:{hex}")).as_deref(), Some(hex.as_str()));
+        assert_eq!(
+            normalize_hf_oid(&format!("sha256:{hex}")).as_deref(),
+            Some(hex.as_str())
+        );
         assert!(normalize_hf_oid("notahash").is_none());
         assert!(normalize_hf_oid("abc").is_none());
     }

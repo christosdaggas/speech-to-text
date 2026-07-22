@@ -4,11 +4,11 @@
 
 //! Main transcription panel with message bubbles, live text, and confidence indicator.
 
-use gtk4::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -176,7 +176,9 @@ impl TranscriptView {
 
         let view_weak = self.downgrade();
         waveform_area.set_draw_func(move |area, cr, width, height| {
-            let Some(view) = view_weak.upgrade() else { return };
+            let Some(view) = view_weak.upgrade() else {
+                return;
+            };
             let data = view.imp().waveform_data.borrow();
             let mid_y = height as f64 / 2.0;
             let color = area.color();
@@ -311,7 +313,9 @@ impl TranscriptView {
         let variant_dropdown = gtk::DropDown::from_strings(&[&gettext("Raw")]);
         variant_dropdown.add_css_class("variant-dropdown");
         variant_dropdown.set_valign(gtk::Align::Center);
-        variant_dropdown.set_tooltip_text(Some(&gettext("Switch between the raw transcript and AI versions")));
+        variant_dropdown.set_tooltip_text(Some(&gettext(
+            "Switch between the raw transcript and AI versions",
+        )));
         controls_row.append(&variant_dropdown);
 
         let view = self.clone();
@@ -489,15 +493,19 @@ impl TranscriptView {
         *imp.summary_label.borrow_mut() = Some(summary_label);
         *imp.chapters_box.borrow_mut() = Some(chapters_box);
 
-        let drop_target = gtk::DropTarget::new(
-            gtk::gio::File::static_type(),
-            gtk::gdk::DragAction::COPY,
-        );
+        let drop_target =
+            gtk::DropTarget::new(gtk::gio::File::static_type(), gtk::gdk::DragAction::COPY);
         let view_weak = self.downgrade();
         drop_target.connect_drop(move |_, value, _x, _y| {
-            let Some(view) = view_weak.upgrade() else { return false };
-            let Ok(file) = value.get::<gtk::gio::File>() else { return false };
-            let Some(path) = file.path() else { return false };
+            let Some(view) = view_weak.upgrade() else {
+                return false;
+            };
+            let Ok(file) = value.get::<gtk::gio::File>() else {
+                return false;
+            };
+            let Some(path) = file.path() else {
+                return false;
+            };
             if let Some(callback) = view.imp().drop_callback.borrow().as_ref() {
                 callback(path);
                 return true;
@@ -605,7 +613,9 @@ impl TranscriptView {
         let variant_dropdown = gtk::DropDown::from_strings(&[]);
         variant_dropdown.set_valign(gtk::Align::Center);
         variant_dropdown.set_visible(false);
-        variant_dropdown.set_tooltip_text(Some(&gettext("Switch between the raw transcript and AI versions")));
+        variant_dropdown.set_tooltip_text(Some(&gettext(
+            "Switch between the raw transcript and AI versions",
+        )));
         controls_row.append(&variant_dropdown);
 
         let view = self.clone();
@@ -646,7 +656,7 @@ impl TranscriptView {
 
         let actions_popover = gtk::Popover::new();
         actions_popover.add_css_class("menu");
-        actions_popover.set_has_arrow(false);          // clean rectangular menu
+        actions_popover.set_has_arrow(false); // clean rectangular menu
         actions_popover.set_position(gtk::PositionType::Top); // open upward, over the transcript
         let actions_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
         actions_popover.set_child(Some(&actions_list));
@@ -664,7 +674,9 @@ impl TranscriptView {
         voice_edit_btn.add_css_class("transform-action"); // 12px rounded-rect (not a full pill)
         voice_edit_btn.set_valign(gtk::Align::Center);
         voice_edit_btn.set_visible(false);
-        voice_edit_btn.set_tooltip_text(Some(&gettext("Speak an instruction to change the selected message")));
+        voice_edit_btn.set_tooltip_text(Some(&gettext(
+            "Speak an instruction to change the selected message",
+        )));
         controls_row.append(&voice_edit_btn);
         let view = self.clone();
         voice_edit_btn.connect_clicked(move |_| {
@@ -718,7 +730,9 @@ impl TranscriptView {
 
         let view_weak = self.downgrade();
         waveform_area.set_draw_func(move |_area, cr, width, height| {
-            let Some(view) = view_weak.upgrade() else { return };
+            let Some(view) = view_weak.upgrade() else {
+                return;
+            };
             let data = view.imp().waveform_data.borrow();
 
             // Draw waveform bars
@@ -838,12 +852,19 @@ impl TranscriptView {
         *imp.chapters_box.borrow_mut() = Some(chapters_box);
 
         // Drag-and-drop for audio files
-        let drop_target = gtk::DropTarget::new(gtk::gio::File::static_type(), gtk::gdk::DragAction::COPY);
+        let drop_target =
+            gtk::DropTarget::new(gtk::gio::File::static_type(), gtk::gdk::DragAction::COPY);
         let view_weak = self.downgrade();
         drop_target.connect_drop(move |_, value, _x, _y| {
-            let Some(view) = view_weak.upgrade() else { return false };
-            let Ok(file) = value.get::<gtk::gio::File>() else { return false };
-            let Some(path) = file.path() else { return false };
+            let Some(view) = view_weak.upgrade() else {
+                return false;
+            };
+            let Ok(file) = value.get::<gtk::gio::File>() else {
+                return false;
+            };
+            let Some(path) = file.path() else {
+                return false;
+            };
             let cb = view.imp().drop_callback.borrow();
             if let Some(ref callback) = *cb {
                 callback(path);
@@ -882,7 +903,8 @@ impl TranscriptView {
         copy_btn.set_valign(gtk::Align::Start);
         let label_weak = label.downgrade();
         copy_btn.connect_clicked(move |btn| {
-            if let (Some(display), Some(lbl)) = (gtk::gdk::Display::default(), label_weak.upgrade()) {
+            if let (Some(display), Some(lbl)) = (gtk::gdk::Display::default(), label_weak.upgrade())
+            {
                 display.clipboard().set_text(&lbl.text());
             }
             btn.set_icon_name("object-select-symbolic");
@@ -911,7 +933,10 @@ impl TranscriptView {
         let keys = gtk::EventControllerKey::new();
         let view_weak = self.downgrade();
         keys.connect_key_pressed(move |_, key, _, _| {
-            if matches!(key, gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter | gtk::gdk::Key::space) {
+            if matches!(
+                key,
+                gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter | gtk::gdk::Key::space
+            ) {
                 if let Some(view) = view_weak.upgrade() {
                     if let Some(cb) = view.imp().message_selected_cb.borrow().as_ref() {
                         cb(index);
@@ -1025,9 +1050,10 @@ impl TranscriptView {
     /// Remove the transient live-preview bubble.
     pub fn clear_live_preview(&self) {
         let imp = self.imp();
-        if let (Some(list), Some(bubble)) =
-            (imp.bubble_list.borrow().as_ref(), imp.live_preview.borrow().as_ref())
-        {
+        if let (Some(list), Some(bubble)) = (
+            imp.bubble_list.borrow().as_ref(),
+            imp.live_preview.borrow().as_ref(),
+        ) {
             list.remove(bubble);
         }
         *imp.live_preview.borrow_mut() = None;
@@ -1127,7 +1153,11 @@ impl TranscriptView {
                 l.set_text(&gettext("0 words · 0 WPM"));
                 return;
             }
-            let word_label = if words == 1 { gettext("word") } else { gettext("words") };
+            let word_label = if words == 1 {
+                gettext("word")
+            } else {
+                gettext("words")
+            };
             let base = format!("{} {}", words, word_label);
             match wpm {
                 Some(v) => l.set_text(&format!("{} · {} wpm", base, v)),
@@ -1139,7 +1169,9 @@ impl TranscriptView {
     /// Rebuild the Actions-dropdown items from preset names (one row per preset).
     pub fn set_chip_presets(&self, names: &[String]) {
         let imp = self.imp();
-        let Some(list) = imp.actions_list.borrow().clone() else { return };
+        let Some(list) = imp.actions_list.borrow().clone() else {
+            return;
+        };
         let popover = imp.actions_btn.borrow().as_ref().and_then(|b| b.popover());
         while let Some(child) = list.first_child() {
             list.remove(&child);
@@ -1196,7 +1228,9 @@ impl TranscriptView {
     /// entry (i.e. just the raw transcript, no AI variants yet).
     pub fn set_variant_selector(&self, labels: &[String], active: usize) {
         let imp = self.imp();
-        let Some(dd) = imp.variant_dropdown.borrow().clone() else { return };
+        let Some(dd) = imp.variant_dropdown.borrow().clone() else {
+            return;
+        };
         imp.variant_syncing.set(true);
         let fallback = gettext("Raw");
         let refs: Vec<&str> = if labels.is_empty() {
@@ -1246,7 +1280,6 @@ impl TranscriptView {
         }
     }
 
-
     /// Show the "Summarizing…" placeholder (or hide it when `on` is false).
     pub fn set_summary_loading(&self, on: bool) {
         let imp = self.imp();
@@ -1255,7 +1288,11 @@ impl TranscriptView {
             e.set_expanded(on);
         }
         if let Some(l) = imp.summary_label.borrow().as_ref() {
-            let placeholder = if on { gettext("Summarizing…") } else { String::new() };
+            let placeholder = if on {
+                gettext("Summarizing…")
+            } else {
+                String::new()
+            };
             l.set_text(&placeholder);
         }
         if on {
@@ -1313,7 +1350,7 @@ impl TranscriptView {
     pub fn hide_result_controls(&self) {
         let imp = self.imp();
         if let Some(d) = imp.variant_dropdown.borrow().as_ref() {
-            d.set_model(Some(&gtk::StringList::new(&[&gettext("Raw")]))) ;
+            d.set_model(Some(&gtk::StringList::new(&[&gettext("Raw")])));
             d.set_selected(0);
             d.set_visible(false);
         }

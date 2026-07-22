@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use super::server::{json_error, json_ok};
 use super::{
-    Job, Resp, ServerState, BODY_FRAME_TIMEOUT_SECS, MAX_API_UPLOAD_BYTES,
-    REQUEST_TIMEOUT_SECS,
+    Job, Resp, ServerState, BODY_FRAME_TIMEOUT_SECS, MAX_API_UPLOAD_BYTES, REQUEST_TIMEOUT_SECS,
 };
 use crate::config::AppConfig;
 use crate::recording::{DictationMode, DictationParams};
@@ -124,17 +123,29 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
         .and_then(|s| s.parse::<usize>().ok())
     {
         if len > MAX_API_UPLOAD_BYTES {
-            return json_error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "Upload exceeds the size limit");
+            return json_error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "too_large",
+                "Upload exceeds the size limit",
+            );
         }
     }
 
     let body = match read_capped(req, MAX_API_UPLOAD_BYTES).await {
         Ok(b) => b,
         Err(ReadErr::TooLarge) => {
-            return json_error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "Upload exceeds the size limit")
+            return json_error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "too_large",
+                "Upload exceeds the size limit",
+            )
         }
         Err(ReadErr::Timeout) => {
-            return json_error(StatusCode::REQUEST_TIMEOUT, "read_timeout", "Upload stalled")
+            return json_error(
+                StatusCode::REQUEST_TIMEOUT,
+                "read_timeout",
+                "Upload stalled",
+            )
         }
         Err(ReadErr::Io(e)) => return json_error(StatusCode::BAD_REQUEST, "read_failed", &e),
     };
@@ -151,7 +162,11 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
     };
 
     if audio_bytes.is_empty() {
-        return json_error(StatusCode::UNPROCESSABLE_ENTITY, "no_audio", "No audio data in request");
+        return json_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "no_audio",
+            "No audio data in request",
+        );
     }
 
     // Query string overrides multipart form fields for the same key.
@@ -210,11 +225,19 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
         Ok(Ok(Ok(o))) => o,
         Ok(Ok(Err(msg))) => return transcription_error(&msg),
         Ok(Err(_)) => {
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "worker_gone", "Worker unavailable")
+            return json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "worker_gone",
+                "Worker unavailable",
+            )
         }
         Err(_) => {
             cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
-            return json_error(StatusCode::GATEWAY_TIMEOUT, "timeout", "Transcription timed out");
+            return json_error(
+                StatusCode::GATEWAY_TIMEOUT,
+                "timeout",
+                "Transcription timed out",
+            );
         }
     };
 
@@ -261,10 +284,18 @@ pub(super) async fn translate(req: Request<Incoming>) -> Resp {
     let body = match read_capped(req, 4 * 1024 * 1024).await {
         Ok(b) => b,
         Err(ReadErr::TooLarge) => {
-            return json_error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "Body exceeds the size limit")
+            return json_error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "too_large",
+                "Body exceeds the size limit",
+            )
         }
         Err(ReadErr::Timeout) => {
-            return json_error(StatusCode::REQUEST_TIMEOUT, "read_timeout", "Request body stalled")
+            return json_error(
+                StatusCode::REQUEST_TIMEOUT,
+                "read_timeout",
+                "Request body stalled",
+            )
         }
         Err(ReadErr::Io(e)) => return json_error(StatusCode::BAD_REQUEST, "read_failed", &e),
     };
@@ -393,7 +424,10 @@ fn apply_overrides(
     } else if fields.contains_key("beam_size") {
         return Err("beam_size must be an integer between 1 and 8".into());
     }
-    if let Some(temp) = fields.get("temperature").and_then(|s| s.parse::<f32>().ok()) {
+    if let Some(temp) = fields
+        .get("temperature")
+        .and_then(|s| s.parse::<f32>().ok())
+    {
         if !temp.is_finite() || !(0.0..=1.0).contains(&temp) {
             return Err("temperature must be a finite number between 0 and 1".into());
         }
@@ -408,7 +442,10 @@ fn apply_overrides(
         }
     }
     if let Some(mode) = fields.get("mode") {
-        if !matches!(mode.as_str(), "plain" | "message" | "email" | "note" | "code_prompt") {
+        if !matches!(
+            mode.as_str(),
+            "plain" | "message" | "email" | "note" | "code_prompt"
+        ) {
             return Err("mode must be plain, message, email, note, or code_prompt".into());
         }
         params.mode = DictationMode::from_config_str(mode);
@@ -428,7 +465,11 @@ fn validate_text_parameter(name: &str, value: &str, max_bytes: usize) -> Result<
 
 /// Translate `text` into `target_lang` via the configured LLM (the same path
 /// the GUI's "Translate" preset uses). Requires LLM enabled in settings.
-async fn llm_translate(config: &AppConfig, text: &str, target_lang: &str) -> Result<String, String> {
+async fn llm_translate(
+    config: &AppConfig,
+    text: &str,
+    target_lang: &str,
+) -> Result<String, String> {
     if !config.llm_enabled {
         return Err("LLM is not enabled in settings".to_string());
     }
@@ -500,7 +541,10 @@ mod tests {
         ] {
             let mut params = params();
             let fields = HashMap::from([(key.to_string(), value.to_string())]);
-            assert!(apply_overrides(&mut params, &fields).is_err(), "{key}={value}");
+            assert!(
+                apply_overrides(&mut params, &fields).is_err(),
+                "{key}={value}"
+            );
         }
 
         let mut params = params();

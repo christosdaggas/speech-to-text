@@ -21,12 +21,12 @@
 //! itself near the cursor, or use layer-shell (Mutter implements none of these),
 //! so this is a compact window the compositor places.
 
-use gtk4::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
 use crate::application::Application;
@@ -144,9 +144,7 @@ impl MiniPanel {
     const WIDTH: i32 = 452;
 
     pub fn new(app: &Application) -> Self {
-        let panel: Self = glib::Object::builder()
-            .property("application", app)
-            .build();
+        let panel: Self = glib::Object::builder().property("application", app).build();
         panel.set_default_size(Self::WIDTH, -1);
         panel.set_resizable(false);
         panel.set_title(Some(&gettext("Dictation")));
@@ -172,7 +170,7 @@ impl MiniPanel {
         hdr_dot.add_css_class("mp-dot");
         hdr_dot.add_css_class("rec");
         hdr_dot.set_size_request(10, 10);
-        hdr_dot.set_valign(gtk::Align::Center);   // keep it a round dot, not stretched vertically
+        hdr_dot.set_valign(gtk::Align::Center); // keep it a round dot, not stretched vertically
         hdr_dot.set_halign(gtk::Align::Center);
         state_box.append(&hdr_dot);
         let hdr_spinner = gtk::Spinner::new();
@@ -187,8 +185,8 @@ impl MiniPanel {
 
         // ── Body: a Stack of three equal-height pages ──────────────────────
         let stack = gtk::Stack::new();
-        stack.set_hhomogeneous(true);  // constant width
-        stack.set_vhomogeneous(true);  // constant height across states (content is centered, buttons pinned bottom)
+        stack.set_hhomogeneous(true); // constant width
+        stack.set_vhomogeneous(true); // constant height across states (content is centered, buttons pinned bottom)
 
         stack.add_named(&self.build_recording_page(), Some("recording"));
         stack.add_named(&self.build_transcribing_page(), Some("transcribing"));
@@ -312,7 +310,9 @@ impl MiniPanel {
         wave.add_css_class("mp-wave");
         let panel_weak = self.downgrade();
         wave.set_draw_func(move |_area, cr, width, height| {
-            let Some(panel) = panel_weak.upgrade() else { return };
+            let Some(panel) = panel_weak.upgrade() else {
+                return;
+            };
             draw_waveform(&panel, cr, width, height);
         });
         body.append(&wave);
@@ -504,7 +504,9 @@ impl MiniPanel {
         voice_edit_btn.add_css_class("transform-action");
         voice_edit_btn.set_valign(gtk::Align::Center);
         voice_edit_btn.set_visible(false);
-        voice_edit_btn.set_tooltip_text(Some(&gettext("Voice edit: speak an instruction to change this text")));
+        voice_edit_btn.set_tooltip_text(Some(&gettext(
+            "Voice edit: speak an instruction to change this text",
+        )));
         controls.append(&voice_edit_btn);
         *imp.voice_edit_btn.borrow_mut() = Some(voice_edit_btn.clone());
         self.wire_button(&voice_edit_btn, MiniPanelAction::VoiceEdit);
@@ -529,7 +531,9 @@ impl MiniPanel {
 
         let panel_weak = self.downgrade();
         variant_dropdown.connect_selected_notify(move |dd| {
-            let Some(panel) = panel_weak.upgrade() else { return };
+            let Some(panel) = panel_weak.upgrade() else {
+                return;
+            };
             if panel.imp().variant_syncing.get() {
                 return;
             }
@@ -630,7 +634,11 @@ impl MiniPanel {
                 l.set_text("");
                 return;
             }
-            let word_label = if words == 1 { gettext("word") } else { gettext("words") };
+            let word_label = if words == 1 {
+                gettext("word")
+            } else {
+                gettext("words")
+            };
             let base = format!("{} {}", words, word_label);
             match wpm {
                 Some(v) => l.set_text(&format!("{} · {} wpm", base, v)),
@@ -642,7 +650,9 @@ impl MiniPanel {
     /// Rebuild the Actions-dropdown items from preset names (one row per preset).
     pub fn set_chip_presets(&self, names: &[String]) {
         let imp = self.imp();
-        let Some(list) = imp.actions_list.borrow().clone() else { return };
+        let Some(list) = imp.actions_list.borrow().clone() else {
+            return;
+        };
         let popover = imp.actions_btn.borrow().as_ref().and_then(|b| b.popover());
         while let Some(child) = list.first_child() {
             list.remove(&child);
@@ -692,7 +702,9 @@ impl MiniPanel {
     /// Rebuild the raw/polished variant selector (hidden with one entry only).
     pub fn set_variant_selector(&self, labels: &[String], active: usize) {
         let imp = self.imp();
-        let Some(dd) = imp.variant_dropdown.borrow().clone() else { return };
+        let Some(dd) = imp.variant_dropdown.borrow().clone() else {
+            return;
+        };
         imp.variant_syncing.set(true);
         let refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
         dd.set_model(Some(&gtk::StringList::new(&refs)));
@@ -738,7 +750,11 @@ impl MiniPanel {
         }
         if let Some(sp) = imp.hdr_spinner.borrow().as_ref() {
             sp.set_visible(spinning);
-            if spinning { sp.start(); } else { sp.stop(); }
+            if spinning {
+                sp.start();
+            } else {
+                sp.stop();
+            }
         }
     }
 
@@ -753,11 +769,19 @@ impl MiniPanel {
         if let Some(r) = imp.rec_meta_r.borrow().as_ref() {
             r.set_text(lang_label);
         }
-        if let Some(t) = imp.timer_label.borrow().as_ref() { t.set_text("00:00"); }
-        if let Some(c) = imp.cs_label.borrow().as_ref() { c.set_text(".00"); }
+        if let Some(t) = imp.timer_label.borrow().as_ref() {
+            t.set_text("00:00");
+        }
+        if let Some(c) = imp.cs_label.borrow().as_ref() {
+            c.set_text(".00");
+        }
         self.set_level(0.0);
-        if let Some(a) = imp.waveform_area.borrow().as_ref() { a.queue_draw(); }
-        if let Some(s) = imp.stack.borrow().as_ref() { s.set_visible_child_name("recording"); }
+        if let Some(a) = imp.waveform_area.borrow().as_ref() {
+            a.queue_draw();
+        }
+        if let Some(s) = imp.stack.borrow().as_ref() {
+            s.set_visible_child_name("recording");
+        }
     }
 
     /// Enter the transcribing state with an indeterminate decode sweep.
@@ -768,12 +792,18 @@ impl MiniPanel {
         if let Some(l) = imp.tr_meta_l.borrow().as_ref() {
             l.set_text(&format!("{} · {}", gettext("Decode"), model_label));
         }
-        if let Some(r) = imp.tr_meta_r.borrow().as_ref() { r.set_text(lang_label); }
-        if let Some(e) = imp.tr_elapsed.borrow().as_ref() { e.set_text("0.0 s"); }
+        if let Some(r) = imp.tr_meta_r.borrow().as_ref() {
+            r.set_text(lang_label);
+        }
+        if let Some(e) = imp.tr_elapsed.borrow().as_ref() {
+            e.set_text("0.0 s");
+        }
         self.set_partial_text("");
         imp.seg_pos.set(0);
         imp.tr_ticks.set(0);
-        if let Some(s) = imp.stack.borrow().as_ref() { s.set_visible_child_name("transcribing"); }
+        if let Some(s) = imp.stack.borrow().as_ref() {
+            s.set_visible_child_name("transcribing");
+        }
         self.start_decode_anim();
     }
 
@@ -785,11 +815,17 @@ impl MiniPanel {
         if let Some(l) = imp.tr_meta_l.borrow().as_ref() {
             l.set_text(&gettext("Enhancing transcript…"));
         }
-        if let Some(r) = imp.tr_meta_r.borrow().as_ref() { r.set_text(""); }
-        if let Some(e) = imp.tr_elapsed.borrow().as_ref() { e.set_text("0.0 s"); }
+        if let Some(r) = imp.tr_meta_r.borrow().as_ref() {
+            r.set_text("");
+        }
+        if let Some(e) = imp.tr_elapsed.borrow().as_ref() {
+            e.set_text("0.0 s");
+        }
         imp.seg_pos.set(0);
         imp.tr_ticks.set(0);
-        if let Some(s) = imp.stack.borrow().as_ref() { s.set_visible_child_name("transcribing"); }
+        if let Some(s) = imp.stack.borrow().as_ref() {
+            s.set_visible_child_name("transcribing");
+        }
         self.start_decode_anim();
     }
 
@@ -799,9 +835,15 @@ impl MiniPanel {
         self.stop_decode_anim();
         imp.state.set(PanelState::Result);
         self.set_header(&gettext("Transcript ready"), Some("ok"), false);
-        if let Some(t) = imp.transcript_label.borrow().as_ref() { t.set_text(text); }
-        if let Some(b) = imp.copied_badge.borrow().as_ref() { b.set_visible(copied); }
-        if let Some(s) = imp.stack.borrow().as_ref() { s.set_visible_child_name("result"); }
+        if let Some(t) = imp.transcript_label.borrow().as_ref() {
+            t.set_text(text);
+        }
+        if let Some(b) = imp.copied_badge.borrow().as_ref() {
+            b.set_visible(copied);
+        }
+        if let Some(s) = imp.stack.borrow().as_ref() {
+            s.set_visible_child_name("result");
+        }
     }
 
     /// Show an error message in place of a result.
@@ -814,9 +856,15 @@ impl MiniPanel {
         self.reset_result_extras();
         imp.state.set(PanelState::Result);
         self.set_header(&gettext("Couldn't transcribe"), Some("rec"), false);
-        if let Some(t) = imp.transcript_label.borrow().as_ref() { t.set_text(message); }
-        if let Some(b) = imp.copied_badge.borrow().as_ref() { b.set_visible(false); }
-        if let Some(s) = imp.stack.borrow().as_ref() { s.set_visible_child_name("result"); }
+        if let Some(t) = imp.transcript_label.borrow().as_ref() {
+            t.set_text(message);
+        }
+        if let Some(b) = imp.copied_badge.borrow().as_ref() {
+            b.set_visible(false);
+        }
+        if let Some(s) = imp.stack.borrow().as_ref() {
+            s.set_visible_child_name("result");
+        }
     }
 
     /// Update the timer (fractional seconds) — formats "MM:SS" + ".cc".
@@ -855,7 +903,13 @@ impl MiniPanel {
             led.remove_css_class("r");
             if i < lit {
                 led.add_css_class("on");
-                let cls = if i >= N_LEDS - 1 { "r" } else if i >= N_LEDS - 3 { "y" } else { "g" };
+                let cls = if i >= N_LEDS - 1 {
+                    "r"
+                } else if i >= N_LEDS - 3 {
+                    "y"
+                } else {
+                    "g"
+                };
                 led.add_css_class(cls);
             }
         }
@@ -871,7 +925,9 @@ impl MiniPanel {
         imp.decoding.set(true);
         let panel_weak = self.downgrade();
         glib::timeout_add_local(std::time::Duration::from_millis(90), move || {
-            let Some(panel) = panel_weak.upgrade() else { return glib::ControlFlow::Break };
+            let Some(panel) = panel_weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
             let imp = panel.imp();
             if !imp.decoding.get() || imp.state.get() != PanelState::Transcribing {
                 return glib::ControlFlow::Break;
@@ -882,7 +938,11 @@ impl MiniPanel {
             let cells = imp.seg_cells.borrow();
             for (i, c) in cells.iter().enumerate() {
                 let lit = (i + N_SEGS - (pos % N_SEGS)) % N_SEGS < win;
-                if lit { c.add_css_class("on"); } else { c.remove_css_class("on"); }
+                if lit {
+                    c.add_css_class("on");
+                } else {
+                    c.remove_css_class("on");
+                }
             }
             imp.seg_pos.set(pos + 1);
             // Elapsed time (tick = 90ms).

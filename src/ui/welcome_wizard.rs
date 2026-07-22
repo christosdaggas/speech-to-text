@@ -4,18 +4,18 @@
 
 //! First-run welcome wizard for model download and initial setup.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
 use crate::application::tokio_runtime;
 use crate::config::AppConfig;
-use crate::transcription::{ModelCatalog, download_model};
+use crate::transcription::{download_model, ModelCatalog};
 
 mod imp {
     use super::*;
@@ -184,7 +184,11 @@ impl WelcomeWizard {
                 config.save();
 
                 // Tell the main window to load the downloaded model directly
-                let load_id = wizard.imp().downloaded_model_id.borrow().clone()
+                let load_id = wizard
+                    .imp()
+                    .downloaded_model_id
+                    .borrow()
+                    .clone()
                     .unwrap_or_else(|| config.selected_model.clone());
                 if let Some(parent) = wizard.transient_for() {
                     if let Some(main_window) = parent.downcast_ref::<super::MainWindow>() {
@@ -218,7 +222,7 @@ impl WelcomeWizard {
 
         let subtitle = gtk::Label::new(Some(
             "Convert speech to text locally on your machine.\n\
-             No internet connection required after initial setup."
+             No internet connection required after initial setup.",
         ));
         subtitle.set_justify(gtk::Justification::Center);
         subtitle.add_css_class("body");
@@ -230,9 +234,18 @@ impl WelcomeWizard {
         features.set_halign(gtk::Align::Center);
 
         for (icon_name, text) in [
-            ("network-offline-symbolic", "100% offline — your audio never leaves your device"),
-            ("preferences-desktop-locale-symbolic", "Supports 99 languages with auto-detection"),
-            ("media-record-symbolic", "Real-time recording with live waveform"),
+            (
+                "network-offline-symbolic",
+                "100% offline — your audio never leaves your device",
+            ),
+            (
+                "preferences-desktop-locale-symbolic",
+                "Supports 99 languages with auto-detection",
+            ),
+            (
+                "media-record-symbolic",
+                "Real-time recording with live waveform",
+            ),
         ] {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let icon = gtk::Image::from_icon_name(icon_name);
@@ -262,7 +275,7 @@ impl WelcomeWizard {
 
         let desc = gtk::Label::new(Some(
             "A language model is needed for transcription.\n\
-             Quantized (Q5) models are smaller with near-identical quality."
+             Quantized (Q5) models are smaller with near-identical quality.",
         ));
         desc.set_justify(gtk::Justification::Center);
         desc.set_wrap(true);
@@ -271,13 +284,17 @@ impl WelcomeWizard {
 
         // Model selector — build from catalog
         let catalog = ModelCatalog::new();
-        let labels: Vec<String> = catalog.models().iter().map(|m| {
-            if m.quantized {
-                format!("{} ({}) — Quantized", m.display_name, m.size_display)
-            } else {
-                format!("{} ({}) — Full", m.display_name, m.size_display)
-            }
-        }).collect();
+        let labels: Vec<String> = catalog
+            .models()
+            .iter()
+            .map(|m| {
+                if m.quantized {
+                    format!("{} ({}) — Quantized", m.display_name, m.size_display)
+                } else {
+                    format!("{} ({}) — Full", m.display_name, m.size_display)
+                }
+            })
+            .collect();
         let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
         let model_list = gtk::StringList::new(&label_refs);
         let model_dropdown = gtk::DropDown::new(Some(model_list), gtk::Expression::NONE);
@@ -348,9 +365,15 @@ impl WelcomeWizard {
                 let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
                 match download_model(&model_info, cancel, move |downloaded, total| {
                     let _ = progress_tx.send_blocking((downloaded, total));
-                }).await {
-                    Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                    Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                })
+                .await
+                {
+                    Ok(_) => {
+                        let _ = done_tx.send_blocking(Ok(()));
+                    }
+                    Err(e) => {
+                        let _ = done_tx.send_blocking(Err(e.to_string()));
+                    }
                 }
             });
 
@@ -359,11 +382,16 @@ impl WelcomeWizard {
             let status_clone = status_ref.clone();
             glib::spawn_future_local(async move {
                 while let Ok((downloaded, total)) = progress_rx.recv().await {
-                    let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                    let frac = if total > 0 {
+                        downloaded as f64 / total as f64
+                    } else {
+                        0.0
+                    };
                     let mb_down = downloaded as f64 / 1_000_000.0;
                     let mb_total = total as f64 / 1_000_000.0;
                     progress_bar_clone.set_fraction(frac);
-                    progress_bar_clone.set_text(Some(&format!("Downloading… {:.0}%", frac * 100.0)));
+                    progress_bar_clone
+                        .set_text(Some(&format!("Downloading… {:.0}%", frac * 100.0)));
                     status_clone.set_text(&format!("{:.0} / {:.0} MB", mb_down, mb_total));
                 }
             });
@@ -378,7 +406,8 @@ impl WelcomeWizard {
                     match result {
                         Ok(()) => {
                             if let Some(wizard) = wizard_w.upgrade() {
-                                *wizard.imp().downloaded_model_id.borrow_mut() = Some(downloaded_id_clone);
+                                *wizard.imp().downloaded_model_id.borrow_mut() =
+                                    Some(downloaded_id_clone);
                                 wizard.download_complete();
                             }
                         }
@@ -417,7 +446,7 @@ impl WelcomeWizard {
 
         let desc = gtk::Label::new(Some(
             "Everything is configured. Press Record to start\n\
-             transcribing speech to text."
+             transcribing speech to text.",
         ));
         desc.set_justify(gtk::Justification::Center);
         desc.set_wrap(true);

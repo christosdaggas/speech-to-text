@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 
-use crate::error::{AppError, AppResult};
 use super::buffer::{AudioBuffer, RawAudioSnapshot};
+use crate::error::{AppError, AppResult};
 
 use async_channel;
 
@@ -29,14 +29,15 @@ pub struct AudioDevice {
 pub fn list_input_devices() -> AppResult<Vec<AudioDevice>> {
     let host = cpal::default_host();
 
-    let default_device_name = host.default_input_device()
-        .and_then(|d| d.name().ok());
+    let default_device_name = host.default_input_device().and_then(|d| d.name().ok());
 
-    let devices: Vec<AudioDevice> = host.input_devices()
+    let devices: Vec<AudioDevice> = host
+        .input_devices()
         .map_err(|e| AppError::Audio(format!("Failed to enumerate input devices: {}", e)))?
         .filter_map(|device| {
             device.name().ok().map(|name| {
-                let is_default = default_device_name.as_ref()
+                let is_default = default_device_name
+                    .as_ref()
                     .map(|d| d == &name)
                     .unwrap_or(false);
                 AudioDevice { name, is_default }
@@ -57,7 +58,8 @@ fn get_device(device_name: Option<&str>) -> AppResult<Device> {
     let host = cpal::default_host();
 
     if let Some(name) = device_name {
-        let devices = host.input_devices()
+        let devices = host
+            .input_devices()
             .map_err(|e| AppError::Audio(format!("Failed to enumerate devices: {}", e)))?;
 
         for device in devices {
@@ -70,8 +72,7 @@ fn get_device(device_name: Option<&str>) -> AppResult<Device> {
         warn!("Device '{}' not found, falling back to default", name);
     }
 
-    host.default_input_device()
-        .ok_or(AppError::NoAudioDevices)
+    host.default_input_device().ok_or(AppError::NoAudioDevices)
 }
 
 /// Recording state shared between the audio thread and the main thread.
@@ -123,14 +124,18 @@ impl AudioCapture {
         info!("Starting recording on device: {}", device_name_str);
 
         // Get supported config, prefer 16kHz mono but accept what's available
-        let supported_config = device.default_input_config()
+        let supported_config = device
+            .default_input_config()
             .map_err(|e| AppError::Audio(format!("No supported input config: {}", e)))?;
 
         let sample_rate = supported_config.sample_rate().0;
         let channels = supported_config.channels() as u32;
         let sample_format = supported_config.sample_format();
 
-        info!("Device config: {}Hz, {} channels, {:?}", sample_rate, channels, sample_format);
+        info!(
+            "Device config: {}Hz, {} channels, {:?}",
+            sample_rate, channels, sample_format
+        );
 
         let config = StreamConfig {
             channels: supported_config.channels(),
@@ -194,7 +199,8 @@ impl AudioCapture {
                                         let start = i * chunk_size;
                                         let end = (start + chunk_size).min(data.len());
                                         let slice = &data[start..end];
-                                        slice.iter().map(|s| s.abs()).sum::<f32>() / slice.len() as f32
+                                        slice.iter().map(|s| s.abs()).sum::<f32>()
+                                            / slice.len() as f32
                                     })
                                     .collect();
                                 let _ = sender.try_send(amplitudes);
@@ -243,7 +249,10 @@ impl AudioCapture {
                                         let start = i * chunk_size;
                                         let end = (start + chunk_size).min(data.len());
                                         let slice = &data[start..end];
-                                        slice.iter().map(|s| s.unsigned_abs() as f32 / i16::MAX as f32).sum::<f32>()
+                                        slice
+                                            .iter()
+                                            .map(|s| s.unsigned_abs() as f32 / i16::MAX as f32)
+                                            .sum::<f32>()
                                             / slice.len() as f32
                                     })
                                     .collect();
@@ -258,11 +267,16 @@ impl AudioCapture {
                 )
             }
             format => {
-                return Err(AppError::Audio(format!("Unsupported sample format: {:?}", format)));
+                return Err(AppError::Audio(format!(
+                    "Unsupported sample format: {:?}",
+                    format
+                )));
             }
-        }.map_err(|e| AppError::Audio(format!("Failed to build input stream: {}", e)))?;
+        }
+        .map_err(|e| AppError::Audio(format!("Failed to build input stream: {}", e)))?;
 
-        stream.play()
+        stream
+            .play()
             .map_err(|e| AppError::Audio(format!("Failed to start stream: {}", e)))?;
 
         self.stream = Some(stream);
@@ -308,7 +322,9 @@ impl AudioCapture {
         self.paused.store(false, Ordering::Relaxed);
         self.state = RecordingState::Idle;
 
-        let snapshot = self.buffer.lock()
+        let snapshot = self
+            .buffer
+            .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take_raw_snapshot();
 
@@ -320,10 +336,7 @@ impl AudioCapture {
     /// WITHOUT stopping recording or clearing the buffer. Used for live (while
     /// speaking) transcription.
     pub fn snapshot_mono_16khz(&self, max_samples: usize) -> Vec<f32> {
-        let snapshot = self
-            .buffer
-            .lock()
-            .map(|b| b.tail_raw_snapshot(max_samples));
+        let snapshot = self.buffer.lock().map(|b| b.tail_raw_snapshot(max_samples));
         snapshot.map(|raw| raw.condition()).unwrap_or_default()
     }
 

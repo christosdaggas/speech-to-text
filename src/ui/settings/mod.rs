@@ -8,24 +8,24 @@ use gtk4 as gtk;
 use gtk4::prelude::*;
 use libadwaita as adw;
 
-pub mod microphone;
-pub mod model;
-pub mod language;
-pub mod performance;
+pub mod api;
 pub mod dictation;
 pub mod dictionary;
+pub mod language;
 pub mod llm;
-pub mod api;
+pub mod microphone;
+pub mod model;
+pub mod performance;
 
-pub use microphone::MicrophonePage;
-pub use model::ModelPage;
-pub use language::LanguagePage;
-pub use language::language_code_to_name;
-pub use performance::PerformancePage;
+pub use api::ApiPage;
 pub use dictation::DictationPage;
 pub use dictionary::DictionaryPage;
+pub use language::language_code_to_name;
+pub use language::LanguagePage;
 pub use llm::LlmPage;
-pub use api::ApiPage;
+pub use microphone::MicrophonePage;
+pub use model::ModelPage;
+pub use performance::PerformancePage;
 
 /// Effectively-unlimited clamp width: large enough that no monitor caps the
 /// content, small enough to avoid arithmetic overflow inside libadwaita's

@@ -65,11 +65,7 @@ fn main() {
                 let mo_file = mo_dir.join("speech-to-text.mo");
 
                 let result = Command::new("msgfmt")
-                    .args([
-                        po_file.to_str().unwrap(),
-                        "-o",
-                        mo_file.to_str().unwrap(),
-                    ])
+                    .args([po_file.to_str().unwrap(), "-o", mo_file.to_str().unwrap()])
                     .status();
 
                 match result {

@@ -9,9 +9,9 @@
 //! weights from HuggingFace (gated, requires token), and shells out to the
 //! CLI for transcription. No server, no manual steps.
 
+use super::engine::{TranscriptionResult, TranscriptionSegment};
 use crate::config::AppConfig;
 use crate::error::{AppError, AppResult};
-use super::engine::{TranscriptionResult, TranscriptionSegment};
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
@@ -81,11 +81,10 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
     let zip_path = dir.join("runtime.zip");
 
     let client = super::download_client();
-    let resp = client
-        .get(RUNTIME_URL)
-        .send()
-        .await
-        .map_err(|e| AppError::ModelDownloadFailed(format!("Runtime download failed: {}", e)))?;
+    let resp =
+        client.get(RUNTIME_URL).send().await.map_err(|e| {
+            AppError::ModelDownloadFailed(format!("Runtime download failed: {}", e))
+        })?;
 
     if !resp.status().is_success() {
         return Err(AppError::ModelDownloadFailed(format!(
@@ -100,8 +99,8 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
     let mut stream = resp.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
+        let chunk =
+            chunk.map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {
@@ -183,8 +182,7 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
     .await
     .ok_or_else(|| {
         AppError::ModelDownloadFailed(
-            "Could not obtain the trusted SHA-256 for the Cohere model; download refused."
-                .into(),
+            "Could not obtain the trusted SHA-256 for the Cohere model; download refused.".into(),
         )
     })?;
 
@@ -251,10 +249,7 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
 /// Transcribe audio via the Cohere CLI binary.
 ///
 /// `audio` is mono 16 kHz f32 PCM. This is a **blocking** call.
-pub fn transcribe_via_cli(
-    audio: &[f32],
-    language: Option<&str>,
-) -> AppResult<TranscriptionResult> {
+pub fn transcribe_via_cli(audio: &[f32], language: Option<&str>) -> AppResult<TranscriptionResult> {
     if audio.is_empty() {
         return Ok(TranscriptionResult {
             segments: Vec::new(),
@@ -305,10 +300,8 @@ pub fn transcribe_via_cli(
     };
     cmd.env("LD_LIBRARY_PATH", &ld_path);
 
-    let output = super::run_command_with_timeout(
-        &mut cmd,
-        std::time::Duration::from_secs(10 * 60),
-    )?;
+    let output =
+        super::run_command_with_timeout(&mut cmd, std::time::Duration::from_secs(10 * 60))?;
 
     drop(tmp); // RAII removes the temp WAV
 
@@ -377,8 +370,8 @@ async fn download_hf_file(
     let mut stream = resp.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
+        let chunk =
+            chunk.map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {

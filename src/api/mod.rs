@@ -19,8 +19,8 @@ mod handlers;
 mod server;
 
 use std::net::Ipv4Addr;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use http_body_util::Full;
@@ -182,10 +182,11 @@ fn worker_loop(
         if job.cancelled.load(std::sync::atomic::Ordering::Relaxed) {
             continue;
         }
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_job(&engine, &job)
-        }))
-        .unwrap_or_else(|_| Err("Transcription worker recovered from an invalid request.".into()));
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_job(&engine, &job)))
+                .unwrap_or_else(|_| {
+                    Err("Transcription worker recovered from an invalid request.".into())
+                });
         let _ = job.reply.send_blocking(result);
         // `job.audio` (TempPath) drops here → the temp file is unlinked.
     }
@@ -237,8 +238,7 @@ mod tests {
         let catalog = Arc::new(ModelCatalog::new());
         let port = 17_787;
         let token = "secrettoken123".to_string();
-        let handle = start(engine, catalog, port, Some(token.clone()))
-            .expect("server should bind");
+        let handle = start(engine, catalog, port, Some(token.clone())).expect("server should bind");
 
         // Use a minimal raw TCP client (below) for full control over headers.
 
@@ -252,8 +252,7 @@ mod tests {
         assert_eq!(status, 401);
 
         // 3. Wrong token → 401.
-        let (status, _h, _b) =
-            raw_get(port, "/v1/models", &[("Authorization", "Bearer nope")]);
+        let (status, _h, _b) = raw_get(port, "/v1/models", &[("Authorization", "Bearer nope")]);
         assert_eq!(status, 401);
 
         // 4. Correct token → 200.
@@ -266,7 +265,13 @@ mod tests {
         assert_eq!(status, 404);
 
         // 6. DNS-rebinding guard: a non-loopback Host is rejected with 400.
-        let (status, _h, _b) = raw_request(port, "GET", "/v1/health", &[("Host", "evil.example.com")], b"");
+        let (status, _h, _b) = raw_request(
+            port,
+            "GET",
+            "/v1/health",
+            &[("Host", "evil.example.com")],
+            b"",
+        );
         assert_eq!(status, 400);
 
         // 7. CORS preflight reflects the Origin.
@@ -279,14 +284,21 @@ mod tests {
         );
         assert_eq!(status, 204);
         assert!(
-            headers.to_lowercase().contains("access-control-allow-origin: http://localhost:3000"),
+            headers
+                .to_lowercase()
+                .contains("access-control-allow-origin: http://localhost:3000"),
             "preflight headers: {headers}"
         );
 
         // 8. transcribe with a valid token but an empty body → 422 (no audio),
         //    proving auth passed and the body path ran without touching a model.
-        let (status, _h, body) =
-            raw_request(port, "POST", "/v1/transcribe", &[("Authorization", &auth)], b"");
+        let (status, _h, body) = raw_request(
+            port,
+            "POST",
+            "/v1/transcribe",
+            &[("Authorization", &auth)],
+            b"",
+        );
         assert_eq!(status, 422, "transcribe body: {body}");
         assert!(body.contains("no_audio"), "transcribe body: {body}");
 
@@ -306,8 +318,8 @@ mod tests {
         headers: &[(&str, &str)],
         body: &[u8],
     ) -> (u16, String, String) {
-        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))
-            .expect("connect to API server");
+        let mut stream =
+            std::net::TcpStream::connect(("127.0.0.1", port)).expect("connect to API server");
         let mut have_host = false;
         let mut req = format!("{method} {path} HTTP/1.1\r\n");
         for (k, v) in headers {

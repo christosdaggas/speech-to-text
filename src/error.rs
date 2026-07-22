@@ -11,7 +11,16 @@ use thiserror::Error;
 /// of these and are long enough to plausibly be a secret, so ordinary text
 /// (model names, URLs) is left intact.
 const SECRET_PREFIXES: &[&str] = &[
-    "sk-", "sk_", "hf_", "ghp_", "gho_", "github_pat_", "xoxb-", "xoxp-", "AKIA", "AIza",
+    "sk-",
+    "sk_",
+    "hf_",
+    "ghp_",
+    "gho_",
+    "github_pat_",
+    "xoxb-",
+    "xoxp-",
+    "AKIA",
+    "AIza",
 ];
 
 fn looks_secret(token: &str) -> bool {
@@ -33,8 +42,7 @@ pub fn redact_secrets(input: &str) -> String {
     let words: Vec<String> = s
         .split(' ')
         .map(|word| {
-            let core =
-                word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
+            let core = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
             let redact = !core.is_empty() && (prev_was_bearer || looks_secret(core));
             prev_was_bearer = core.eq_ignore_ascii_case("bearer");
             if redact {

@@ -16,12 +16,12 @@
 use enumflags2::BitFlags;
 use tracing::{info, warn};
 
-use ashpd::desktop::{CreateSessionOptions, PersistMode};
 use ashpd::desktop::clipboard::{Clipboard, RequestClipboardOptions, SetSelectionOptions};
 use ashpd::desktop::remote_desktop::{
     DeviceType, KeyState, NotifyKeyboardKeysymOptions, RemoteDesktop, SelectDevicesOptions,
     StartOptions,
 };
+use ashpd::desktop::{CreateSessionOptions, PersistMode};
 
 /// X keysym for the left Control key.
 const XK_CONTROL_L: i32 = 0xffe3;
@@ -105,7 +105,9 @@ async fn paste_via_remote_desktop() -> Result<bool, ashpd::Error> {
     super::ensure_host_app_registered().await;
 
     let proxy = RemoteDesktop::new().await?;
-    let session = proxy.create_session(CreateSessionOptions::default()).await?;
+    let session = proxy
+        .create_session(CreateSessionOptions::default())
+        .await?;
 
     let restore_token = load_restore_token();
     let select = SelectDevicesOptions::default()
@@ -132,10 +134,18 @@ async fn paste_via_remote_desktop() -> Result<bool, ashpd::Error> {
 
     // Ctrl down, V down, V up, Ctrl up.
     let opts = NotifyKeyboardKeysymOptions::default;
-    proxy.notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Pressed, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_V, KeyState::Pressed, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_V, KeyState::Released, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Released, opts()).await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Pressed, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_V, KeyState::Pressed, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_V, KeyState::Released, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Released, opts())
+        .await?;
 
     let _ = session.close().await;
     info!("Auto-pasted via RemoteDesktop portal");
@@ -179,7 +189,9 @@ async fn paste_text_inner(text: String) -> Result<bool, ashpd::Error> {
     super::ensure_host_app_registered().await;
 
     let proxy = RemoteDesktop::new().await?;
-    let session = proxy.create_session(CreateSessionOptions::default()).await?;
+    let session = proxy
+        .create_session(CreateSessionOptions::default())
+        .await?;
 
     let restore_token = load_restore_token();
     let select = SelectDevicesOptions::default()
@@ -216,7 +228,9 @@ async fn paste_text_inner(text: String) -> Result<bool, ashpd::Error> {
 
     // Subscribe to transfer requests BEFORE advertising the selection so we don't
     // miss the read the target app issues in response to Ctrl+V.
-    let transfers = clipboard.receive_selection_transfer::<RemoteDesktop>().await?;
+    let transfers = clipboard
+        .receive_selection_transfer::<RemoteDesktop>()
+        .await?;
 
     clipboard
         .set_selection(
@@ -229,10 +243,18 @@ async fn paste_text_inner(text: String) -> Result<bool, ashpd::Error> {
     // Inject Ctrl+V into the (now focused) target app. Ctrl and 'v' exist in every
     // Latin layout, so this resolves regardless of the transcript's language.
     let opts = NotifyKeyboardKeysymOptions::default;
-    proxy.notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Pressed, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_V, KeyState::Pressed, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_V, KeyState::Released, opts()).await?;
-    proxy.notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Released, opts()).await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Pressed, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_V, KeyState::Pressed, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_V, KeyState::Released, opts())
+        .await?;
+    proxy
+        .notify_keyboard_keysym(&session, XK_CONTROL_L, KeyState::Released, opts())
+        .await?;
 
     // Serve the target app's data request(s): answer every SelectionTransfer with
     // the transcript bytes. Wait up to 2.5s for the first read (after Ctrl+V), then
@@ -258,8 +280,8 @@ async fn paste_text_inner(text: String) -> Result<bool, ashpd::Error> {
                     let _ = clipboard.selection_write_done(&sess, serial, ok).await;
                 }
             }
-            Ok(None) => break,   // signal stream ended
-            Err(_) => break,     // quiet period elapsed — paste served
+            Ok(None) => break, // signal stream ended
+            Err(_) => break,   // quiet period elapsed — paste served
         }
     }
 

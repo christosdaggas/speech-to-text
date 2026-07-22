@@ -6,8 +6,8 @@
 //!
 //! Uses Whisper (via whisper.cpp) for local transcription with GPU acceleration support.
 
-use gtk4::prelude::*;
 use gtk4::glib;
+use gtk4::prelude::*;
 
 mod api;
 mod application;

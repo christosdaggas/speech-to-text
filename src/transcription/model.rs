@@ -116,7 +116,8 @@ impl ModelCatalog {
             url: format!("{}/ggml-large-v3-turbo.bin", base_url),
             size_bytes: 1_624_000_000,
             size_display: "~1.6 GB".into(),
-            description: "Near Large v3 accuracy, several times faster. Great quality/speed pick.".into(),
+            description: "Near Large v3 accuracy, several times faster. Great quality/speed pick."
+                .into(),
             quantized: false,
         });
 
@@ -177,7 +178,8 @@ impl ModelCatalog {
             url: format!("{}/ggml-large-v3-turbo-q5_0.bin", base_url),
             size_bytes: 574_000_000,
             size_display: "~574 MB".into(),
-            description: "Quantized Turbo. ~65% smaller, near-identical accuracy. Fast and light.".into(),
+            description: "Quantized Turbo. ~65% smaller, near-identical accuracy. Fast and light."
+                .into(),
             quantized: true,
         });
 
@@ -191,7 +193,8 @@ impl ModelCatalog {
 
     /// Get all models in display order.
     pub fn models(&self) -> Vec<&ModelInfo> {
-        self.order.iter()
+        self.order
+            .iter()
             .filter_map(|id| self.models.get(id))
             .collect()
     }
@@ -233,7 +236,8 @@ impl ModelCatalog {
 
     /// Get all downloaded model IDs.
     pub fn downloaded_models(&self) -> Vec<String> {
-        self.order.iter()
+        self.order
+            .iter()
             .filter(|id| Self::is_downloaded(id))
             .cloned()
             .collect()
@@ -241,7 +245,8 @@ impl ModelCatalog {
 
     /// Get only full (non-quantized) models in display order.
     pub fn full_models(&self) -> Vec<&ModelInfo> {
-        self.order.iter()
+        self.order
+            .iter()
             .filter_map(|id| self.models.get(id))
             .filter(|m| !m.quantized)
             .collect()
@@ -249,7 +254,8 @@ impl ModelCatalog {
 
     /// Get only quantized models in display order.
     pub fn quantized_models(&self) -> Vec<&ModelInfo> {
-        self.order.iter()
+        self.order
+            .iter()
             .filter_map(|id| self.models.get(id))
             .filter(|m| m.quantized)
             .collect()
@@ -336,17 +342,14 @@ where
 
     let client = super::download_client();
     let filename = format!("ggml-{}.bin", model_info.id);
-    let expected_sha = crate::transcription::verify::hf_lfs_sha256(
-        &client,
-        "ggerganov/whisper.cpp",
-        &filename,
-    )
-    .await
-    .ok_or_else(|| {
-        AppError::ModelDownloadFailed(format!(
-            "Could not obtain the trusted SHA-256 for '{filename}'; download refused."
-        ))
-    })?;
+    let expected_sha =
+        crate::transcription::verify::hf_lfs_sha256(&client, "ggerganov/whisper.cpp", &filename)
+            .await
+            .ok_or_else(|| {
+                AppError::ModelDownloadFailed(format!(
+                    "Could not obtain the trusted SHA-256 for '{filename}'; download refused."
+                ))
+            })?;
 
     let partial_matches = if temp_path.is_file() {
         let path = temp_path.clone();
@@ -362,13 +365,18 @@ where
         false
     };
     if partial_matches {
-        tokio::fs::rename(&temp_path, &output_path).await.map_err(|e| {
-            AppError::ModelDownloadFailed(format!("Failed to finalize resumed download: {e}"))
-        })?;
+        tokio::fs::rename(&temp_path, &output_path)
+            .await
+            .map_err(|e| {
+                AppError::ModelDownloadFailed(format!("Failed to finalize resumed download: {e}"))
+            })?;
         return Ok(output_path);
     }
 
-    info!("Downloading model '{}' from {}", model_info.id, model_info.url);
+    info!(
+        "Downloading model '{}' from {}",
+        model_info.id, model_info.url
+    );
 
     let existing = tokio::fs::metadata(&temp_path)
         .await
@@ -379,13 +387,17 @@ where
     if existing > 0 {
         request = request.header(reqwest::header::RANGE, format!("bytes={existing}-"));
     }
-    let response = request.send().await
+    let response = request
+        .send()
+        .await
         .map_err(|e| AppError::ModelDownloadFailed(format!("HTTP request failed: {}", e)))?;
 
     if !response.status().is_success() {
-        return Err(AppError::ModelDownloadFailed(
-            format!("HTTP {}: {}", response.status(), model_info.url)
-        ));
+        return Err(AppError::ModelDownloadFailed(format!(
+            "HTTP {}: {}",
+            response.status(),
+            model_info.url
+        )));
     }
 
     let resuming = existing > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
@@ -423,7 +435,8 @@ where
         let chunk = chunk
             .map_err(|e| AppError::ModelDownloadFailed(format!("Download interrupted: {}", e)))?;
 
-        file.write_all(&chunk).await
+        file.write_all(&chunk)
+            .await
             .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to write: {}", e)))?;
 
         downloaded += chunk.len() as u64;
@@ -437,7 +450,8 @@ where
         progress_callback(downloaded, total_size);
     }
 
-    file.flush().await
+    file.flush()
+        .await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to flush: {}", e)))?;
     drop(file);
 
@@ -465,10 +479,14 @@ where
     .map_err(|e| AppError::ModelDownloadFailed(format!("Integrity task failed: {e}")))??;
 
     // Rename temp file to final path atomically
-    tokio::fs::rename(&temp_path, &output_path).await
+    tokio::fs::rename(&temp_path, &output_path)
+        .await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Failed to finalize: {}", e)))?;
 
-    info!("Model '{}' downloaded successfully to {:?} ({} bytes)", model_info.id, output_path, downloaded);
+    info!(
+        "Model '{}' downloaded successfully to {:?} ({} bytes)",
+        model_info.id, output_path, downloaded
+    );
     Ok(output_path)
 }
 
@@ -484,18 +502,42 @@ mod tests {
         assert_eq!(ModelCatalog::base_model_id("medium-q5_0"), "medium");
         assert_eq!(ModelCatalog::base_model_id("large-v3"), "large-v3");
         assert_eq!(ModelCatalog::base_model_id("large-v3-q5_0"), "large-v3");
-        assert_eq!(ModelCatalog::base_model_id("large-v3-turbo"), "large-v3-turbo");
-        assert_eq!(ModelCatalog::base_model_id("large-v3-turbo-q5_0"), "large-v3-turbo");
+        assert_eq!(
+            ModelCatalog::base_model_id("large-v3-turbo"),
+            "large-v3-turbo"
+        );
+        assert_eq!(
+            ModelCatalog::base_model_id("large-v3-turbo-q5_0"),
+            "large-v3-turbo"
+        );
     }
 
     #[test]
     fn quantized_variant_maps_each_base_model() {
-        assert_eq!(ModelCatalog::quantized_variant("tiny").as_deref(), Some("tiny-q5_1"));
-        assert_eq!(ModelCatalog::quantized_variant("base").as_deref(), Some("base-q5_1"));
-        assert_eq!(ModelCatalog::quantized_variant("small").as_deref(), Some("small-q5_1"));
-        assert_eq!(ModelCatalog::quantized_variant("medium").as_deref(), Some("medium-q5_0"));
-        assert_eq!(ModelCatalog::quantized_variant("large-v3").as_deref(), Some("large-v3-q5_0"));
-        assert_eq!(ModelCatalog::quantized_variant("large-v3-turbo").as_deref(), Some("large-v3-turbo-q5_0"));
+        assert_eq!(
+            ModelCatalog::quantized_variant("tiny").as_deref(),
+            Some("tiny-q5_1")
+        );
+        assert_eq!(
+            ModelCatalog::quantized_variant("base").as_deref(),
+            Some("base-q5_1")
+        );
+        assert_eq!(
+            ModelCatalog::quantized_variant("small").as_deref(),
+            Some("small-q5_1")
+        );
+        assert_eq!(
+            ModelCatalog::quantized_variant("medium").as_deref(),
+            Some("medium-q5_0")
+        );
+        assert_eq!(
+            ModelCatalog::quantized_variant("large-v3").as_deref(),
+            Some("large-v3-q5_0")
+        );
+        assert_eq!(
+            ModelCatalog::quantized_variant("large-v3-turbo").as_deref(),
+            Some("large-v3-turbo-q5_0")
+        );
         assert_eq!(ModelCatalog::quantized_variant("nonexistent"), None);
     }
 
@@ -503,9 +545,15 @@ mod tests {
     fn effective_model_id_honors_quantization_preference() {
         assert_eq!(ModelCatalog::effective_model_id("base", false), "base");
         assert_eq!(ModelCatalog::effective_model_id("base", true), "base-q5_1");
-        assert_eq!(ModelCatalog::effective_model_id("large-v3", true), "large-v3-q5_0");
+        assert_eq!(
+            ModelCatalog::effective_model_id("large-v3", true),
+            "large-v3-q5_0"
+        );
         // A model with no quantized variant falls back to the base id.
-        assert_eq!(ModelCatalog::effective_model_id("nonexistent", true), "nonexistent");
+        assert_eq!(
+            ModelCatalog::effective_model_id("nonexistent", true),
+            "nonexistent"
+        );
     }
 
     #[test]

@@ -4,13 +4,13 @@
 
 //! Mini panel, global dictation shortcut, auto-paste, and dictation mode.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::config::AppConfig;
@@ -102,7 +102,10 @@ impl DictationPage {
 
         let mini_panel_switch = adw::SwitchRow::builder()
             .title(gettext("Enable Mini Panel").as_str())
-            .subtitle(gettext("Register the global dictation shortcut (restart to apply changes)").as_str())
+            .subtitle(
+                gettext("Register the global dictation shortcut (restart to apply changes)")
+                    .as_str(),
+            )
             .active(true)
             .build();
         panel_group.add(&mini_panel_switch);
@@ -116,7 +119,12 @@ impl DictationPage {
 
         let start_hidden_switch = adw::SwitchRow::builder()
             .title(gettext("Start Hidden in Tray").as_str())
-            .subtitle(gettext("Launch with no window — only the tray icon and shortcut (ideal for autostart)").as_str())
+            .subtitle(
+                gettext(
+                    "Launch with no window — only the tray icon and shortcut (ideal for autostart)",
+                )
+                .as_str(),
+            )
             .active(false)
             .build();
         panel_group.add(&start_hidden_switch);
@@ -188,7 +196,9 @@ impl DictationPage {
                 let ok = crate::portal::paste::revoke_restore_token();
                 if let Some(row) = row_weak.upgrade() {
                     row.set_subtitle(&if ok {
-                        gettext("Permission revoked — you'll be asked again next time you auto-paste.")
+                        gettext(
+                            "Permission revoked — you'll be asked again next time you auto-paste.",
+                        )
                     } else {
                         gettext("Could not revoke the permission; see the logs for details.")
                     });
@@ -287,7 +297,10 @@ impl DictationPage {
             s.set_active(config.auto_paste);
         }
         if let Some(r) = imp.mode_row.borrow().as_ref() {
-            let idx = MODE_IDS.iter().position(|m| *m == config.dictation_mode).unwrap_or(0);
+            let idx = MODE_IDS
+                .iter()
+                .position(|m| *m == config.dictation_mode)
+                .unwrap_or(0);
             r.set_selected(idx as u32);
         }
         if let Some(s) = imp.update_check_switch.borrow().as_ref() {
@@ -418,9 +431,7 @@ impl DictationPage {
 fn paste_helper_description() -> String {
     use crate::portal::paste::PasteHelper;
     match crate::portal::paste::detect_paste_helper() {
-        PasteHelper::RemoteDesktopPortal => {
-            gettext("Desktop portal (asks for permission once)")
-        }
+        PasteHelper::RemoteDesktopPortal => gettext("Desktop portal (asks for permission once)"),
         PasteHelper::Ydotool => gettext("ydotool"),
         PasteHelper::None => gettext("Clipboard only — press Ctrl+V to paste"),
     }

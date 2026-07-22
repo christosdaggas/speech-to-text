@@ -10,9 +10,9 @@
 //! shells out to the `asr` CLI for transcription. Qwen3-ASR auto-detects the
 //! language when none is given.
 
+use super::engine::{TranscriptionResult, TranscriptionSegment};
 use crate::config::AppConfig;
 use crate::error::{AppError, AppResult};
-use super::engine::{TranscriptionResult, TranscriptionSegment};
 use futures::StreamExt;
 use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
@@ -27,7 +27,11 @@ pub const QWEN_SIZES: [&str; 2] = ["0.6B", "1.7B"];
 /// The configured active model size (defaults to 0.6B).
 pub fn active_size() -> String {
     let s = AppConfig::load().qwen_model_size;
-    if QWEN_SIZES.contains(&s.as_str()) { s } else { "0.6B".to_string() }
+    if QWEN_SIZES.contains(&s.as_str()) {
+        s
+    } else {
+        "0.6B".to_string()
+    }
 }
 
 /// HuggingFace repo id for a given size (ungated).
@@ -105,11 +109,10 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
     let zip_path = dir.join("runtime.zip");
 
     let client = super::download_client();
-    let resp = client
-        .get(RUNTIME_URL)
-        .send()
-        .await
-        .map_err(|e| AppError::ModelDownloadFailed(format!("Runtime download failed: {}", e)))?;
+    let resp =
+        client.get(RUNTIME_URL).send().await.map_err(|e| {
+            AppError::ModelDownloadFailed(format!("Runtime download failed: {}", e))
+        })?;
 
     if !resp.status().is_success() {
         return Err(AppError::ModelDownloadFailed(format!(
@@ -124,8 +127,8 @@ pub async fn download_runtime(progress: impl Fn(u64, u64)) -> AppResult<()> {
     let mut stream = resp.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
+        let chunk =
+            chunk.map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {
@@ -203,7 +206,10 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
 
     // List the repo files via the HF tree API, which also exposes the per-file
     // LFS sha256 (`lfs.oid`) used to verify the (large) weight downloads.
-    let api = format!("https://huggingface.co/api/models/{}/tree/main?recursive=true", repo);
+    let api = format!(
+        "https://huggingface.co/api/models/{}/tree/main?recursive=true",
+        repo
+    );
     let tree: serde_json::Value = client
         .get(&api)
         .send()
@@ -226,7 +232,9 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
         if e["type"].as_str() != Some("file") {
             continue;
         }
-        let Some(path) = e["path"].as_str() else { continue };
+        let Some(path) = e["path"].as_str() else {
+            continue;
+        };
         if path == ".gitattributes" || path == "README.md" {
             continue;
         }
@@ -240,9 +248,13 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
                 "Refusing unsafe model filename from remote listing: {path}"
             )));
         }
-        let sha = e["lfs"]["oid"].as_str().and_then(super::verify::normalize_hf_oid);
-        if matches!(Path::new(path).extension().and_then(|e| e.to_str()), Some("safetensors") | Some("bin"))
-            && sha.is_none()
+        let sha = e["lfs"]["oid"]
+            .as_str()
+            .and_then(super::verify::normalize_hf_oid);
+        if matches!(
+            Path::new(path).extension().and_then(|e| e.to_str()),
+            Some("safetensors") | Some("bin")
+        ) && sha.is_none()
         {
             return Err(AppError::ModelDownloadFailed(format!(
                 "No trusted SHA-256 was published for model weight file: {path}"
@@ -337,10 +349,7 @@ fn ensure_tokenizer(size: &str) -> AppResult<()> {
 ///
 /// `audio` is mono 16 kHz f32 PCM. This is a **blocking** call. When `language`
 /// is `None` (or unmapped), Qwen3-ASR auto-detects the language.
-pub fn transcribe_via_cli(
-    audio: &[f32],
-    language: Option<&str>,
-) -> AppResult<TranscriptionResult> {
+pub fn transcribe_via_cli(audio: &[f32], language: Option<&str>) -> AppResult<TranscriptionResult> {
     if audio.is_empty() {
         return Ok(TranscriptionResult {
             segments: Vec::new(),
@@ -352,17 +361,15 @@ pub fn transcribe_via_cli(
 
     if !qwen_ready() {
         return Err(AppError::Transcription(
-            "Qwen3-ASR is not set up. Download the runtime and model in Settings → Model."
-                .into(),
+            "Qwen3-ASR is not set up. Download the runtime and model in Settings → Model.".into(),
         ));
     }
 
     // Ensure the model dir has tokenizer.json (copied from the runtime bundle).
     ensure_tokenizer(&active_size())?;
 
-    let binary = qwen_asr_binary().ok_or_else(|| {
-        AppError::Transcription("Qwen 'asr' binary not found.".into())
-    })?;
+    let binary = qwen_asr_binary()
+        .ok_or_else(|| AppError::Transcription("Qwen 'asr' binary not found.".into()))?;
     let root = binary.parent().unwrap_or(&qwen_runtime_dir()).to_path_buf();
 
     let wav_data = super::encode_wav_16bit(audio, 16000);
@@ -405,10 +412,8 @@ pub fn transcribe_via_cli(
         .join(":");
     cmd.env("LD_LIBRARY_PATH", &ld_path);
 
-    let output = super::run_command_with_timeout(
-        &mut cmd,
-        std::time::Duration::from_secs(10 * 60),
-    )?;
+    let output =
+        super::run_command_with_timeout(&mut cmd, std::time::Duration::from_secs(10 * 60))?;
 
     drop(tmp); // RAII removes the temp WAV
 
@@ -507,8 +512,8 @@ async fn download_file(
     let mut stream = resp.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
+        let chunk =
+            chunk.map_err(|e| AppError::ModelDownloadFailed(format!("Download error: {}", e)))?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         if downloaded > crate::limits::MAX_DOWNLOAD_BYTES {

@@ -4,12 +4,12 @@
 
 //! Bottom status bar showing recording state, model info, GPU/CPU mode, and offline badge.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 mod imp {
@@ -148,7 +148,8 @@ impl StatusBar {
         self.append(&update_box);
 
         // === Version label ===
-        let version_label = gtk::Label::new(Some(&format!("Version {}", env!("CARGO_PKG_VERSION"))));
+        let version_label =
+            gtk::Label::new(Some(&format!("Version {}", env!("CARGO_PKG_VERSION"))));
         version_label.add_css_class("caption");
         version_label.add_css_class("dim-label");
         version_label.set_margin_start(4);

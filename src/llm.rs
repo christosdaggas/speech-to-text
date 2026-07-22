@@ -11,8 +11,8 @@
 //! bridged back to the GTK main loop via `async_channel` — never inside the
 //! blocking transcription worker.
 
-use serde::{Deserialize, Serialize};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::time::Duration;
 use url::Url;
@@ -108,8 +108,9 @@ fn host_allows_plaintext(host: &str) -> bool {
 /// transcript exfiltration risk). `http://` stays allowed for loopback/LAN so
 /// local servers like LM Studio keep working.
 pub fn validate_endpoint(api_url: &str) -> AppResult<Url> {
-    let url = Url::parse(api_url.trim())
-        .map_err(|_| AppError::Transcription(format!("LLM API URL is not a valid URL: {api_url}")))?;
+    let url = Url::parse(api_url.trim()).map_err(|_| {
+        AppError::Transcription(format!("LLM API URL is not a valid URL: {api_url}"))
+    })?;
     match url.scheme() {
         "https" => {}
         "http" => {
@@ -146,7 +147,12 @@ pub fn consent_scope(api_url: &str) -> Option<String> {
     let url = validate_endpoint(api_url).ok()?;
     let host = url.host_str()?;
     let port = url.port_or_known_default()?;
-    Some(format!("{}://{}:{}", url.scheme(), host.to_ascii_lowercase(), port))
+    Some(format!(
+        "{}://{}:{}",
+        url.scheme(),
+        host.to_ascii_lowercase(),
+        port
+    ))
 }
 
 fn http_client(timeout_secs: u64) -> AppResult<reqwest::Client> {
@@ -156,10 +162,7 @@ fn http_client(timeout_secs: u64) -> AppResult<reqwest::Client> {
         .build()?)
 }
 
-async fn read_response_capped(
-    resp: reqwest::Response,
-    cap: u64,
-) -> AppResult<Vec<u8>> {
+async fn read_response_capped(resp: reqwest::Response, cap: u64) -> AppResult<Vec<u8>> {
     if resp.content_length().is_some_and(|len| len > cap) {
         return Err(AppError::Transcription("LLM response is too large.".into()));
     }
@@ -194,8 +197,14 @@ pub async fn chat(cfg: &LlmConfig, system_prompt: &str, user_text: &str) -> AppR
     let body = ChatRequest {
         model: &cfg.model,
         messages: vec![
-            Message { role: "system", content: system_prompt },
-            Message { role: "user", content: user_text },
+            Message {
+                role: "system",
+                content: system_prompt,
+            },
+            Message {
+                role: "user",
+                content: user_text,
+            },
         ],
         temperature: cfg.temperature,
         stream: false,
@@ -203,7 +212,9 @@ pub async fn chat(cfg: &LlmConfig, system_prompt: &str, user_text: &str) -> AppR
 
     // Generous timeout: a local server may need to load the model into memory on
     // the very first request, which can take well over a minute for large models.
-    let mut req = http_client(300)?.post(endpoint(&cfg.api_url, "chat/completions")).json(&body);
+    let mut req = http_client(300)?
+        .post(endpoint(&cfg.api_url, "chat/completions"))
+        .json(&body);
     if let Some(key) = cfg.api_key.as_deref() {
         if !key.is_empty() {
             req = req.header("Authorization", format!("Bearer {key}"));
@@ -213,12 +224,16 @@ pub async fn chat(cfg: &LlmConfig, system_prompt: &str, user_text: &str) -> AppR
     let resp = req.send().await?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let bytes = read_response_capped(resp, 8 * 1024).await.unwrap_or_default();
+        let bytes = read_response_capped(resp, 8 * 1024)
+            .await
+            .unwrap_or_default();
         let txt = String::from_utf8_lossy(&bytes);
         let snippet: String = txt.chars().take(200).collect();
         // The upstream body can echo back the request (including any key) — redact.
         let snippet = crate::error::redact_secrets(&snippet);
-        return Err(AppError::Transcription(format!("LLM HTTP {status}: {snippet}")));
+        return Err(AppError::Transcription(format!(
+            "LLM HTTP {status}: {snippet}"
+        )));
     }
 
     let bytes = read_response_capped(resp, crate::limits::MAX_LLM_RESPONSE_BYTES).await?;
@@ -246,7 +261,10 @@ pub async fn list_models(cfg: &LlmConfig) -> AppResult<Vec<String>> {
     }
     let resp = req.send().await?;
     if !resp.status().is_success() {
-        return Err(AppError::Transcription(format!("LLM HTTP {}", resp.status())));
+        return Err(AppError::Transcription(format!(
+            "LLM HTTP {}",
+            resp.status()
+        )));
     }
     let bytes = read_response_capped(resp, crate::limits::MAX_LLM_RESPONSE_BYTES).await?;
     let parsed: ModelsResponse = serde_json::from_slice(&bytes)?;
@@ -271,14 +289,18 @@ pub fn improve_async(
     let (tx, rx) = async_channel::bounded(1);
     tokio_runtime().spawn(async move {
         fill_key(&mut cfg).await;
-        let res = chat(&cfg, &system_prompt, &text).await.map_err(|e| e.to_string());
+        let res = chat(&cfg, &system_prompt, &text)
+            .await
+            .map_err(|e| e.to_string());
         let _ = tx.send(res).await;
     });
     rx
 }
 
 /// Fetch the model list off the GTK thread.
-pub fn list_models_async(mut cfg: LlmConfig) -> async_channel::Receiver<Result<Vec<String>, String>> {
+pub fn list_models_async(
+    mut cfg: LlmConfig,
+) -> async_channel::Receiver<Result<Vec<String>, String>> {
     let (tx, rx) = async_channel::bounded(1);
     tokio_runtime().spawn(async move {
         fill_key(&mut cfg).await;
@@ -301,9 +323,18 @@ pub fn probe_async(mut cfg: LlmConfig) -> async_channel::Receiver<Result<String,
                     cfg.model = first.clone();
                 }
             }
-            let reply = chat(&cfg, "You are a connection test.", "Reply with the single word: OK").await?;
+            let reply = chat(
+                &cfg,
+                "You are a connection test.",
+                "Reply with the single word: OK",
+            )
+            .await?;
             let reply: String = reply.chars().take(40).collect();
-            Ok::<String, AppError>(format!("Connected — {} model(s); reply: \"{}\"", models.len(), reply))
+            Ok::<String, AppError>(format!(
+                "Connected — {} model(s); reply: \"{}\"",
+                models.len(),
+                reply
+            ))
         }
         .await
         .map_err(|e| e.to_string());
@@ -318,8 +349,14 @@ mod tests {
 
     #[test]
     fn endpoint_handles_trailing_slash() {
-        assert_eq!(endpoint("http://localhost:1234/v1", "chat/completions"), "http://localhost:1234/v1/chat/completions");
-        assert_eq!(endpoint("http://localhost:1234/v1/", "models"), "http://localhost:1234/v1/models");
+        assert_eq!(
+            endpoint("http://localhost:1234/v1", "chat/completions"),
+            "http://localhost:1234/v1/chat/completions"
+        );
+        assert_eq!(
+            endpoint("http://localhost:1234/v1/", "models"),
+            "http://localhost:1234/v1/models"
+        );
     }
 
     #[test]
@@ -343,8 +380,14 @@ mod tests {
         let body = ChatRequest {
             model: "m",
             messages: vec![
-                Message { role: "system", content: "sys" },
-                Message { role: "user", content: "hi" },
+                Message {
+                    role: "system",
+                    content: "sys",
+                },
+                Message {
+                    role: "user",
+                    content: "hi",
+                },
             ],
             temperature: 0.3,
             stream: false,
@@ -389,7 +432,10 @@ mod tests {
             "http://my-server:1234/v1", // single-label LAN name
             "http://nas.local/v1",
         ] {
-            assert!(validate_endpoint(url).is_ok(), "should allow http for {url}");
+            assert!(
+                validate_endpoint(url).is_ok(),
+                "should allow http for {url}"
+            );
         }
     }
 
@@ -400,7 +446,10 @@ mod tests {
             "http://example.com/v1",
             "http://8.8.8.8/v1",
         ] {
-            assert!(validate_endpoint(url).is_err(), "should reject http for {url}");
+            assert!(
+                validate_endpoint(url).is_err(),
+                "should reject http for {url}"
+            );
         }
     }
 

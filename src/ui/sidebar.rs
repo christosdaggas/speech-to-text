@@ -5,8 +5,8 @@
 //! Sidebar navigation component (managed by MainWindow).
 //! This module provides helper types for sidebar construction.
 
-use gtk4::prelude::*;
 use gtk4 as gtk;
+use gtk4::prelude::*;
 
 /// Create a section header label for the sidebar.
 #[allow(dead_code)]

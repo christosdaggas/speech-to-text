@@ -4,11 +4,11 @@
 
 //! GPU status info card displayed at the bottom of the sidebar.
 
-use gtk4::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 mod imp {
@@ -311,7 +311,10 @@ pub fn detect_gpu_info() -> Option<(String, String, f64)> {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 let lower = line.to_lowercase();
-                if lower.contains("vga") || lower.contains("3d controller") || lower.contains("display controller") {
+                if lower.contains("vga")
+                    || lower.contains("3d controller")
+                    || lower.contains("display controller")
+                {
                     if let Some(idx) = line.find(": ") {
                         let name = line[idx + 2..].trim().to_string();
                         return Some((name, "Unknown".into(), 0.0));
@@ -362,8 +365,7 @@ fn detect_amd_gpu() -> Option<(String, String, f64)> {
             .unwrap_or(0.0);
 
         // Get GPU name from lspci
-        let gpu_name = get_lspci_gpu_name("amd")
-            .unwrap_or_else(|| "AMD GPU".to_string());
+        let gpu_name = get_lspci_gpu_name("amd").unwrap_or_else(|| "AMD GPU".to_string());
 
         return Some((gpu_name, "amdgpu".to_string(), vram_gb));
     }
@@ -380,7 +382,9 @@ fn get_lspci_gpu_name(vendor: &str) -> Option<String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     for line in stdout.lines() {
         let lower = line.to_lowercase();
-        if (lower.contains("vga") || lower.contains("3d controller") || lower.contains("display controller"))
+        if (lower.contains("vga")
+            || lower.contains("3d controller")
+            || lower.contains("display controller"))
             && lower.contains(vendor)
         {
             if let Some(idx) = line.find(": ") {

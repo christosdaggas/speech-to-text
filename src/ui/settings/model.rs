@@ -4,18 +4,18 @@
 
 //! Model selection, download management, and model info page.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::application::tokio_runtime;
 use crate::config::AppConfig;
-use crate::transcription::{ModelCatalog, download_model};
+use crate::transcription::{download_model, ModelCatalog};
 
 mod imp {
     use super::*;
@@ -106,9 +106,12 @@ impl ModelPage {
         // to config.backend, so it applies everywhere including the mini panel.
         let engine_group = adw::PreferencesGroup::new();
         engine_group.set_title(gettext("Engine").as_str());
-        engine_group.set_description(Some(gettext(
-            "Which transcription engine to use. Applies everywhere, including the mini panel.",
-        ).as_str()));
+        engine_group.set_description(Some(
+            gettext(
+                "Which transcription engine to use. Applies everywhere, including the mini panel.",
+            )
+            .as_str(),
+        ));
         let engine_list = gtk::StringList::new(&["Whisper", "Cohere Transcribe", "Qwen3-ASR"]);
         let engine_combo = adw::ComboRow::builder()
             .title(gettext("Default Engine").as_str())
@@ -123,21 +126,32 @@ impl ModelPage {
         // Full models group
         let full_group = adw::PreferencesGroup::new();
         full_group.set_title(gettext("Full Models").as_str());
-        full_group.set_description(Some(gettext("Original precision (f16). Largest size, maximum accuracy.").as_str()));
+        full_group.set_description(Some(
+            gettext("Original precision (f16). Largest size, maximum accuracy.").as_str(),
+        ));
 
         // Quantized models group
         let quantized_group = adw::PreferencesGroup::new();
         quantized_group.set_title(gettext("Quantized Models").as_str());
-        quantized_group.set_description(Some(gettext("5-bit quantized (Q5). Much smaller with near-identical accuracy.").as_str()));
+        quantized_group.set_description(Some(
+            gettext("5-bit quantized (Q5). Much smaller with near-identical accuracy.").as_str(),
+        ));
 
         let mut buttons = Vec::new();
 
         for model_info in catalog.models() {
-            let target_group = if model_info.quantized { &quantized_group } else { &full_group };
+            let target_group = if model_info.quantized {
+                &quantized_group
+            } else {
+                &full_group
+            };
 
             let row = adw::ActionRow::builder()
                 .title(&model_info.display_name)
-                .subtitle(&format!("{} — {}", model_info.size_display, model_info.description))
+                .subtitle(&format!(
+                    "{} — {}",
+                    model_info.size_display, model_info.description
+                ))
                 .activatable(true)
                 .build();
 
@@ -202,9 +216,15 @@ impl ModelPage {
                 rt.spawn(async move {
                     match download_model(&info, cancel_for_dl, move |downloaded, total| {
                         let _ = progress_tx.send_blocking((downloaded, total));
-                    }).await {
-                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                    })
+                    .await
+                    {
+                        Ok(_) => {
+                            let _ = done_tx.send_blocking(Ok(()));
+                        }
+                        Err(e) => {
+                            let _ = done_tx.send_blocking(Err(e.to_string()));
+                        }
                     }
                 });
 
@@ -213,7 +233,11 @@ impl ModelPage {
                 glib::spawn_future_local(async move {
                     while let Ok((downloaded, total)) = progress_rx.recv().await {
                         if let Some(page) = page_w2.upgrade() {
-                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                            let frac = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
                             let mb_down = downloaded as f64 / 1_000_000.0;
                             let mb_total = total as f64 / 1_000_000.0;
                             page.set_download_progress(
@@ -255,9 +279,12 @@ impl ModelPage {
                                     config.save();
 
                                     // Find MainWindow and load the exact downloaded model
-                                    if let Some(window) = page.ancestor(gtk::Window::static_type()) {
+                                    if let Some(window) = page.ancestor(gtk::Window::static_type())
+                                    {
                                         if let Some(window) = window.downcast_ref::<gtk::Window>() {
-                                            if let Some(main_window) = window.downcast_ref::<crate::ui::MainWindow>() {
+                                            if let Some(main_window) =
+                                                window.downcast_ref::<crate::ui::MainWindow>()
+                                            {
                                                 main_window.load_model_by_id(&model_id_for_load);
                                             }
                                         }
@@ -407,7 +434,9 @@ impl ModelPage {
         // Storage info group
         let storage_group = adw::PreferencesGroup::new();
         storage_group.set_title(gettext("Storage").as_str());
-        storage_group.set_description(Some(gettext("Choose where Whisper models are stored.").as_str()));
+        storage_group.set_description(Some(
+            gettext("Choose where Whisper models are stored.").as_str(),
+        ));
 
         let models_dir = crate::config::AppConfig::models_dir();
         let storage_row = adw::ActionRow::builder()
@@ -502,7 +531,7 @@ impl ModelPage {
         cohere_group.set_title(gettext("Cohere Transcribe").as_str());
         cohere_group.set_description(Some(
             "High-accuracy multilingual speech-to-text (14 languages). \
-             Requires a free HuggingFace account to download the model."
+             Requires a free HuggingFace account to download the model.",
         ));
 
         // Token entry — masked (PasswordEntryRow) with a built-in reveal toggle.
@@ -570,7 +599,7 @@ impl ModelPage {
             .subtitle(
                 "1. Create a free account at huggingface.co\n\
                  2. Visit the model page and click \"Agree and access repository\"\n\
-                 3. Go to Settings → Access Tokens and create a token with read permission"
+                 3. Go to Settings → Access Tokens and create a token with read permission",
             )
             .build();
 
@@ -641,8 +670,12 @@ impl ModelPage {
                     })
                     .await
                     {
-                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                        Ok(_) => {
+                            let _ = done_tx.send_blocking(Ok(()));
+                        }
+                        Err(e) => {
+                            let _ = done_tx.send_blocking(Err(e.to_string()));
+                        }
                     }
                 });
 
@@ -650,7 +683,11 @@ impl ModelPage {
                 glib::spawn_future_local(async move {
                     while let Ok((downloaded, total)) = progress_rx.recv().await {
                         if let Some(page) = page_w2.upgrade() {
-                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                            let frac = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
                             let mb_down = downloaded as f64 / 1_000_000.0;
                             let mb_total = total as f64 / 1_000_000.0;
                             page.set_download_progress(
@@ -778,7 +815,10 @@ impl ModelPage {
 
                 if token.is_empty() {
                     if let Some(page) = page_weak.upgrade() {
-                        page.set_download_progress(0.0, "Please enter your HuggingFace token first.");
+                        page.set_download_progress(
+                            0.0,
+                            "Please enter your HuggingFace token first.",
+                        );
                     }
                     return;
                 }
@@ -804,15 +844,22 @@ impl ModelPage {
                 rt.spawn(async move {
                     // Persist the token securely in the keyring (not plaintext config).
                     if let Err(e) = crate::secrets::store_hf_token(&token).await {
-                        tracing::warn!("Could not store HuggingFace token in keyring: {}", crate::error::redact_secrets(&e.to_string()));
+                        tracing::warn!(
+                            "Could not store HuggingFace token in keyring: {}",
+                            crate::error::redact_secrets(&e.to_string())
+                        );
                     }
                     match crate::transcription::cohere::download_model(&token, move |dl, total| {
                         let _ = progress_tx.send_blocking((dl, total));
                     })
                     .await
                     {
-                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                        Ok(_) => {
+                            let _ = done_tx.send_blocking(Ok(()));
+                        }
+                        Err(e) => {
+                            let _ = done_tx.send_blocking(Err(e.to_string()));
+                        }
                     }
                 });
 
@@ -820,7 +867,11 @@ impl ModelPage {
                 glib::spawn_future_local(async move {
                     while let Ok((downloaded, total)) = progress_rx.recv().await {
                         if let Some(page) = page_w2.upgrade() {
-                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
+                            let frac = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
                             let gb_down = downloaded as f64 / 1_000_000_000.0;
                             let gb_total = total as f64 / 1_000_000_000.0;
                             page.set_download_progress(
@@ -958,17 +1009,34 @@ impl ModelPage {
                 rt.spawn(async move {
                     match crate::transcription::qwen::download_runtime(move |dl, total| {
                         let _ = progress_tx.send_blocking((dl, total));
-                    }).await {
-                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                    })
+                    .await
+                    {
+                        Ok(_) => {
+                            let _ = done_tx.send_blocking(Ok(()));
+                        }
+                        Err(e) => {
+                            let _ = done_tx.send_blocking(Err(e.to_string()));
+                        }
                     }
                 });
                 let page_w2 = page_w.clone();
                 glib::spawn_future_local(async move {
                     while let Ok((downloaded, total)) = progress_rx.recv().await {
                         if let Some(page) = page_w2.upgrade() {
-                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
-                            page.set_download_progress(frac, &format!("Runtime: {:.0} / {:.0} MB", downloaded as f64 / 1_000_000.0, total as f64 / 1_000_000.0));
+                            let frac = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            page.set_download_progress(
+                                frac,
+                                &format!(
+                                    "Runtime: {:.0} / {:.0} MB",
+                                    downloaded as f64 / 1_000_000.0,
+                                    total as f64 / 1_000_000.0
+                                ),
+                            );
                         }
                     }
                 });
@@ -976,13 +1044,26 @@ impl ModelPage {
                     if let Ok(result) = done_rx.recv().await {
                         match result {
                             Ok(()) => {
-                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Downloaded").as_str()); btn.set_sensitive(false); btn.add_css_class("success"); }
-                                if let Some(del) = delete_w.upgrade() { del.set_visible(true); }
-                                if let Some(page) = page_w.upgrade() { page.set_download_progress(1.0, "Runtime download complete!"); }
+                                if let Some(btn) = btn_w.upgrade() {
+                                    btn.set_label(gettext("Downloaded").as_str());
+                                    btn.set_sensitive(false);
+                                    btn.add_css_class("success");
+                                }
+                                if let Some(del) = delete_w.upgrade() {
+                                    del.set_visible(true);
+                                }
+                                if let Some(page) = page_w.upgrade() {
+                                    page.set_download_progress(1.0, "Runtime download complete!");
+                                }
                             }
                             Err(e) => {
-                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Retry").as_str()); btn.set_sensitive(true); }
-                                if let Some(page) = page_w.upgrade() { page.set_download_progress(0.0, &format!("Error: {}", e)); }
+                                if let Some(btn) = btn_w.upgrade() {
+                                    btn.set_label(gettext("Retry").as_str());
+                                    btn.set_sensitive(true);
+                                }
+                                if let Some(page) = page_w.upgrade() {
+                                    page.set_download_progress(0.0, &format!("Error: {}", e));
+                                }
                             }
                         }
                     }
@@ -1075,17 +1156,35 @@ impl ModelPage {
                 rt.spawn(async move {
                     match crate::transcription::qwen::download_model(size, move |dl, total| {
                         let _ = progress_tx.send_blocking((dl, total));
-                    }).await {
-                        Ok(_) => { let _ = done_tx.send_blocking(Ok(())); }
-                        Err(e) => { let _ = done_tx.send_blocking(Err(e.to_string())); }
+                    })
+                    .await
+                    {
+                        Ok(_) => {
+                            let _ = done_tx.send_blocking(Ok(()));
+                        }
+                        Err(e) => {
+                            let _ = done_tx.send_blocking(Err(e.to_string()));
+                        }
                     }
                 });
                 let page_w2 = page_w.clone();
                 glib::spawn_future_local(async move {
                     while let Ok((downloaded, total)) = progress_rx.recv().await {
                         if let Some(page) = page_w2.upgrade() {
-                            let frac = if total > 0 { downloaded as f64 / total as f64 } else { 0.0 };
-                            page.set_download_progress(frac, &format!("Model {}: {:.2} / {:.2} GB", size, downloaded as f64 / 1_000_000_000.0, total as f64 / 1_000_000_000.0));
+                            let frac = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            page.set_download_progress(
+                                frac,
+                                &format!(
+                                    "Model {}: {:.2} / {:.2} GB",
+                                    size,
+                                    downloaded as f64 / 1_000_000_000.0,
+                                    total as f64 / 1_000_000_000.0
+                                ),
+                            );
                         }
                     }
                 });
@@ -1093,13 +1192,26 @@ impl ModelPage {
                     if let Ok(result) = done_rx.recv().await {
                         match result {
                             Ok(()) => {
-                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Downloaded").as_str()); btn.set_sensitive(false); btn.add_css_class("success"); }
-                                if let Some(del) = delete_w.upgrade() { del.set_visible(true); }
-                                if let Some(page) = page_w.upgrade() { page.set_download_progress(1.0, "Model download complete!"); }
+                                if let Some(btn) = btn_w.upgrade() {
+                                    btn.set_label(gettext("Downloaded").as_str());
+                                    btn.set_sensitive(false);
+                                    btn.add_css_class("success");
+                                }
+                                if let Some(del) = delete_w.upgrade() {
+                                    del.set_visible(true);
+                                }
+                                if let Some(page) = page_w.upgrade() {
+                                    page.set_download_progress(1.0, "Model download complete!");
+                                }
                             }
                             Err(e) => {
-                                if let Some(btn) = btn_w.upgrade() { btn.set_label(gettext("Retry").as_str()); btn.set_sensitive(true); }
-                                if let Some(page) = page_w.upgrade() { page.set_download_progress(0.0, &format!("Error: {}", e)); }
+                                if let Some(btn) = btn_w.upgrade() {
+                                    btn.set_label(gettext("Retry").as_str());
+                                    btn.set_sensitive(true);
+                                }
+                                if let Some(page) = page_w.upgrade() {
+                                    page.set_download_progress(0.0, &format!("Error: {}", e));
+                                }
                             }
                         }
                     }

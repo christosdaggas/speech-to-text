@@ -13,9 +13,9 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
-use crate::error::{AppError, AppResult};
 use super::buffer::AudioBuffer;
 use super::capture::WHISPER_SAMPLE_RATE;
+use crate::error::{AppError, AppResult};
 
 /// Decode an audio file to mono 16kHz f32 PCM suitable for Whisper.
 pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
@@ -41,7 +41,12 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| AppError::Audio(format!("Unsupported audio format: {}", e)))?;
 
     let mut format = probed.format;
@@ -50,9 +55,10 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
         .default_track()
         .ok_or_else(|| AppError::Audio("No audio track found".into()))?;
 
-    let sample_rate = track.codec_params.sample_rate
-        .unwrap_or(44100);
-    let channels = track.codec_params.channels
+    let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
+    let channels = track
+        .codec_params
+        .channels
         .map(|c| c.count() as u32)
         .unwrap_or(1);
     if !(1_000..=384_000).contains(&sample_rate) || !(1..=32).contains(&channels) {
@@ -74,7 +80,10 @@ pub fn decode_audio_file(path: &Path) -> AppResult<Vec<f32>> {
         let packet = match format.next_packet() {
             Ok(p) => p,
             Err(symphonia::core::errors::Error::IoError(ref e))
-                if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break
+            }
             Err(_) => break,
         };
 

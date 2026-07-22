@@ -4,13 +4,13 @@
 
 //! Microphone selection and audio device configuration page.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::audio::capture::{list_input_devices, AudioDevice};
@@ -65,7 +65,9 @@ impl MicrophonePage {
         // Device selection group
         let device_group = adw::PreferencesGroup::new();
         device_group.set_title(gettext("Input Device").as_str());
-        device_group.set_description(Some(gettext("Select the microphone to use for recording").as_str()));
+        device_group.set_description(Some(
+            gettext("Select the microphone to use for recording").as_str(),
+        ));
 
         // Refresh button in header
         let refresh_btn = gtk::Button::from_icon_name("view-refresh-symbolic");
@@ -142,7 +144,9 @@ impl MicrophonePage {
                             let _ = sender.send_blocking(Ok("No audio detected".to_string()));
                         } else {
                             let peak = samples.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
-                            let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
+                            let rms = (samples.iter().map(|s| s * s).sum::<f32>()
+                                / samples.len() as f32)
+                                .sqrt();
                             let _ = sender.send_blocking(Ok(format!(
                                 "OK — Peak: {:.1}%, RMS: {:.1}%",
                                 peak * 100.0,
@@ -213,13 +217,20 @@ impl MicrophonePage {
             // The active device: the user's saved choice, or the default device.
             let saved = AppConfig::load().selected_microphone;
             let effective = saved.clone().or_else(|| {
-                devices.iter().find(|d| d.is_default).map(|d| d.name.clone())
+                devices
+                    .iter()
+                    .find(|d| d.is_default)
+                    .map(|d| d.name.clone())
             });
 
             let mut new_rows = Vec::new();
             let mut new_checks = Vec::new();
             for device in devices {
-                let subtitle = if device.is_default { "Default device" } else { "" };
+                let subtitle = if device.is_default {
+                    "Default device"
+                } else {
+                    ""
+                };
                 let row = adw::ActionRow::builder()
                     .title(device.name.as_str())
                     .subtitle(subtitle)

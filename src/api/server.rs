@@ -128,7 +128,11 @@ async fn handle(req: Request<Incoming>, state: ServerState) -> Resp {
 
 /// True when the `Host` header names a loopback address (or is absent).
 fn host_is_loopback(req: &Request<Incoming>) -> bool {
-    let Some(host) = req.headers().get(header::HOST).and_then(|v| v.to_str().ok()) else {
+    let Some(host) = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+    else {
         // No Host (HTTP/1.0): we are bound to 127.0.0.1 regardless.
         return true;
     };

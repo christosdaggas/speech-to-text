@@ -4,12 +4,12 @@
 
 //! Main application window with sidebar navigation and content area.
 
-use gtk4::prelude::*;
-use gtk4::{gio, glib};
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::prelude::*;
+use gtk4::{gio, glib};
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -17,16 +17,19 @@ use std::sync::{Arc, Mutex};
 use crate::application::Application;
 use crate::audio::AudioCapture;
 use crate::config::{AppConfig, LlmPreset};
-use crate::recording::{DictationParams, DictationMode, RecordingController, RecordingOwner};
-use crate::transcription::{ModelCatalog, TranscriptionEngine};
-use crate::ui::{
-    Controls, HeaderControls, HelpPage, HistoryPage, StatusBar, TranscriptView,
-    WelcomeWizard, ControlAction,
-};
-use crate::ui::settings::{MicrophonePage, ModelPage, LanguagePage, PerformancePage, DictationPage, DictionaryPage, LlmPage, ApiPage, language_code_to_name, fill_preferences_width};
-use crate::ui::widgets::GpuStatusPanel;
-use crate::transcription::postprocess;
 use crate::i18n::gettext;
+use crate::recording::{DictationMode, DictationParams, RecordingController, RecordingOwner};
+use crate::transcription::postprocess;
+use crate::transcription::{ModelCatalog, TranscriptionEngine};
+use crate::ui::settings::{
+    fill_preferences_width, language_code_to_name, ApiPage, DictationPage, DictionaryPage,
+    LanguagePage, LlmPage, MicrophonePage, ModelPage, PerformancePage,
+};
+use crate::ui::widgets::GpuStatusPanel;
+use crate::ui::{
+    ControlAction, Controls, HeaderControls, HelpPage, HistoryPage, StatusBar, TranscriptView,
+    WelcomeWizard,
+};
 
 /// Whisper inference parameters gathered from the settings widgets, shared by
 /// the live-recording and file-drop transcription paths.
@@ -89,7 +92,17 @@ impl NavItem {
 
     /// Whether this is a settings page (shown under "Settings" header).
     pub fn is_settings(&self) -> bool {
-        matches!(self, Self::Microphone | Self::Model | Self::Language | Self::Performance | Self::Dictation | Self::Dictionary | Self::Llm | Self::Api)
+        matches!(
+            self,
+            Self::Microphone
+                | Self::Model
+                | Self::Language
+                | Self::Performance
+                | Self::Dictation
+                | Self::Dictionary
+                | Self::Llm
+                | Self::Api
+        )
     }
 
     pub fn all() -> &'static [NavItem] {
@@ -248,9 +261,7 @@ impl MainWindow {
     }
 
     pub fn new(app: &Application, config: Arc<AppConfig>) -> Self {
-        let window: Self = glib::Object::builder()
-            .property("application", app)
-            .build();
+        let window: Self = glib::Object::builder().property("application", app).build();
 
         window.set_default_size(Self::WINDOW_WIDTH, Self::WINDOW_HEIGHT);
         // Resizable + maximizable. The sidebar keeps a fixed width (hexpand=false
@@ -279,7 +290,11 @@ impl MainWindow {
 
         // One-time migration: move any plaintext HF token from config into the
         // system keyring, then clear it from the (world-readable-ish) config file.
-        if let Some(token) = config.cohere_hf_token.clone().filter(|t| !t.trim().is_empty()) {
+        if let Some(token) = config
+            .cohere_hf_token
+            .clone()
+            .filter(|t| !t.trim().is_empty())
+        {
             crate::application::tokio_runtime().spawn(async move {
                 if crate::secrets::store_hf_token(&token).await.is_ok() {
                     let mut c = AppConfig::load();
@@ -304,7 +319,9 @@ impl MainWindow {
                 })
                 .unwrap_or(false)
             {
-                win.show_toast(&gettext("Stop or cancel the active recording before hiding the window."));
+                win.show_toast(&gettext(
+                    "Stop or cancel the active recording before hiding the window.",
+                ));
                 return glib::Propagation::Stop;
             }
             win.set_visible(false);
@@ -328,12 +345,21 @@ impl MainWindow {
             glib::timeout_add_local_once(std::time::Duration::from_millis(2500), move || {
                 if let Some(win) = w.upgrade() {
                     let imp = win.imp();
-                    let sidebar = imp.sidebar_box.borrow().as_ref().map(|b| b.width()).unwrap_or(-1);
+                    let sidebar = imp
+                        .sidebar_box
+                        .borrow()
+                        .as_ref()
+                        .map(|b| b.width())
+                        .unwrap_or(-1);
                     let collapsed = imp.sidebar_collapsed.get();
                     eprintln!(
                         "STT_SIDEBAR_WIDTH={} STT_SIDEBAR_REQUEST={} STT_WIN_WIDTH={} collapsed={}",
                         sidebar,
-                        if collapsed { Self::SIDEBAR_COLLAPSED_WIDTH } else { Self::SIDEBAR_EXPANDED_WIDTH },
+                        if collapsed {
+                            Self::SIDEBAR_COLLAPSED_WIDTH
+                        } else {
+                            Self::SIDEBAR_EXPANDED_WIDTH
+                        },
                         win.width(),
                         collapsed,
                     );
@@ -688,7 +714,11 @@ impl MainWindow {
     /// The currently-selected message index, if any.
     fn selected_idx(&self) -> Option<usize> {
         let s = self.imp().selected_message.get();
-        if s < 0 { None } else { Some(s as usize) }
+        if s < 0 {
+            None
+        } else {
+            Some(s as usize)
+        }
     }
 
     /// Refresh the chip preset labels + visibility from the current LLM config.
@@ -762,10 +792,14 @@ impl MainWindow {
 
     /// Switch the active variant of the SELECTED message (from the dropdown).
     fn select_variant(&self, vidx: usize) {
-        let Some(sel) = self.selected_idx() else { return };
+        let Some(sel) = self.selected_idx() else {
+            return;
+        };
         let active_text = {
             let mut messages = self.imp().messages.borrow_mut();
-            let Some(st) = messages.get_mut(sel) else { return };
+            let Some(st) = messages.get_mut(sel) else {
+                return;
+            };
             st.set_active(vidx);
             st.active_text().to_string()
         };
@@ -779,7 +813,9 @@ impl MainWindow {
 
     /// Handle a transform-chip click: run preset `idx` on the SELECTED message.
     fn on_chip(&self, chip_idx: usize) {
-        let Some(sel) = self.selected_idx() else { return };
+        let Some(sel) = self.selected_idx() else {
+            return;
+        };
         let cfg = AppConfig::load();
         let Some(preset) = cfg.llm_presets.get(chip_idx).cloned() else {
             return;
@@ -831,7 +867,9 @@ impl MainWindow {
                     }
                     let active_text = {
                         let mut messages = window.imp().messages.borrow_mut();
-                        let Some(st) = messages.get_mut(msg_idx) else { return };
+                        let Some(st) = messages.get_mut(msg_idx) else {
+                            return;
+                        };
                         st.push_variant(label, improved);
                         st.active_text().to_string()
                     };
@@ -902,10 +940,14 @@ impl MainWindow {
         }
         let cfg = AppConfig::load();
         if !cfg.llm_enabled {
-            self.show_toast(&gettext("Enable the LLM in Settings → LLM to use Voice edit."));
+            self.show_toast(&gettext(
+                "Enable the LLM in Settings → LLM to use Voice edit.",
+            ));
             return;
         }
-        let Some(controller) = self.controller() else { return };
+        let Some(controller) = self.controller() else {
+            return;
+        };
         if !controller.try_acquire(RecordingOwner::VoiceEdit) {
             self.show_toast(&gettext("Busy — finish the current recording first."));
             return;
@@ -918,7 +960,9 @@ impl MainWindow {
                     tv.set_voice_edit_recording(true);
                 }
                 if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
-                    sb.set_recording_status(&gettext("Listening for your edit… click \"Stop edit\" when done"));
+                    sb.set_recording_status(&gettext(
+                        "Listening for your edit… click \"Stop edit\" when done",
+                    ));
                 }
             }
             Err(e) => {
@@ -933,7 +977,9 @@ impl MainWindow {
         if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
             tv.set_voice_edit_recording(false);
         }
-        let Some(controller) = self.controller() else { return };
+        let Some(controller) = self.controller() else {
+            return;
+        };
         if controller.owner() != RecordingOwner::VoiceEdit {
             return;
         }
@@ -954,7 +1000,9 @@ impl MainWindow {
             }
             return;
         }
-        let Some(sel) = self.selected_idx() else { return };
+        let Some(sel) = self.selected_idx() else {
+            return;
+        };
         let target = self
             .imp()
             .messages
@@ -1005,7 +1053,9 @@ impl MainWindow {
                 Ok(Ok(edited)) if !edited.trim().is_empty() => {
                     let active_text = {
                         let mut messages = window.imp().messages.borrow_mut();
-                        let Some(st) = messages.get_mut(sel) else { return };
+                        let Some(st) = messages.get_mut(sel) else {
+                            return;
+                        };
                         st.push_variant(gettext("Voice edit"), edited.trim().to_string());
                         st.active_text().to_string()
                     };
@@ -1042,7 +1092,11 @@ impl MainWindow {
         };
         banner.set_title(&crate::error::redact_secrets(message));
         let undo_label = gettext("Undo");
-        banner.set_button_label(if with_undo { Some(undo_label.as_str()) } else { None });
+        banner.set_button_label(if with_undo {
+            Some(undo_label.as_str())
+        } else {
+            None
+        });
         banner.set_revealed(true);
         // Auto-hide; only hide if the banner still shows THIS message (so a newer
         // notification isn't dismissed early).
@@ -1076,7 +1130,9 @@ impl MainWindow {
             return;
         }
         let words = crate::ui::result_state::word_count(text);
-        if words < crate::limits::SUMMARY_MIN_WORDS && duration_secs < crate::limits::SUMMARY_MIN_SECS {
+        if words < crate::limits::SUMMARY_MIN_WORDS
+            && duration_secs < crate::limits::SUMMARY_MIN_SECS
+        {
             return;
         }
         let Some(tv) = self.imp().transcript_view.borrow().as_ref().cloned() else {
@@ -1146,7 +1202,9 @@ impl MainWindow {
         // `imp.config` is only ever set to already-saved values, so the cache is
         // always at least as fresh; gate on it only so we return None before the
         // window has been initialized.
-        self.imp().config.borrow()
+        self.imp()
+            .config
+            .borrow()
             .as_ref()
             .map(|_| AppConfig::load())
     }
@@ -1162,27 +1220,33 @@ impl MainWindow {
         let imp = self.imp();
         let whisper = self.gather_whisper_params();
         let config = self.current_config_snapshot();
-        let mut language_code = imp.language_page.borrow()
+        let mut language_code = imp
+            .language_page
+            .borrow()
             .as_ref()
             .and_then(|p| p.selected_language_code());
         // Cohere can't auto-detect — it needs an explicit language or it assumes
         // English. Fall back to the configured language (then English).
         if backend == "cohere" && language_code.is_none() {
-            language_code = config.as_ref()
+            language_code = config
+                .as_ref()
                 .and_then(|c| c.language.clone())
                 .or_else(|| Some("en".to_string()));
         }
         let selected_microphone = config.as_ref().and_then(|c| c.selected_microphone.clone());
-        let mode = config.as_ref()
+        let mode = config
+            .as_ref()
             .map(|c| DictationMode::from_config_str(&c.dictation_mode))
             .unwrap_or_default();
         // Merge the user's initial prompt with the personal-dictionary terms, and
         // collect the replacement rules (both via the shared config helper, so the
         // widget path matches the global-dictation path).
-        let initial_prompt = config.as_ref()
+        let initial_prompt = config
+            .as_ref()
             .and_then(|c| c.effective_initial_prompt())
             .or(whisper.initial_prompt);
-        let replacements = config.as_ref()
+        let replacements = config
+            .as_ref()
             .filter(|c| c.dictionary_enabled)
             .map(|c| c.dictionary_replacements.clone())
             .unwrap_or_default();
@@ -1260,7 +1324,10 @@ impl MainWindow {
 
             if config.backend == "cohere" {
                 header.set_selected_model(0);
-                header.set_model_status(crate::transcription::cohere::cohere_ready(), "cohere-transcribe");
+                header.set_model_status(
+                    crate::transcription::cohere::cohere_ready(),
+                    "cohere-transcribe",
+                );
             } else if config.backend == "qwen" {
                 // If the active size isn't downloaded but the other is, switch the
                 // active size to a downloaded one (so the dropdown + status agree).
@@ -1283,7 +1350,8 @@ impl MainWindow {
                 header.set_selected_model_by_id(&active);
                 header.set_model_status(crate::transcription::qwen::qwen_ready(), "qwen3-asr");
             } else {
-                let index = downloaded.iter()
+                let index = downloaded
+                    .iter()
                     .position(|(id, _)| id == &config.selected_model)
                     .unwrap_or(0) as u32;
                 header.set_selected_model(index);
@@ -1398,18 +1466,16 @@ impl MainWindow {
         };
         let window = self.clone();
 
-        controls.connect_action(move |action| {
-            match action {
-                ControlAction::Record => window.on_record(),
-                ControlAction::Pause => window.on_pause(),
-                ControlAction::Resume => window.on_resume(),
-                ControlAction::Stop => window.on_stop(),
-                ControlAction::Cancel => window.on_cancel(),
-                ControlAction::OpenFile => window.on_open_file(),
-                ControlAction::Copy => window.on_copy(),
-                ControlAction::Clear => window.on_clear(),
-                ControlAction::Save => window.on_save(),
-            }
+        controls.connect_action(move |action| match action {
+            ControlAction::Record => window.on_record(),
+            ControlAction::Pause => window.on_pause(),
+            ControlAction::Resume => window.on_resume(),
+            ControlAction::Stop => window.on_stop(),
+            ControlAction::Cancel => window.on_cancel(),
+            ControlAction::OpenFile => window.on_open_file(),
+            ControlAction::Copy => window.on_copy(),
+            ControlAction::Clear => window.on_clear(),
+            ControlAction::Save => window.on_save(),
         });
 
         if let Some(transcript_view) = imp.transcript_view.borrow().as_ref() {
@@ -1447,31 +1513,48 @@ impl MainWindow {
     /// Shared by the live-recording and file-drop transcription paths.
     fn gather_whisper_params(&self) -> WhisperRunParams {
         let imp = self.imp();
-        let n_threads = imp.performance_page.borrow()
+        let n_threads = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_thread_count())
             .unwrap_or(num_cpus::get().min(8) as u32);
-        let beam_size = imp.performance_page.borrow()
+        let beam_size = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_beam_size())
             .unwrap_or(5);
-        let temperature = imp.performance_page.borrow()
+        let temperature = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_temperature())
             .unwrap_or(0.0);
-        let translate = imp.controls.borrow()
+        let translate = imp
+            .controls
+            .borrow()
             .as_ref()
             .map(|c| c.is_translate_active())
             .unwrap_or_else(|| {
-                imp.language_page.borrow()
+                imp.language_page
+                    .borrow()
                     .as_ref()
                     .map(|p| p.is_translate_enabled())
                     .unwrap_or(false)
             });
-        let initial_prompt = imp.performance_page.borrow()
+        let initial_prompt = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .and_then(|p| p.get_initial_prompt());
-        WhisperRunParams { n_threads, beam_size, temperature, translate, initial_prompt }
+        WhisperRunParams {
+            n_threads,
+            beam_size,
+            temperature,
+            translate,
+            initial_prompt,
+        }
     }
 
     fn transcribe_file(&self, path: std::path::PathBuf) {
@@ -1485,7 +1568,9 @@ impl MainWindow {
 
         // Backend readiness up front (matches the live path's UX).
         if backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
-            self.show_toast(&gettext("Cohere is not set up. Go to Settings → Model to download the runtime and model."));
+            self.show_toast(&gettext(
+                "Cohere is not set up. Go to Settings → Model to download the runtime and model.",
+            ));
             return;
         }
         if backend == "qwen" && !crate::transcription::qwen::qwen_ready() {
@@ -1514,7 +1599,8 @@ impl MainWindow {
             tv.start_transcribing_anim();
         }
 
-        let (sender, receiver) = async_channel::bounded::<Result<crate::recording::DictationOutcome, String>>(1);
+        let (sender, receiver) =
+            async_channel::bounded::<Result<crate::recording::DictationOutcome, String>>(1);
 
         // Decode the file and run the shared transcription core on a worker thread.
         std::thread::spawn(move || {
@@ -1527,7 +1613,8 @@ impl MainWindow {
             };
             // No mic time for a file: derive duration from the decoded mono-16k length.
             let duration_secs = audio_data.len() as f32 / 16_000.0;
-            let result = crate::recording::run_transcription(&engine, &audio_data, &params, duration_secs);
+            let result =
+                crate::recording::run_transcription(&engine, &audio_data, &params, duration_secs);
             let _ = sender.send_blocking(result);
         });
 
@@ -1561,19 +1648,27 @@ impl MainWindow {
                         *window.imp().last_segments.borrow_mut() = segments.clone();
                         // Surface the auto-detected language (only set when auto-detect was used).
                         if let Some(code) = detected.as_deref() {
-                            window.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
+                            window.set_language_display(&format!(
+                                "Auto-detect ({})",
+                                language_code_to_name(code)
+                            ));
                         }
                         // Render as the current result (text + confidence + stats +
                         // clipboard + chips/selector).
                         let state = crate::ui::result_state::ResultState::new(
-                            cleaned.clone(), duration_secs, detected.clone(), segments,
+                            cleaned.clone(),
+                            duration_secs,
+                            detected.clone(),
+                            segments,
                         );
                         window.add_result_message(state, confidence as f64);
                         if let Some(history) = window.imp().history_page.borrow().as_ref() {
                             let config = AppConfig::load();
                             let language = detected
                                 .as_deref()
-                                .map(|code| format!("Auto-detect ({})", language_code_to_name(code)))
+                                .map(|code| {
+                                    format!("Auto-detect ({})", language_code_to_name(code))
+                                })
                                 .or_else(|| config.language.as_deref().map(language_code_to_name))
                                 .unwrap_or_else(|| "Auto-detect".to_string());
                             history.add_entry(crate::ui::history_page::HistoryEntry {
@@ -1582,9 +1677,13 @@ impl MainWindow {
                                 text: cleaned.clone(),
                                 language,
                                 duration_secs: duration_secs.round() as u64,
-                                timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+                                timestamp: chrono::Local::now()
+                                    .format("%Y-%m-%d %H:%M")
+                                    .to_string(),
                                 model: config.selected_model,
-                                word_count: Some(crate::ui::result_state::word_count(&cleaned) as u32),
+                                word_count: Some(
+                                    crate::ui::result_state::word_count(&cleaned) as u32
+                                ),
                                 ..Default::default()
                             });
                         }
@@ -1711,7 +1810,8 @@ impl MainWindow {
         // Sync dropdown with config — find the current model's index in the downloaded list
         if let Some(config) = imp.config.borrow().as_ref() {
             let downloaded = Self::downloaded_model_entries();
-            let index = downloaded.iter()
+            let index = downloaded
+                .iter()
                 .position(|(id, _)| id == &config.selected_model)
                 .unwrap_or(0) as u32;
             imp.syncing_dropdown.set(true);
@@ -1862,7 +1962,8 @@ impl MainWindow {
 
         // AudioCapture contains a cpal::Stream which is !Send, but start is fast
         // (sets up the stream), so it runs on the main thread via the controller.
-        let selected_device = self.current_config_snapshot()
+        let selected_device = self
+            .current_config_snapshot()
             .and_then(|config| config.selected_microphone);
         let result = controller.start(selected_device.as_deref(), waveform_tx);
 
@@ -2074,7 +2175,9 @@ impl MainWindow {
         // Backend readiness is checked up front so we can show the dedicated
         // "Setup Required" status (the controller also guards internally).
         if backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
-            self.show_toast(&gettext("Cohere is not set up. Go to Settings → Model to download the runtime and model."));
+            self.show_toast(&gettext(
+                "Cohere is not set up. Go to Settings → Model to download the runtime and model.",
+            ));
             if let Some(sb) = imp.status_bar.borrow().as_ref() {
                 sb.set_recording_status(&gettext("Setup Required"));
             }
@@ -2114,7 +2217,10 @@ impl MainWindow {
 
     /// Finalize a live transcription result: render it, save to history, and run
     /// the summary / auto-improve passes. Shared by the streaming and batch paths.
-    fn apply_transcription_result(&self, result: Result<crate::recording::DictationOutcome, String>) {
+    fn apply_transcription_result(
+        &self,
+        result: Result<crate::recording::DictationOutcome, String>,
+    ) {
         if let Some(tv) = self.imp().transcript_view.borrow().as_ref() {
             tv.stop_transcribing_anim();
         }
@@ -2133,7 +2239,9 @@ impl MainWindow {
                     if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
                         sb.set_recording_status(&gettext("Ready"));
                     }
-                    self.show_toast(&gettext("No clear speech detected — try again in a quieter environment"));
+                    self.show_toast(&gettext(
+                        "No clear speech detected — try again in a quieter environment",
+                    ));
                     return;
                 }
                 if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
@@ -2143,21 +2251,33 @@ impl MainWindow {
                 *self.imp().last_segments.borrow_mut() = segments.clone();
                 // Surface the auto-detected language (only set when auto-detect was used).
                 if let Some(code) = detected.as_deref() {
-                    self.set_language_display(&format!("Auto-detect ({})", language_code_to_name(code)));
+                    self.set_language_display(&format!(
+                        "Auto-detect ({})",
+                        language_code_to_name(code)
+                    ));
                 }
                 // Render as the current result (text + confidence + stats +
                 // clipboard + chips/selector).
                 let state = crate::ui::result_state::ResultState::new(
-                    cleaned.clone(), duration_secs, detected, segments,
+                    cleaned.clone(),
+                    duration_secs,
+                    detected,
+                    segments,
                 );
                 self.add_result_message(state, confidence as f64);
                 // Add to history
                 if let Some(hp) = self.imp().history_page.borrow().as_ref() {
-                    let lang_name = self.imp().language_page.borrow()
+                    let lang_name = self
+                        .imp()
+                        .language_page
+                        .borrow()
                         .as_ref()
                         .map(|p| p.selected_language_name())
                         .unwrap_or_else(|| "Auto-detect".to_string());
-                    let model_name = self.imp().header_controls.borrow()
+                    let model_name = self
+                        .imp()
+                        .header_controls
+                        .borrow()
                         .as_ref()
                         .map(|h| h.selected_model_id())
                         .unwrap_or_else(|| "unknown".to_string());
@@ -2183,7 +2303,10 @@ impl MainWindow {
                         app.auto_title(entry_id, cleaned.clone());
                     }
                 }
-                tracing::info!("Transcription complete ({:.0}% confidence), copied to clipboard", confidence * 100.0);
+                tracing::info!(
+                    "Transcription complete ({:.0}% confidence), copied to clipboard",
+                    confidence * 100.0
+                );
                 // Summarize long dictations; auto-improve with the active preset
                 // (adds a variant; the raw transcript stays available + in History).
                 self.maybe_generate_summary(&cleaned, duration_secs);
@@ -2206,7 +2329,10 @@ impl MainWindow {
         let Some(controller) = self.controller() else {
             return;
         };
-        if !matches!(controller.owner(), RecordingOwner::Main | RecordingOwner::None) {
+        if !matches!(
+            controller.owner(),
+            RecordingOwner::Main | RecordingOwner::None
+        ) {
             return;
         }
 
@@ -2266,7 +2392,9 @@ impl MainWindow {
 
         let audio_filter = gtk::FileFilter::new();
         audio_filter.set_name(Some(gettext("Audio files").as_str()));
-        for pat in ["*.wav", "*.mp3", "*.flac", "*.ogg", "*.oga", "*.opus", "*.m4a"] {
+        for pat in [
+            "*.wav", "*.mp3", "*.flac", "*.ogg", "*.oga", "*.opus", "*.m4a",
+        ] {
             audio_filter.add_pattern(pat);
         }
         let any_filter = gtk::FileFilter::new();
@@ -2285,13 +2413,17 @@ impl MainWindow {
             .build();
 
         let window = self.clone();
-        dialog.open(Some(&window.clone()), gtk::gio::Cancellable::NONE, move |result| {
-            if let Ok(file) = result {
-                if let Some(path) = file.path() {
-                    window.transcribe_file(path);
+        dialog.open(
+            Some(&window.clone()),
+            gtk::gio::Cancellable::NONE,
+            move |result| {
+                if let Ok(file) = result {
+                    if let Some(path) = file.path() {
+                        window.transcribe_file(path);
+                    }
                 }
-            }
-        });
+            },
+        );
     }
 
     fn on_save(&self) {
@@ -2326,24 +2458,31 @@ impl MainWindow {
             .build();
 
         let window = self.clone();
-        dialog.save(Some(&window.clone()), gtk::gio::Cancellable::NONE, move |result| {
-            if let Ok(file) = result {
-                if let Some(path) = file.path() {
-                    let content = if path.extension().is_some_and(|e| e == "srt") && !segments.is_empty() {
-                        let seg_refs: Vec<(i64, i64, &str)> = segments.iter()
-                            .map(|(s, e, t)| (*s, *e, t.as_str()))
-                            .collect();
-                        postprocess::format_as_srt(&seg_refs)
-                    } else {
-                        text.clone()
-                    };
-                    match std::fs::write(&path, &content) {
-                        Ok(()) => window.show_toast(&gettext("Transcript saved")),
-                        Err(e) => window.show_toast(&format!("Failed to save: {}", e)),
+        dialog.save(
+            Some(&window.clone()),
+            gtk::gio::Cancellable::NONE,
+            move |result| {
+                if let Ok(file) = result {
+                    if let Some(path) = file.path() {
+                        let content = if path.extension().is_some_and(|e| e == "srt")
+                            && !segments.is_empty()
+                        {
+                            let seg_refs: Vec<(i64, i64, &str)> = segments
+                                .iter()
+                                .map(|(s, e, t)| (*s, *e, t.as_str()))
+                                .collect();
+                            postprocess::format_as_srt(&seg_refs)
+                        } else {
+                            text.clone()
+                        };
+                        match std::fs::write(&path, &content) {
+                            Ok(()) => window.show_toast(&gettext("Transcript saved")),
+                            Err(e) => window.show_toast(&format!("Failed to save: {}", e)),
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 
     /// Start a recording timer that updates the transcript view every second.
@@ -2548,7 +2687,10 @@ impl MainWindow {
         };
 
         if config.backend != "whisper" {
-            tracing::info!("{} backend is active; skipping Whisper model preload", config.backend);
+            tracing::info!(
+                "{} backend is active; skipping Whisper model preload",
+                config.backend
+            );
             return;
         }
 
@@ -2565,7 +2707,11 @@ impl MainWindow {
         let base = ModelCatalog::base_model_id(&selected).to_string();
         let resolved = ModelCatalog::resolve_model(&base, config.use_quantized);
         if ModelCatalog::is_downloaded(&resolved) {
-            tracing::info!("Selected model '{}' missing; resolved to downloaded '{}'", selected, resolved);
+            tracing::info!(
+                "Selected model '{}' missing; resolved to downloaded '{}'",
+                selected,
+                resolved
+            );
             let mut corrected = config.clone();
             corrected.selected_model = resolved.clone();
             corrected.save();
@@ -2573,7 +2719,10 @@ impl MainWindow {
             self.sync_ui_from_config();
             self.load_model_by_id(&resolved);
         } else {
-            tracing::warn!("Selected model '{}' not downloaded and no variant available", selected);
+            tracing::warn!(
+                "Selected model '{}' not downloaded and no variant available",
+                selected
+            );
         }
     }
 
@@ -2581,7 +2730,8 @@ impl MainWindow {
     /// active model was the one removed, switch to another downloaded model (or
     /// clear the engine if none remain).
     pub fn handle_model_deleted(&self, deleted_id: &str) {
-        let was_active = self.current_config_snapshot()
+        let was_active = self
+            .current_config_snapshot()
             .map(|c| c.selected_model == deleted_id)
             .unwrap_or(false);
 
@@ -2632,16 +2782,24 @@ impl MainWindow {
         imp.model_load_generation.set(generation);
 
         // Check GPU setting from performance page or config
-        let use_gpu = imp.performance_page.borrow()
+        let use_gpu = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_gpu_enabled())
             .unwrap_or_else(|| self.is_gpu_mode());
 
         // Whether to retry on CPU if a GPU load fails.
-        let cpu_fallback = imp.performance_page.borrow()
+        let cpu_fallback = imp
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_cpu_fallback())
-            .unwrap_or_else(|| self.current_config_snapshot().map(|c| c.cpu_fallback).unwrap_or(true));
+            .unwrap_or_else(|| {
+                self.current_config_snapshot()
+                    .map(|c| c.cpu_fallback)
+                    .unwrap_or(true)
+            });
 
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
             // Show the selected model immediately so the status bar matches the
@@ -2651,9 +2809,8 @@ impl MainWindow {
         }
 
         // Result carries the loaded model ID plus whether we fell back to CPU.
-        let (sender, receiver) = async_channel::bounded::<
-            Result<(String, bool, TranscriptionEngine), String>,
-        >(1);
+        let (sender, receiver) =
+            async_channel::bounded::<Result<(String, bool, TranscriptionEngine), String>>(1);
 
         let model_id_owned = model_id.to_string();
         std::thread::spawn(move || {
@@ -2663,13 +2820,18 @@ impl MainWindow {
                 }
                 Err(e) if use_gpu && cpu_fallback => {
                     tracing::warn!("GPU model load failed ({}); retrying on CPU", e);
-                    match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id_owned, false) {
+                    match TranscriptionEngine::load_model_with_gpu(
+                        &model_path,
+                        &model_id_owned,
+                        false,
+                    ) {
                         Ok(engine) => {
                             let _ = sender.send_blocking(Ok((model_id_owned, true, engine)));
                         }
                         Err(e2) => {
                             let _ = sender.send_blocking(Err(format!(
-                                "Failed to load model on GPU and CPU: {}", e2
+                                "Failed to load model on GPU and CPU: {}",
+                                e2
                             )));
                         }
                     }
@@ -2690,7 +2852,9 @@ impl MainWindow {
                     Ok((mid, downgraded, engine)) => {
                         let still_selected = window
                             .current_config_snapshot()
-                            .map(|config| config.backend == "whisper" && config.selected_model == mid)
+                            .map(|config| {
+                                config.backend == "whisper" && config.selected_model == mid
+                            })
                             .unwrap_or(false);
                         if !still_selected {
                             return;
@@ -2711,7 +2875,8 @@ impl MainWindow {
 
     /// Called when a model finishes loading.
     fn on_model_loaded(&self, model_id: &str) {
-        let backend = self.current_config_snapshot()
+        let backend = self
+            .current_config_snapshot()
             .map(|config| config.backend)
             .unwrap_or_else(|| "whisper".to_string());
 
@@ -2737,14 +2902,18 @@ impl MainWindow {
             header.update_models_for_backend(&backend, &downloaded);
 
             // Find the model's index in the refreshed list
-            let index = downloaded.iter()
+            let index = downloaded
+                .iter()
                 .position(|(id, _)| id == model_id)
                 .unwrap_or(0) as u32;
             header.set_selected_model(index);
             self.imp().syncing_dropdown.set(false);
         }
 
-        let use_gpu = self.imp().performance_page.borrow()
+        let use_gpu = self
+            .imp()
+            .performance_page
+            .borrow()
             .as_ref()
             .map(|p| p.get_gpu_enabled())
             .unwrap_or_else(|| self.is_gpu_mode());
@@ -2767,7 +2936,10 @@ impl MainWindow {
         glib::spawn_future_local(async move {
             if let Ok(has_gpu) = receiver.recv().await {
                 if let Some(status_bar) = window.imp().status_bar.borrow().as_ref() {
-                    let use_gpu = window.imp().performance_page.borrow()
+                    let use_gpu = window
+                        .imp()
+                        .performance_page
+                        .borrow()
                         .as_ref()
                         .map(|p| p.get_gpu_enabled())
                         .unwrap_or_else(|| window.is_gpu_mode());
@@ -2779,7 +2951,9 @@ impl MainWindow {
     }
 
     fn is_gpu_mode(&self) -> bool {
-        self.imp().config.borrow()
+        self.imp()
+            .config
+            .borrow()
             .as_ref()
             .map(|c| c.use_gpu)
             .unwrap_or(false)
@@ -2793,7 +2967,8 @@ impl MainWindow {
             return;
         }
 
-        let (sender, receiver) = async_channel::bounded::<Option<crate::version_check::UpdateInfo>>(1);
+        let (sender, receiver) =
+            async_channel::bounded::<Option<crate::version_check::UpdateInfo>>(1);
 
         // Spawn the async HTTP check on the Tokio runtime
         let current_version = crate::VERSION.to_string();

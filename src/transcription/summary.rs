@@ -77,7 +77,10 @@ pub fn parse_chapters(reply: &str) -> Vec<(String, String)> {
         }
         // Split timestamp from title on the first '-' / en-dash / em-dash. Use
         // char_indices so a multi-byte dash never produces an invalid slice.
-        let Some((idx, ch)) = line.char_indices().find(|(_, c)| matches!(c, '-' | '–' | '—')) else {
+        let Some((idx, ch)) = line
+            .char_indices()
+            .find(|(_, c)| matches!(c, '-' | '–' | '—'))
+        else {
             continue;
         };
         let stamp = line[..idx].trim();
@@ -98,7 +101,9 @@ fn is_timestamp(s: &str) -> bool {
     if !(2..=3).contains(&parts.len()) {
         return false;
     }
-    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    parts
+        .iter()
+        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -127,7 +132,8 @@ mod tests {
 
     #[test]
     fn parses_lenient_formats() {
-        let reply = "- 1:02:03 – Deep dive\n* 02:00 — Questions\nnot a chapter line\n3. 03:15 - Closing";
+        let reply =
+            "- 1:02:03 – Deep dive\n* 02:00 — Questions\nnot a chapter line\n3. 03:15 - Closing";
         let ch = parse_chapters(reply);
         assert_eq!(ch.len(), 3);
         assert_eq!(ch[0].0, "1:02:03");

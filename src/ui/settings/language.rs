@@ -4,21 +4,21 @@
 
 //! Language selection and auto-detection settings.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::config::AppConfig;
 
 /// Language codes in the same order as the manual-selection combo rows.
 const LANG_CODES: [&str; 20] = [
-    "en", "el", "es", "fr", "de", "it", "pt", "ru", "zh", "ja",
-    "ko", "ar", "hi", "nl", "pl", "sv", "tr", "uk", "vi", "th",
+    "en", "el", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko", "ar", "hi", "nl", "pl", "sv",
+    "tr", "uk", "vi", "th",
 ];
 
 mod imp {
@@ -69,7 +69,9 @@ impl LanguagePage {
         // Detection group
         let detect_group = adw::PreferencesGroup::new();
         detect_group.set_title(gettext("Language Detection").as_str());
-        detect_group.set_description(Some(gettext("Whisper can automatically detect the spoken language").as_str()));
+        detect_group.set_description(Some(
+            gettext("Whisper can automatically detect the spoken language").as_str(),
+        ));
 
         let auto_detect = adw::SwitchRow::builder()
             .title(gettext("Auto-detect Language").as_str())
@@ -83,13 +85,31 @@ impl LanguagePage {
         // Manual selection group
         let manual_group = adw::PreferencesGroup::new();
         manual_group.set_title(gettext("Manual Selection").as_str());
-        manual_group.set_description(Some(gettext("Force a specific language for transcription").as_str()));
+        manual_group.set_description(Some(
+            gettext("Force a specific language for transcription").as_str(),
+        ));
 
         let languages = gtk::StringList::new(&[
-            "English", "Greek", "Spanish", "French", "German",
-            "Italian", "Portuguese", "Russian", "Chinese", "Japanese",
-            "Korean", "Arabic", "Hindi", "Dutch", "Polish",
-            "Swedish", "Turkish", "Ukrainian", "Vietnamese", "Thai",
+            "English",
+            "Greek",
+            "Spanish",
+            "French",
+            "German",
+            "Italian",
+            "Portuguese",
+            "Russian",
+            "Chinese",
+            "Japanese",
+            "Korean",
+            "Arabic",
+            "Hindi",
+            "Dutch",
+            "Polish",
+            "Swedish",
+            "Turkish",
+            "Ukrainian",
+            "Vietnamese",
+            "Thai",
         ]);
 
         let lang_combo = adw::ComboRow::builder()
@@ -114,7 +134,7 @@ impl LanguagePage {
         translate_group.set_description(Some(
             "Whisper can translate speech from any supported language into English. \
              This is a built-in capability of the Whisper model — English is the \
-             only supported target language."
+             only supported target language.",
         ));
 
         let translate_row = adw::ActionRow::builder()
@@ -148,7 +168,7 @@ impl LanguagePage {
         info_group.set_title(gettext("Supported Languages").as_str());
         info_group.set_description(Some(
             "Whisper supports 99 languages. The most common ones are listed above. \
-             For the full list, see the Whisper documentation."
+             For the full list, see the Whisper documentation.",
         ));
         self.add(&info_group);
 
@@ -253,12 +273,31 @@ impl LanguagePage {
             return "Auto-detect".to_string();
         }
         let languages = [
-            "English", "Greek", "Spanish", "French", "German",
-            "Italian", "Portuguese", "Russian", "Chinese", "Japanese",
-            "Korean", "Arabic", "Hindi", "Dutch", "Polish",
-            "Swedish", "Turkish", "Ukrainian", "Vietnamese", "Thai",
+            "English",
+            "Greek",
+            "Spanish",
+            "French",
+            "German",
+            "Italian",
+            "Portuguese",
+            "Russian",
+            "Chinese",
+            "Japanese",
+            "Korean",
+            "Arabic",
+            "Hindi",
+            "Dutch",
+            "Polish",
+            "Swedish",
+            "Turkish",
+            "Ukrainian",
+            "Vietnamese",
+            "Thai",
         ];
-        let index = self.imp().language_combo.borrow()
+        let index = self
+            .imp()
+            .language_combo
+            .borrow()
             .as_ref()
             .map(|c| c.selected() as usize)
             .unwrap_or(0);
@@ -271,18 +310,18 @@ impl LanguagePage {
             return None;
         }
         let codes = [
-            "en", "el", "es", "fr", "de",
-            "it", "pt", "ru", "zh", "ja",
-            "ko", "ar", "hi", "nl", "pl",
-            "sv", "tr", "uk", "vi", "th",
+            "en", "el", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko", "ar", "hi", "nl",
+            "pl", "sv", "tr", "uk", "vi", "th",
         ];
-        let index = self.imp().language_combo.borrow()
+        let index = self
+            .imp()
+            .language_combo
+            .borrow()
             .as_ref()
             .map(|c| c.selected() as usize)
             .unwrap_or(0);
         codes.get(index).map(|s| s.to_string())
     }
-
 
     /// Connect a callback for when language selection changes.
     pub fn connect_language_changed<F: Fn(String) + Clone + 'static>(&self, callback: F) {
@@ -353,5 +392,6 @@ pub fn language_code_to_name(code: &str) -> String {
         "vi" => "Vietnamese",
         "th" => "Thai",
         _ => code,
-    }.to_string()
+    }
+    .to_string()
 }

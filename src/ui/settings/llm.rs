@@ -9,12 +9,12 @@
 //! Model discovery (`GET /models`) populates a dropdown; a free-text entry is
 //! always available as a fallback when a server doesn't expose `/models`.
 
-use gtk4::prelude::*;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -34,8 +34,17 @@ const PROVIDERS: [(&str, &str); 5] = [
 
 /// Target languages offered for translate presets.
 const TRANSLATE_LANGS: [&str; 11] = [
-    "English", "Greek", "Spanish", "French", "German", "Italian", "Portuguese",
-    "Russian", "Chinese", "Japanese", "Arabic",
+    "English",
+    "Greek",
+    "Spanish",
+    "French",
+    "German",
+    "Italian",
+    "Portuguese",
+    "Russian",
+    "Chinese",
+    "Japanese",
+    "Arabic",
 ];
 
 mod imp {
@@ -122,7 +131,9 @@ impl LlmPage {
 
         let enable_switch = adw::SwitchRow::builder()
             .title(gettext("Enable LLM").as_str())
-            .subtitle(gettext("Show the \"Improve with AI\" action and the auto-improve option").as_str())
+            .subtitle(
+                gettext("Show the \"Improve with AI\" action and the auto-improve option").as_str(),
+            )
             .build();
         conn_group.add(&enable_switch);
 
@@ -289,7 +300,10 @@ impl LlmPage {
 
         let auto_switch = adw::SwitchRow::builder()
             .title(gettext("Auto-improve after dictation").as_str())
-            .subtitle(gettext("Runs the active preset automatically on every dictation (off by default)").as_str())
+            .subtitle(
+                gettext("Runs the active preset automatically on every dictation (off by default)")
+                    .as_str(),
+            )
             .build();
         over_group.add(&auto_switch);
 
@@ -487,7 +501,9 @@ impl LlmPage {
         }
 
         // Build the preset combo and load the active preset into the editor.
-        let active = cfg.llm_active_preset.min(cfg.llm_presets.len().saturating_sub(1));
+        let active = cfg
+            .llm_active_preset
+            .min(cfg.llm_presets.len().saturating_sub(1));
         self.rebuild_preset_combo(active);
 
         // Discover models if the integration is enabled and a URL is set.
@@ -509,8 +525,8 @@ impl LlmPage {
         let mut config = AppConfig::load();
         let old_scope = crate::llm::consent_scope(&config.llm_api_url);
         let new_scope = crate::llm::consent_scope(url);
-        let consent_invalidated = old_scope != new_scope
-            && (config.llm_enabled || config.llm_consent_given);
+        let consent_invalidated =
+            old_scope != new_scope && (config.llm_enabled || config.llm_consent_given);
 
         config.llm_api_url = url.to_string();
         if consent_invalidated {
@@ -543,7 +559,8 @@ impl LlmPage {
             self.imp().loading.set(false);
             self.warn_dialog(
                 gettext("Endpoint not allowed").as_str(),
-                gettext("Enter a valid, allowed LLM endpoint before enabling the integration.").as_str(),
+                gettext("Enter a valid, allowed LLM endpoint before enabling the integration.")
+                    .as_str(),
             );
             return;
         };
@@ -555,7 +572,10 @@ impl LlmPage {
         )
         .replace("{host}", &host);
 
-        let dialog = adw::AlertDialog::new(Some(gettext("Send transcripts to an LLM?").as_str()), Some(&body));
+        let dialog = adw::AlertDialog::new(
+            Some(gettext("Send transcripts to an LLM?").as_str()),
+            Some(&body),
+        );
         dialog.add_response("cancel", gettext("Cancel").as_str());
         dialog.add_response("enable", gettext("Enable").as_str());
         dialog.set_response_appearance("enable", adw::ResponseAppearance::Suggested);
@@ -594,8 +614,7 @@ impl LlmPage {
                 }
                 if s.is_active() {
                     let mut c = AppConfig::load();
-                    let consent_matches = crate::llm::consent_scope(&c.llm_api_url)
-                        .as_ref()
+                    let consent_matches = crate::llm::consent_scope(&c.llm_api_url).as_ref()
                         == c.llm_consent_endpoint.as_ref();
                     if c.llm_consent_given && consent_matches {
                         c.llm_enabled = true;
@@ -640,7 +659,10 @@ impl LlmPage {
                 let url = e.text().to_string();
                 // Give immediate feedback if the URL would be rejected at send time.
                 if let Err(err) = crate::llm::validate_endpoint(&url) {
-                    page.warn_dialog(gettext("Endpoint not allowed").as_str(), &err.user_message());
+                    page.warn_dialog(
+                        gettext("Endpoint not allowed").as_str(),
+                        &err.user_message(),
+                    );
                     return;
                 }
                 page.save_endpoint(&url);
@@ -755,7 +777,9 @@ impl LlmPage {
                 if page.imp().loading.get() {
                     return;
                 }
-                let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
+                let text = buf
+                    .text(&buf.start_iter(), &buf.end_iter(), false)
+                    .to_string();
                 page.update_active_preset(|p| p.prompt = text.clone());
             });
         }
@@ -766,7 +790,11 @@ impl LlmPage {
                 if page.imp().loading.get() {
                     return;
                 }
-                let model = if c.selected() == 0 { None } else { Self::combo_text(c) };
+                let model = if c.selected() == 0 {
+                    None
+                } else {
+                    Self::combo_text(c)
+                };
                 page.update_active_preset(|p| p.model = model.clone());
             });
         }
@@ -788,7 +816,9 @@ impl LlmPage {
                     .as_ref()
                     .map(|sp| sp.value() as f32)
                     .unwrap_or(0.3);
-                page.update_active_preset(|p| p.temperature = if active { Some(value) } else { None });
+                page.update_active_preset(|p| {
+                    p.temperature = if active { Some(value) } else { None }
+                });
             });
         }
 

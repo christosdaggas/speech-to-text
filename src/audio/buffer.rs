@@ -249,7 +249,8 @@ impl AudioBuffer {
             return 0.0;
         }
 
-        let mean_square = samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32;
+        let mean_square =
+            samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len() as f32;
         mean_square.sqrt()
     }
 
@@ -259,7 +260,10 @@ impl AudioBuffer {
             return Vec::new();
         }
 
-        use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction, Resampler};
+        use rubato::{
+            Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType,
+            WindowFunction,
+        };
 
         let params = SincInterpolationParameters {
             sinc_len: 256,
@@ -272,11 +276,7 @@ impl AudioBuffer {
         let ratio = to_rate as f64 / from_rate as f64;
         let chunk_size = 1024;
         let mut resampler = match SincFixedIn::<f32>::new(
-            ratio,
-            2.0,
-            params,
-            chunk_size,
-            1, // mono
+            ratio, 2.0, params, chunk_size, 1, // mono
         ) {
             Ok(r) => r,
             Err(_) => return self.resample_linear(samples, from_rate, to_rate),
@@ -377,7 +377,8 @@ mod tests {
         assert!(
             (resampled.len() as f32 - expected).abs() < tolerance,
             "Expected ~{} samples, got {}",
-            expected, resampled.len()
+            expected,
+            resampled.len()
         );
     }
 

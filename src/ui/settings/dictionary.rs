@@ -6,13 +6,13 @@
 //! "heard → correct" replacement rules (applied to the transcript). Local only —
 //! nothing here is sent anywhere.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
 use crate::config::{AppConfig, DictReplacement};
@@ -140,7 +140,9 @@ impl DictionaryPage {
             if page.imp().loading.get() {
                 return;
             }
-            let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
+            let text = buf
+                .text(&buf.start_iter(), &buf.end_iter(), false)
+                .to_string();
             let terms: Vec<String> = text
                 .lines()
                 .map(|l| l.trim().to_string())

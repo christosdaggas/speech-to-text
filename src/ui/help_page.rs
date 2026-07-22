@@ -6,10 +6,10 @@
 //! one over another, and how every feature works. Diagrams are drawn natively
 //! (Cairo + GTK widgets) so they adapt to the GNOME light/dark theme.
 
-use gtk4 as gtk;
 use crate::i18n::gettext;
-use gtk4::prelude::*;
+use gtk4 as gtk;
 use gtk4::glib;
+use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
 
 mod imp {
@@ -65,7 +65,10 @@ impl HelpPage {
         header_box.append(&title);
 
         let subtitle = gtk::Label::new(Some(
-            gettext("Everything you need to get great transcriptions — and choose the right settings.").as_str(),
+            gettext(
+                "Everything you need to get great transcriptions — and choose the right settings.",
+            )
+            .as_str(),
         ));
         subtitle.add_css_class("dim-label");
         subtitle.set_halign(gtk::Align::Start);
@@ -147,10 +150,22 @@ impl HelpPage {
             &gettext("If you want…"),
             &gettext("Choose"),
             &[
-                (gettext("Quick tests / very low resources"), gettext("Tiny or Base (or their Q5)")),
-                (gettext("A good everyday balance"), gettext("Small or Large v3 Turbo")),
-                (gettext("Best possible accuracy, have the RAM/GPU"), gettext("Large v3")),
-                (gettext("Greek / non-English everyday dictation"), gettext("Whisper Small/Turbo or Qwen3-ASR")),
+                (
+                    gettext("Quick tests / very low resources"),
+                    gettext("Tiny or Base (or their Q5)"),
+                ),
+                (
+                    gettext("A good everyday balance"),
+                    gettext("Small or Large v3 Turbo"),
+                ),
+                (
+                    gettext("Best possible accuracy, have the RAM/GPU"),
+                    gettext("Large v3"),
+                ),
+                (
+                    gettext("Greek / non-English everyday dictation"),
+                    gettext("Whisper Small/Turbo or Qwen3-ASR"),
+                ),
             ],
         ));
 
@@ -481,7 +496,11 @@ impl HelpPage {
             let right = w as f64 - 86.0;
             let track = (right - left).max(40.0);
             let row_h = h as f64 / n;
-            cr.select_font_face("Sans", gtk::cairo::FontSlant::Normal, gtk::cairo::FontWeight::Normal);
+            cr.select_font_face(
+                "Sans",
+                gtk::cairo::FontSlant::Normal,
+                gtk::cairo::FontWeight::Normal,
+            );
             cr.set_font_size(12.5);
 
             for (i, (name, acc, spd, size)) in rows.iter().enumerate() {

@@ -67,7 +67,11 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), b"hello");
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "file should be private 0600");
-        let dmode = fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777;
+        let dmode = fs::metadata(path.parent().unwrap())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(dmode, 0o700, "directory should be private 0700");
     }
 

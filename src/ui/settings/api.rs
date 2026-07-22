@@ -7,12 +7,12 @@
 //! and optional translation. A bearer token (stored in the system keyring,
 //! never in the config) gates access and can be copied or regenerated here.
 
-use gtk4::prelude::*;
 use adw::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 
 use crate::application::tokio_runtime;
@@ -73,7 +73,8 @@ impl ApiPage {
 
     /// The running Application instance, for start/stop of the server.
     fn app() -> Option<crate::application::Application> {
-        gtk::gio::Application::default().and_then(|a| a.downcast::<crate::application::Application>().ok())
+        gtk::gio::Application::default()
+            .and_then(|a| a.downcast::<crate::application::Application>().ok())
     }
 
     fn setup_ui(&self) {
@@ -124,7 +125,10 @@ impl ApiPage {
 
         let token_switch = adw::SwitchRow::builder()
             .title(gettext("Require token").as_str())
-            .subtitle(gettext("Strongly recommended — other local processes can reach the server.").as_str())
+            .subtitle(
+                gettext("Strongly recommended — other local processes can reach the server.")
+                    .as_str(),
+            )
             .build();
         token_switch.set_active(config.api_token_enabled);
         auth_group.add(&token_switch);
@@ -132,7 +136,8 @@ impl ApiPage {
         let token_row = adw::ActionRow::builder()
             .title(gettext("Token").as_str())
             .build();
-        let token_label = gtk::Label::new(Some(&gettext("Hidden — enable the server to create it")));
+        let token_label =
+            gtk::Label::new(Some(&gettext("Hidden — enable the server to create it")));
         token_label.add_css_class("dim-label");
         token_label.add_css_class("monospace");
         token_label.set_selectable(false);
@@ -156,7 +161,9 @@ impl ApiPage {
 
         // ── Status ──────────────────────────────────────────────────
         let status_group = adw::PreferencesGroup::new();
-        let status_row = adw::ActionRow::builder().title(gettext("Status").as_str()).build();
+        let status_row = adw::ActionRow::builder()
+            .title(gettext("Status").as_str())
+            .build();
         let status_label = gtk::Label::new(None);
         status_label.add_css_class("dim-label");
         status_label.set_xalign(1.0);
@@ -289,7 +296,11 @@ impl ApiPage {
         let running = Self::app().map(|a| a.api_server_running()).unwrap_or(false);
         let text = if config.api_server_enabled {
             if running {
-                format!("{} http://127.0.0.1:{}", gettext("Listening on"), config.api_server_port)
+                format!(
+                    "{} http://127.0.0.1:{}",
+                    gettext("Listening on"),
+                    config.api_server_port
+                )
             } else {
                 gettext("Starting…")
             }

@@ -76,7 +76,9 @@ fn strip_hallucinations(text: &str) -> String {
     let lower = text.to_lowercase();
 
     // If the entire text (trimmed) is a hallucination phrase, discard it
-    let trimmed_lower = lower.trim().trim_matches(|c: char| c == '.' || c == '!' || c == '?' || c == ',' || c == ' ');
+    let trimmed_lower = lower
+        .trim()
+        .trim_matches(|c: char| c == '.' || c == '!' || c == '?' || c == ',' || c == ' ');
     for phrase in HALLUCINATION_PHRASES {
         if trimmed_lower == *phrase {
             return String::new();
@@ -96,9 +98,9 @@ fn strip_hallucinations(text: &str) -> String {
             // Only strip if it's near the end (allow trailing punctuation/space
             // after the phrase, e.g. "… Σας ευχαριστούμε!").
             let tail = &result_lower[pos + phrase.len()..];
-            let tail_is_trailing = tail
-                .chars()
-                .all(|c| c.is_whitespace() || matches!(c, '.' | '!' | '?' | ',' | '…' | '"' | '»' | ')'));
+            let tail_is_trailing = tail.chars().all(|c| {
+                c.is_whitespace() || matches!(c, '.' | '!' | '?' | ',' | '…' | '"' | '»' | ')')
+            });
             if tail_is_trailing {
                 result.truncate(pos);
             }
@@ -218,13 +220,22 @@ pub fn sanitize_transcript(text: &str, average_confidence: Option<f32>) -> Strin
 /// must be bounded by non-alphanumeric characters) and `case_sensitive`
 /// (default: case-insensitive). UTF-8 safe; matching advances past each
 /// replacement so a rule never cascades onto its own output.
-pub fn apply_dictionary_replacements(text: &str, rules: &[crate::config::DictReplacement]) -> String {
+pub fn apply_dictionary_replacements(
+    text: &str,
+    rules: &[crate::config::DictReplacement],
+) -> String {
     let mut out = text.to_string();
     for rule in rules {
         if rule.from.trim().is_empty() {
             continue;
         }
-        out = replace_rule(&out, &rule.from, &rule.to, rule.whole_word, rule.case_sensitive);
+        out = replace_rule(
+            &out,
+            &rule.from,
+            &rule.to,
+            rule.whole_word,
+            rule.case_sensitive,
+        );
     }
     out
 }
@@ -238,7 +249,13 @@ fn char_matches(a: char, b: char, case_sensitive: bool) -> bool {
     }
 }
 
-fn replace_rule(text: &str, from: &str, to: &str, whole_word: bool, case_sensitive: bool) -> String {
+fn replace_rule(
+    text: &str,
+    from: &str,
+    to: &str,
+    whole_word: bool,
+    case_sensitive: bool,
+) -> String {
     let hay: Vec<char> = text.chars().collect();
     let needle: Vec<char> = from.chars().collect();
     let (n, m) = (hay.len(), needle.len());
@@ -248,8 +265,8 @@ fn replace_rule(text: &str, from: &str, to: &str, whole_word: bool, case_sensiti
     let mut result = String::with_capacity(text.len());
     let mut i = 0;
     while i < n {
-        let matches_here = i + m <= n
-            && (0..m).all(|k| char_matches(hay[i + k], needle[k], case_sensitive));
+        let matches_here =
+            i + m <= n && (0..m).all(|k| char_matches(hay[i + k], needle[k], case_sensitive));
         if matches_here {
             let left_ok = !whole_word || i == 0 || !hay[i - 1].is_alphanumeric();
             let right_ok = !whole_word || i + m == n || !hay[i + m].is_alphanumeric();
@@ -297,9 +314,17 @@ fn format_srt_time(ms: i64) -> String {
 mod tests {
     use super::*;
 
-    fn repl(from: &str, to: &str, whole_word: bool, case_sensitive: bool) -> crate::config::DictReplacement {
+    fn repl(
+        from: &str,
+        to: &str,
+        whole_word: bool,
+        case_sensitive: bool,
+    ) -> crate::config::DictReplacement {
         crate::config::DictReplacement {
-            from: from.into(), to: to.into(), whole_word, case_sensitive,
+            from: from.into(),
+            to: to.into(),
+            whole_word,
+            case_sensitive,
         }
     }
 
@@ -350,7 +375,10 @@ mod tests {
     #[test]
     fn dictionary_empty_from_is_ignored() {
         let rules = vec![repl("", "x", false, false)];
-        assert_eq!(apply_dictionary_replacements("unchanged", &rules), "unchanged");
+        assert_eq!(
+            apply_dictionary_replacements("unchanged", &rules),
+            "unchanged"
+        );
     }
 
     #[test]
@@ -360,10 +388,7 @@ mod tests {
 
     #[test]
     fn test_capitalize_after_period() {
-        assert_eq!(
-            cleanup_transcript("hello. world"),
-            "Hello. World"
-        );
+        assert_eq!(cleanup_transcript("hello. world"), "Hello. World");
     }
 
     #[test]
@@ -381,12 +406,18 @@ mod tests {
 
     #[test]
     fn test_repetitive_hallucination_is_removed_when_low_confidence() {
-        assert_eq!(sanitize_transcript("please please please please", Some(0.2)), "");
+        assert_eq!(
+            sanitize_transcript("please please please please", Some(0.2)),
+            ""
+        );
     }
 
     #[test]
     fn test_repetitive_real_text_is_kept_with_good_confidence() {
-        assert_eq!(sanitize_transcript("please please please please", Some(0.9)), "Please please please please");
+        assert_eq!(
+            sanitize_transcript("please please please please", Some(0.9)),
+            "Please please please please"
+        );
     }
 
     #[test]
@@ -415,12 +446,12 @@ mod tests {
 
     #[test]
     fn test_srt_formatting() {
-        let segments = vec![
-            (0, 2500, "Hello world."),
-            (2500, 5000, "How are you?"),
-        ];
+        let segments = vec![(0, 2500, "Hello world."), (2500, 5000, "How are you?")];
         let srt = format_as_srt(
-            &segments.iter().map(|(s, e, t)| (*s, *e, *t)).collect::<Vec<_>>()
+            &segments
+                .iter()
+                .map(|(s, e, t)| (*s, *e, *t))
+                .collect::<Vec<_>>(),
         );
         assert!(srt.contains("00:00:00,000 --> 00:00:02,500"));
         assert!(srt.contains("Hello world."));

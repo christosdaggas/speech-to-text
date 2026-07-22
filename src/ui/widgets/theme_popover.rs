@@ -4,11 +4,11 @@
 
 //! Theme selector popup with System/Light/Dark options, About, and Quit.
 
-use gtk4 as gtk;
 use crate::i18n::gettext;
-use gtk4::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
 use libadwaita as adw;
 use std::cell::RefCell;
 

@@ -4,13 +4,13 @@
 
 //! Header bar with microphone selector, model selector, and status indicator.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
-use gtk4::glib;
-use gtk4 as gtk;
-use gtk4::pango;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::pango;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -88,11 +88,7 @@ impl HeaderControls {
         // microphone choice is presented in Settings instead of crowding this bar.
         let mic_model = gtk::StringList::new(&["Built-in Audio"]);
         let mic_dropdown = gtk::DropDown::new(Some(mic_model), gtk::Expression::NONE);
-        Self::configure_fixed_width_dropdown(
-            &mic_dropdown,
-            Self::MIC_DROPDOWN_WIDTH,
-            20,
-        );
+        Self::configure_fixed_width_dropdown(&mic_dropdown, Self::MIC_DROPDOWN_WIDTH, 20);
 
         let menu_button = gtk::MenuButton::new();
         menu_button.set_icon_name("view-more-symbolic");
@@ -111,11 +107,7 @@ impl HeaderControls {
         let model_dropdown = gtk::DropDown::new(Some(model_list), gtk::Expression::NONE);
         model_dropdown.add_css_class("header-model-dropdown");
         model_dropdown.set_tooltip_text(Some(gettext("Select model").as_str()));
-        Self::configure_fixed_width_dropdown(
-            &model_dropdown,
-            150,
-            18,
-        );
+        Self::configure_fixed_width_dropdown(&model_dropdown, 150, 18);
         model_box.append(&model_dropdown);
 
         let status_icon = gtk::Image::from_icon_name("media-record-symbolic");
@@ -160,11 +152,7 @@ impl HeaderControls {
         let mic_model = gtk::StringList::new(&["Built-in Audio"]);
         let mic_dropdown = gtk::DropDown::new(Some(mic_model), gtk::Expression::NONE);
         mic_dropdown.set_tooltip_text(Some(gettext("Select microphone").as_str()));
-        Self::configure_fixed_width_dropdown(
-            &mic_dropdown,
-            Self::MIC_DROPDOWN_WIDTH,
-            20,
-        );
+        Self::configure_fixed_width_dropdown(&mic_dropdown, Self::MIC_DROPDOWN_WIDTH, 20);
         mic_box.append(&mic_dropdown);
 
         header_bar.pack_start(&mic_box);
@@ -183,11 +171,7 @@ impl HeaderControls {
         let model_list = gtk::StringList::new(&["Tiny", "Base", "Small", "Medium", "Large"]);
         let model_dropdown = gtk::DropDown::new(Some(model_list), gtk::Expression::NONE);
         model_dropdown.set_tooltip_text(Some(gettext("Select model").as_str()));
-        Self::configure_fixed_width_dropdown(
-            &model_dropdown,
-            Self::MODEL_DROPDOWN_WIDTH,
-            16,
-        );
+        Self::configure_fixed_width_dropdown(&model_dropdown, Self::MODEL_DROPDOWN_WIDTH, 16);
         center_box.append(&model_dropdown);
 
         // Model status indicator
@@ -300,9 +284,8 @@ impl HeaderControls {
     /// Update the microphone list.
     pub fn set_microphones(&self, devices: &[String]) {
         if let Some(dropdown) = self.imp().mic_dropdown.borrow().as_ref() {
-            let model = gtk::StringList::new(
-                &devices.iter().map(|s| s.as_str()).collect::<Vec<_>>()
-            );
+            let model =
+                gtk::StringList::new(&devices.iter().map(|s| s.as_str()).collect::<Vec<_>>());
             dropdown.set_model(Some(&model));
         }
     }
@@ -413,12 +396,16 @@ impl HeaderControls {
     /// `update_models_for_backend` has set `model_ids = ["cohere-transcribe"]`.
     pub fn selected_model_id(&self) -> String {
         let imp = self.imp();
-        let index = imp.model_dropdown.borrow()
+        let index = imp
+            .model_dropdown
+            .borrow()
             .as_ref()
             .map(|d| d.selected())
             .unwrap_or(0) as usize;
         let ids = imp.model_ids.borrow();
-        ids.get(index).cloned().unwrap_or_else(|| "base".to_string())
+        ids.get(index)
+            .cloned()
+            .unwrap_or_else(|| "base".to_string())
     }
 
     /// Connect a callback for when the model dropdown selection changes.

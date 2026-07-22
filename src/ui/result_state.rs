@@ -25,7 +25,11 @@ pub struct ResultStats {
 impl ResultStats {
     pub fn compute(text: &str, duration_secs: f32) -> Self {
         let words = word_count(text);
-        Self { words, duration_secs, wpm: wpm(words, duration_secs) }
+        Self {
+            words,
+            duration_secs,
+            wpm: wpm(words, duration_secs),
+        }
     }
 }
 
@@ -63,7 +67,14 @@ impl ResultState {
         segments: Vec<(i64, i64, String)>,
     ) -> Self {
         let stats = ResultStats::compute(&raw, duration_secs);
-        Self { raw, variants: Vec::new(), active: 0, stats, language, segments }
+        Self {
+            raw,
+            variants: Vec::new(),
+            active: 0,
+            stats,
+            language,
+            segments,
+        }
     }
 
     /// Plain result with no timing/language metadata (e.g. for previews).
@@ -85,7 +96,10 @@ impl ResultState {
 
     /// Append a new variant and make it active; returns its overall active index.
     pub fn push_variant(&mut self, label: impl Into<String>, text: impl Into<String>) -> usize {
-        self.variants.push(TextVariant { label: label.into(), text: text.into() });
+        self.variants.push(TextVariant {
+            label: label.into(),
+            text: text.into(),
+        });
         self.active = self.variants.len(); // 0 = raw, so the new last variant
         self.active
     }
@@ -102,7 +116,11 @@ impl ResultState {
 
     /// The most recent non-raw variant's overall index, if any (for a 2-state toggle).
     pub fn latest_variant_index(&self) -> Option<usize> {
-        if self.variants.is_empty() { None } else { Some(self.variants.len()) }
+        if self.variants.is_empty() {
+            None
+        } else {
+            Some(self.variants.len())
+        }
     }
 
     /// The active non-raw variant's text, if a variant is active (for history's

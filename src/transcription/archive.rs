@@ -60,9 +60,9 @@ pub fn safe_extract_zip(zip_path: &Path, dest: &Path) -> AppResult<()> {
         // Symlink: validate the (lexically-resolved) target stays inside dest.
         if ftype == 0o120000 {
             let mut target = String::new();
-            entry
-                .read_to_string(&mut target)
-                .map_err(|e| AppError::ModelDownloadFailed(format!("Bad symlink in archive: {e}")))?;
+            entry.read_to_string(&mut target).map_err(|e| {
+                AppError::ModelDownloadFailed(format!("Bad symlink in archive: {e}"))
+            })?;
             let link_parent = out.parent().unwrap_or(dest);
             if !lexically_within(dest, link_parent, target.trim()) {
                 return Err(AppError::ModelDownloadFailed(format!(
@@ -194,7 +194,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let zip_path = tmp.path().join("evil.zip");
         // A path-traversal entry plus a benign one.
-        write_zip(&zip_path, &[("../escaped.txt", b"pwned"), ("safe.txt", b"ok")]);
+        write_zip(
+            &zip_path,
+            &[("../escaped.txt", b"pwned"), ("safe.txt", b"ok")],
+        );
 
         let dest = tmp.path().join("out");
         let _ = safe_extract_zip(&zip_path, &dest); // may Err or skip; must not escape

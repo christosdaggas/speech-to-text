@@ -10,12 +10,12 @@
 //! beneath it. The public API is unchanged from the legacy row layout, so the
 //! recording state machine in `MainWindow` keeps working untouched.
 
-use gtk4::prelude::*;
 use crate::i18n::gettext;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -184,9 +184,7 @@ impl Controls {
         hero_text.append(&hero_subtitle);
 
         // Keyboard hint
-        let hero_hint = gtk::Label::new(Some(
-            gettext("Ctrl+R to start · Esc to cancel").as_str(),
-        ));
+        let hero_hint = gtk::Label::new(Some(gettext("Ctrl+R to start · Esc to cancel").as_str()));
         hero_hint.add_css_class("hero-hint");
         hero_hint.set_halign(gtk::Align::Start);
         hero_text.append(&hero_hint);
@@ -232,7 +230,9 @@ impl Controls {
         // Lazy click dispatch: Record when idle, Stop when live.
         let self_weak = self.downgrade();
         hero_btn.connect_clicked(move |_| {
-            let Some(view) = self_weak.upgrade() else { return };
+            let Some(view) = self_weak.upgrade() else {
+                return;
+            };
             let imp = view.imp();
             let cb_opt = imp.action_cb.borrow().clone();
             if let Some(cb) = cb_opt {
@@ -269,12 +269,19 @@ impl Controls {
         open_file_btn.add_css_class("hero-toggle");
         open_file_btn.add_css_class("open-file-btn");
         open_file_btn.set_tooltip_text(Some(
-            gettext("Open an audio file (WAV, MP3, FLAC, OGG, Opus, M4A) and transcribe it").as_str(),
+            gettext("Open an audio file (WAV, MP3, FLAC, OGG, Opus, M4A) and transcribe it")
+                .as_str(),
         ));
 
-        let copy_btn = icon_btn("edit-copy-symbolic", &gettext("Copy transcript to clipboard"));
+        let copy_btn = icon_btn(
+            "edit-copy-symbolic",
+            &gettext("Copy transcript to clipboard"),
+        );
         let clear_btn = icon_btn("edit-clear-all-symbolic", &gettext("Clear transcript"));
-        let save_btn = icon_btn("document-save-symbolic", &gettext("Save transcript to file"));
+        let save_btn = icon_btn(
+            "document-save-symbolic",
+            &gettext("Save transcript to file"),
+        );
 
         // Mode row: mode switcher group + the action-button group, spaced apart.
         let mode_row = gtk::Box::new(gtk::Orientation::Horizontal, 14);
@@ -380,7 +387,12 @@ impl Controls {
 
     /// Whether "Improve with AI" is armed.
     pub fn is_ai_active(&self) -> bool {
-        self.imp().ai_toggle.borrow().as_ref().map(|t| t.is_active()).unwrap_or(false)
+        self.imp()
+            .ai_toggle
+            .borrow()
+            .as_ref()
+            .map(|t| t.is_active())
+            .unwrap_or(false)
     }
 
     /// Set the "Improve with AI" toggle state.
@@ -417,7 +429,9 @@ impl Controls {
         if let Some(btn) = imp.pause_btn.borrow().as_ref() {
             let controls = self.downgrade();
             btn.connect_clicked(move |_| {
-                let Some(controls) = controls.upgrade() else { return };
+                let Some(controls) = controls.upgrade() else {
+                    return;
+                };
                 let action = if controls.imp().paused_state.get() {
                     ControlAction::Resume
                 } else {
@@ -483,7 +497,9 @@ impl Controls {
         }
         if let Some(label) = imp.hero_subtitle.borrow().as_ref() {
             let text = if recording {
-                gettext("Your words appear below as you speak. Use the button again when you are done.")
+                gettext(
+                    "Your words appear below as you speak. Use the button again when you are done.",
+                )
             } else {
                 gettext("Capture a thought, draft a message, or transcribe an audio file with local speech recognition.")
             };

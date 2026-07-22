@@ -56,7 +56,10 @@ mod tests {
     #[test]
     fn accepts_clean_relative_names() {
         let base = Path::new("/data/model");
-        assert_eq!(safe_join(base, "config.json"), Some(base.join("config.json")));
+        assert_eq!(
+            safe_join(base, "config.json"),
+            Some(base.join("config.json"))
+        );
         assert_eq!(
             safe_join(base, "sub/dir/model.safetensors"),
             Some(base.join("sub/dir/model.safetensors"))

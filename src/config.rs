@@ -345,7 +345,9 @@ impl AppConfig {
         let mut combined = parts.join(" ");
         if combined.chars().count() > MAX_PROMPT_CHARS {
             combined = combined.chars().take(MAX_PROMPT_CHARS).collect();
-            tracing::warn!("Initial prompt + dictionary terms exceeded the prompt budget; truncated.");
+            tracing::warn!(
+                "Initial prompt + dictionary terms exceeded the prompt budget; truncated."
+            );
         }
         Some(combined)
     }
@@ -423,8 +425,6 @@ fn default_llm_presets() -> Vec<LlmPreset> {
     ]
 }
 
-
-
 /// Process-wide cache so the many `AppConfig::load()` call sites don't re-read
 /// and re-parse the JSON from disk on every access (startup did this ~50 times).
 /// `save()` keeps the cache in sync, so reads always reflect the latest state.
@@ -460,7 +460,8 @@ impl AppConfig {
                             // their newer defaults (only if still unedited).
                             if config.migrate_builtin_presets() {
                                 if let Ok(json) = serde_json::to_string_pretty(&config) {
-                                    let _ = crate::fsio::write_private(&config_path, json.as_bytes());
+                                    let _ =
+                                        crate::fsio::write_private(&config_path, json.as_bytes());
                                 }
                             }
                             return config;
@@ -521,7 +522,10 @@ impl AppConfig {
     fn migrate_builtin_presets(&mut self) -> bool {
         const OLD_CLEANUP: &str = "Clean up the following transcribed text: fix grammar, punctuation and capitalization. Keep the meaning and the original language. Reply with only the corrected text.";
         let defaults = default_llm_presets();
-        let new_cleanup = defaults.iter().find(|p| p.name == "Clean up").map(|p| p.prompt.clone());
+        let new_cleanup = defaults
+            .iter()
+            .find(|p| p.name == "Clean up")
+            .map(|p| p.prompt.clone());
         let new_translate = defaults
             .iter()
             .find(|p| p.translate_to.is_some())
@@ -598,12 +602,10 @@ impl AppConfig {
     /// Uses custom model_directory if set, otherwise default XDG data path.
     /// Accepts an optional config reference to avoid re-reading disk.
     pub fn models_dir_with_config(config: Option<&AppConfig>) -> PathBuf {
-        let custom = config
-            .and_then(|c| c.model_directory.as_ref())
-            .or_else(|| {
-                // Fallback: read from disk only if no config provided
-                None
-            });
+        let custom = config.and_then(|c| c.model_directory.as_ref()).or_else(|| {
+            // Fallback: read from disk only if no config provided
+            None
+        });
         if let Some(dir) = custom {
             PathBuf::from(dir)
         } else {
@@ -658,7 +660,8 @@ impl ConfigStore {
     }
 
     pub fn read(&self) -> AppConfig {
-        self.inner.read()
+        self.inner
+            .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
     }
@@ -667,7 +670,9 @@ impl ConfigStore {
     where
         F: FnOnce(&mut AppConfig),
     {
-        let mut config = self.inner.write()
+        let mut config = self
+            .inner
+            .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut config);
         config.save();
@@ -683,7 +688,10 @@ mod tests {
         // Old config without the dictionary fields must still deserialize.
         let mut value = serde_json::to_value(AppConfig::default()).unwrap();
         value.as_object_mut().unwrap().remove("dictionary_terms");
-        value.as_object_mut().unwrap().remove("dictionary_replacements");
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("dictionary_replacements");
         value.as_object_mut().unwrap().remove("dictionary_enabled");
         let raw = serde_json::to_string(&value).unwrap();
         let cfg: AppConfig = serde_json::from_str(&raw).expect("legacy deserialize");
@@ -694,7 +702,10 @@ mod tests {
         let mut cfg = AppConfig::default();
         cfg.dictionary_terms = vec!["Kubernetes".into(), "Daggas".into()];
         cfg.dictionary_replacements = vec![DictReplacement {
-            from: "cube".into(), to: "Kube".into(), whole_word: true, case_sensitive: false,
+            from: "cube".into(),
+            to: "Kube".into(),
+            whole_word: true,
+            case_sensitive: false,
         }];
         let json = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
@@ -745,7 +756,11 @@ mod tests {
         assert!(!p.contains("Kubernetes"));
 
         // No prompt + no terms → None.
-        let empty = AppConfig { initial_prompt: None, dictionary_terms: vec![], ..AppConfig::default() };
+        let empty = AppConfig {
+            initial_prompt: None,
+            dictionary_terms: vec![],
+            ..AppConfig::default()
+        };
         assert!(empty.effective_initial_prompt().is_none());
 
         // Cap is enforced.
@@ -783,7 +798,10 @@ mod tests {
         assert!(!cfg.llm_consent_given);
         assert!(cfg.llm_consent_endpoint.is_none());
         assert!(!cfg.llm_auto_summary);
-        assert!(cfg.update_check_enabled, "update check defaults on (documented)");
+        assert!(
+            cfg.update_check_enabled,
+            "update check defaults on (documented)"
+        );
     }
 
     #[test]
@@ -829,7 +847,7 @@ mod tests {
         assert_eq!(config.temperature, 0.0);
         assert_eq!(config.backend, "whisper"); // default_backend
         assert!(config.auto_detect_language); // default_true
-        // Mini panel fields must also default cleanly for pre-existing configs.
+                                              // Mini panel fields must also default cleanly for pre-existing configs.
         assert!(config.mini_panel_enabled);
         assert!(!config.mini_panel_always_on_top);
         assert_eq!(config.global_shortcut, "<Ctrl><Alt>space");
@@ -896,7 +914,10 @@ mod tests {
         assert_eq!(restored.llm_active_preset, 2);
         assert!(restored.llm_selection_enabled);
         assert_eq!(restored.llm_presets.len(), 1);
-        assert_eq!(restored.llm_presets[0].translate_to.as_deref(), Some("French"));
+        assert_eq!(
+            restored.llm_presets[0].translate_to.as_deref(),
+            Some("French")
+        );
         assert_eq!(restored.llm_presets[0].model.as_deref(), Some("m"));
         // Translate preset substitutes {lang} from translate_to into the prompt.
         assert!(restored.llm_presets[0].system_prompt().contains("French"));
@@ -931,7 +952,7 @@ mod tests {
         assert!(c.llm_presets[0].prompt.contains("speech-to-text")); // improved Clean up
         assert!(c.llm_presets[1].prompt.contains("{lang}")); // translate template seeded
         assert_eq!(c.llm_presets[2].prompt, "my own edited prompt"); // untouched
-        // Idempotent: a second run changes nothing.
+                                                                     // Idempotent: a second run changes nothing.
         assert!(!c.migrate_builtin_presets());
     }
 }

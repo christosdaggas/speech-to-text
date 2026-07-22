@@ -4,11 +4,11 @@
 
 //! Custom list row for model selection with download status.
 
-use gtk4::prelude::*;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 
 /// Model download state.
@@ -125,9 +125,15 @@ impl ModelRow {
 
     fn set_data(&self, name: &str, size: &str, description: &str) {
         let imp = self.imp();
-        if let Some(l) = imp.name_label.borrow().as_ref() { l.set_text(name); }
-        if let Some(l) = imp.size_label.borrow().as_ref() { l.set_text(size); }
-        if let Some(l) = imp.desc_label.borrow().as_ref() { l.set_text(description); }
+        if let Some(l) = imp.name_label.borrow().as_ref() {
+            l.set_text(name);
+        }
+        if let Some(l) = imp.size_label.borrow().as_ref() {
+            l.set_text(size);
+        }
+        if let Some(l) = imp.desc_label.borrow().as_ref() {
+            l.set_text(description);
+        }
     }
 
     /// Update the model state.

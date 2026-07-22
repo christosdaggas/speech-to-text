@@ -15,7 +15,7 @@ pub mod summary;
 pub mod verify;
 
 pub use engine::TranscriptionEngine;
-pub use model::{ModelCatalog, download_model};
+pub use model::{download_model, ModelCatalog};
 
 /// Shared HTTP client for model/runtime downloads. It sets a connect timeout
 /// and an idle read timeout so a stalled server can't hang a download forever,
@@ -83,9 +83,9 @@ pub(crate) fn run_command_with_timeout(
     command
         .stdout(std::process::Stdio::from(stdout_file.reopen()?))
         .stderr(std::process::Stdio::from(stderr_file.reopen()?));
-    let mut child = command
-        .spawn()
-        .map_err(|e| crate::error::AppError::Transcription(format!("Failed to start sidecar: {e}")))?;
+    let mut child = command.spawn().map_err(|e| {
+        crate::error::AppError::Transcription(format!("Failed to start sidecar: {e}"))
+    })?;
     let started = std::time::Instant::now();
     loop {
         match child.try_wait() {

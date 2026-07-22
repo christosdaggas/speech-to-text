@@ -6,13 +6,13 @@
 //!
 //! GObject subclass for the Adwaita Application.
 
-use gtk4::prelude::*;
-use gtk4::gio;
-use gtk4::glib;
-use gtk4 as gtk;
-use libadwaita as adw;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use gtk4 as gtk;
+use gtk4::gio;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -21,9 +21,7 @@ use tracing::info;
 use crate::audio::capture::RecordingState;
 use crate::config::AppConfig;
 use crate::i18n::gettext;
-use crate::recording::{
-    DictationOutcome, DictationParams, RecordingController, RecordingOwner,
-};
+use crate::recording::{DictationOutcome, DictationParams, RecordingController, RecordingOwner};
 use crate::ui::{MainWindow, MiniPanel, MiniPanelAction};
 use crate::{APP_ID, APP_NAME, VERSION};
 
@@ -118,7 +116,11 @@ mod imp {
             // mini panel being the active one — would make it return the wrong
             // thing and spawn a duplicate.
             let window = application.main_window().unwrap_or_else(|| {
-                let config = self.config.borrow().clone().unwrap_or_else(|| Arc::new(AppConfig::load()));
+                let config = self
+                    .config
+                    .borrow()
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(AppConfig::load()));
                 *self.config.borrow_mut() = Some(config.clone());
                 MainWindow::new(&application, config)
             });
@@ -158,7 +160,9 @@ mod imp {
                     if let Some(exe_dir) = exe_path.parent() {
                         let dev_icons = exe_dir.join("../../data/icons");
                         if dev_icons.exists() {
-                            if let Some(path_str) = dev_icons.canonicalize().ok()
+                            if let Some(path_str) = dev_icons
+                                .canonicalize()
+                                .ok()
                                 .and_then(|p| p.to_str().map(String::from))
                             {
                                 icon_theme.add_search_path(&path_str);
@@ -321,7 +325,9 @@ impl Application {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let Ok(token) = rx.recv().await else { return };
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             let token = match token {
                 Ok(token) => token,
                 Err(error) => {
@@ -391,13 +397,20 @@ impl Application {
 
     /// Find the main window among the application's windows, if open.
     fn main_window(&self) -> Option<MainWindow> {
-        self.windows().into_iter().find_map(|w| w.downcast::<MainWindow>().ok())
+        self.windows()
+            .into_iter()
+            .find_map(|w| w.downcast::<MainWindow>().ok())
     }
 
     /// Show the main window (creating it if it doesn't exist yet).
     fn present_main_window(&self) {
         let window = self.main_window().unwrap_or_else(|| {
-            let config = self.imp().config.borrow().clone().unwrap_or_else(|| Arc::new(AppConfig::load()));
+            let config = self
+                .imp()
+                .config
+                .borrow()
+                .clone()
+                .unwrap_or_else(|| Arc::new(AppConfig::load()));
             MainWindow::new(self, config)
         });
         window.present();
@@ -520,7 +533,8 @@ impl Application {
                 let panel_weak = panel.downgrade();
                 // 100ms tick so the timer can show centiseconds.
                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-                    let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade()) else {
+                    let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade())
+                    else {
                         return glib::ControlFlow::Break;
                     };
                     let controller = app.controller();
@@ -556,7 +570,8 @@ impl Application {
             Ok(a) => a,
             Err(e) => {
                 controller.release();
-                self.mini_panel().show_error(&format!("Error stopping recording: {e}"));
+                self.mini_panel()
+                    .show_error(&format!("Error stopping recording: {e}"));
                 return;
             }
         };
@@ -590,7 +605,9 @@ impl Application {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let result = receiver.recv().await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             if app.imp().dictation_generation.get() != generation {
                 return;
             }
@@ -612,7 +629,9 @@ impl Application {
         let panel = self.mini_panel();
         let cleaned = outcome.cleaned_text.clone();
         if cleaned.is_empty() {
-            panel.show_error(&crate::i18n::gettext("No clear speech detected — try again"));
+            panel.show_error(&crate::i18n::gettext(
+                "No clear speech detected — try again",
+            ));
             return;
         }
 
@@ -642,7 +661,9 @@ impl Application {
             let label = preset.name.clone();
             glib::spawn_future_local(async move {
                 let res = rx.recv().await;
-                let Some(app) = app_weak.upgrade() else { return };
+                let Some(app) = app_weak.upgrade() else {
+                    return;
+                };
                 if app.imp().dictation_generation.get() != generation {
                     return;
                 }
@@ -745,7 +766,9 @@ impl Application {
         let label = preset.name.clone();
         glib::spawn_future_local(async move {
             let res = rx.recv().await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             app.mini_panel().set_chips_sensitive(true);
             if let Ok(Ok(improved)) = &res {
                 if !improved.trim().is_empty() {
@@ -811,7 +834,8 @@ impl Application {
                 let app_weak = self.downgrade();
                 let panel_weak = panel.downgrade();
                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-                    let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade()) else {
+                    let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade())
+                    else {
                         return glib::ControlFlow::Break;
                     };
                     let controller = app.controller();
@@ -843,7 +867,8 @@ impl Application {
             Ok(a) => a,
             Err(e) => {
                 controller.release();
-                self.mini_panel().show_error(&format!("Error stopping recording: {e}"));
+                self.mini_panel()
+                    .show_error(&format!("Error stopping recording: {e}"));
                 return;
             }
         };
@@ -863,7 +888,9 @@ impl Application {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let result = receiver.recv().await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             match result {
                 Ok(Ok(outcome)) => app.run_voice_edit_llm(outcome.cleaned_text),
                 Ok(Err(msg)) => app.mini_panel().show_error(&msg),
@@ -887,7 +914,12 @@ impl Application {
     /// result as a new "Voice edit" variant.
     fn run_voice_edit_llm(&self, instruction: String) {
         let instruction = instruction.trim().to_string();
-        let target = self.imp().voice_edit_target.borrow().clone().unwrap_or_default();
+        let target = self
+            .imp()
+            .voice_edit_target
+            .borrow()
+            .clone()
+            .unwrap_or_default();
         *self.imp().voice_edit_target.borrow_mut() = None;
         let panel = self.mini_panel();
         if instruction.is_empty() {
@@ -915,16 +947,22 @@ impl Application {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let res = rx.recv().await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             match res {
                 Ok(Ok(edited)) if !edited.trim().is_empty() => {
                     if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
-                        st.push_variant(crate::i18n::gettext("Voice edit"), edited.trim().to_string());
+                        st.push_variant(
+                            crate::i18n::gettext("Voice edit"),
+                            edited.trim().to_string(),
+                        );
                     }
                     app.show_active_result();
                 }
                 Ok(Ok(_)) => {
-                    app.mini_panel().show_error(&crate::i18n::gettext("AI returned an empty result"));
+                    app.mini_panel()
+                        .show_error(&crate::i18n::gettext("AI returned an empty result"));
                 }
                 Ok(Err(e)) => app.mini_panel().show_error(&e),
                 Err(_) => {}
@@ -963,11 +1001,20 @@ impl Application {
     fn record_global_history(&self, text: &str, outcome: &DictationOutcome) {
         let config = self.config_snapshot();
         let lang_name = if config.auto_detect_language {
-            outcome.detected_language.as_deref()
-                .map(|c| format!("Auto-detect ({})", crate::ui::settings::language_code_to_name(c)))
+            outcome
+                .detected_language
+                .as_deref()
+                .map(|c| {
+                    format!(
+                        "Auto-detect ({})",
+                        crate::ui::settings::language_code_to_name(c)
+                    )
+                })
                 .unwrap_or_else(|| "Auto-detect".to_string())
         } else {
-            config.language.as_deref()
+            config
+                .language
+                .as_deref()
                 .map(crate::ui::settings::language_code_to_name)
                 .unwrap_or_else(|| "Auto-detect".to_string())
         };
@@ -1028,7 +1075,9 @@ impl Application {
                     return;
                 }
                 let title = ellipsize_chars(&title, 60);
-                let Some(app) = app_weak.upgrade() else { return };
+                let Some(app) = app_weak.upgrade() else {
+                    return;
+                };
                 if let Some(win) = app.main_window() {
                     win.history_update_title(&id, &title);
                 } else {
@@ -1070,7 +1119,9 @@ impl Application {
         let preset = config.llm_presets[idx].clone();
         let llm_cfg = resolve_llm_cfg(&config, &preset);
 
-        let Some(display) = gtk::gdk::Display::default() else { return };
+        let Some(display) = gtk::gdk::Display::default() else {
+            return;
+        };
         let primary = display.primary_clipboard();
         let clipboard = display.clipboard();
 
@@ -1094,7 +1145,9 @@ impl Application {
                     .unwrap_or_default();
             }
             let text = text.trim().to_string();
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             if text.is_empty() {
                 let panel = app.mini_panel();
                 panel.show_error(&crate::i18n::gettext(
@@ -1112,7 +1165,9 @@ impl Application {
 
             let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), text);
             let res = rx.recv().await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             match res {
                 Ok(Ok(improved)) if !improved.trim().is_empty() => {
                     app.deliver_global_result(improved.trim().to_string());
@@ -1194,7 +1249,9 @@ impl Application {
     fn spawn_autopaste_then_reshow(&self, text: String, generation: u64) {
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             if app.imp().dictation_generation.get() != generation {
                 return;
             }
@@ -1207,7 +1264,9 @@ impl Application {
             // click-into-another-window case work.
             panel.set_visible(false);
             glib::timeout_future(std::time::Duration::from_millis(300)).await;
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             if app.imp().dictation_generation.get() != generation {
                 return;
             }
@@ -1247,7 +1306,9 @@ impl Application {
 
             // Re-present the panel showing the transcript, unless the user has
             // already started a new recording in the meantime.
-            let Some(app) = app_weak.upgrade() else { return };
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
             if app.imp().dictation_generation.get() != generation
                 || app.controller().owner() == RecordingOwner::Mini
             {
@@ -1278,12 +1339,9 @@ impl Application {
                 }
             }
         });
-        glib::timeout_add_local_once(
-            std::time::Duration::from_millis(timeout_ms),
-            move || {
-                let _ = tx.try_send(());
-            },
-        );
+        glib::timeout_add_local_once(std::time::Duration::from_millis(timeout_ms), move || {
+            let _ = tx.try_send(());
+        });
         let _ = rx.recv().await;
         panel.disconnect(handler);
     }
@@ -1368,7 +1426,13 @@ impl Application {
             })
             .build();
 
-        self.add_action_entries([action_quit, action_about, action_whats_new, action_dictation, action_transform]);
+        self.add_action_entries([
+            action_quit,
+            action_about,
+            action_whats_new,
+            action_dictation,
+            action_transform,
+        ]);
     }
 
     fn show_about(&self) {
@@ -1635,10 +1699,7 @@ impl Application {
     fn append_whats_new_group(container: &gtk::Box, title: &str, items: &[String]) {
         let group = adw::PreferencesGroup::builder().title(title).build();
         for item in items {
-            let row = adw::ActionRow::builder()
-                .title(item)
-                .title_lines(0)
-                .build();
+            let row = adw::ActionRow::builder().title(item).title_lines(0).build();
             let icon = gtk::Image::from_icon_name("object-select-symbolic");
             icon.add_css_class("success");
             row.add_prefix(&icon);
@@ -1653,7 +1714,10 @@ fn panel_lang_label(config: &AppConfig) -> String {
     if config.auto_detect_language {
         crate::i18n::gettext("Auto")
     } else {
-        config.language.clone().unwrap_or_else(|| crate::i18n::gettext("Auto"))
+        config
+            .language
+            .clone()
+            .unwrap_or_else(|| crate::i18n::gettext("Auto"))
     }
 }
 
@@ -1662,7 +1726,10 @@ fn panel_lang_label(config: &AppConfig) -> String {
 ///
 /// Canonical resolver, shared with the main window (see
 /// `MainWindow::resolve_llm_config_for_preset`).
-pub(crate) fn resolve_llm_cfg(config: &AppConfig, preset: &crate::config::LlmPreset) -> crate::llm::LlmConfig {
+pub(crate) fn resolve_llm_cfg(
+    config: &AppConfig,
+    preset: &crate::config::LlmPreset,
+) -> crate::llm::LlmConfig {
     crate::llm::LlmConfig {
         api_url: config.llm_api_url.clone(),
         api_key: None, // loaded from the keyring inside improve_async

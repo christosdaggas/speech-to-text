@@ -14,10 +14,8 @@
 //! desktop owns the real binding — the user confirms/changes it in
 //! Settings → Keyboard. We never assume the requested accelerator took effect.
 
+use ashpd::desktop::global_shortcuts::{BindShortcutsOptions, GlobalShortcuts, NewShortcut};
 use ashpd::desktop::CreateSessionOptions;
-use ashpd::desktop::global_shortcuts::{
-    BindShortcutsOptions, GlobalShortcuts, NewShortcut,
-};
 use futures::StreamExt;
 use tracing::{info, warn};
 
@@ -90,7 +88,9 @@ async fn run_inner(
     super::ensure_host_app_registered().await;
 
     let proxy = GlobalShortcuts::new().await?;
-    let session = proxy.create_session(CreateSessionOptions::default()).await?;
+    let session = proxy
+        .create_session(CreateSessionOptions::default())
+        .await?;
 
     // Pre-compute the XDG triggers so they outlive the borrowed `NewShortcut`s.
     let dict_trigger = gtk_accel_to_xdg_trigger(&dictation_trigger);
@@ -101,12 +101,14 @@ async fn run_inner(
         .as_deref()
         .map(|t| (t.to_string(), gtk_accel_to_xdg_trigger(t)));
 
-    let mut shortcuts = vec![
-        NewShortcut::new(SHORTCUT_ID, "Start dictation").preferred_trigger(dict_trigger.as_deref()),
-    ];
+    let mut shortcuts =
+        vec![NewShortcut::new(SHORTCUT_ID, "Start dictation")
+            .preferred_trigger(dict_trigger.as_deref())];
     if let Some((raw, xdg)) = &xform_trigger {
         if xdg.is_none() {
-            warn!("Could not parse transform shortcut '{raw}'; the desktop will prompt for a binding");
+            warn!(
+                "Could not parse transform shortcut '{raw}'; the desktop will prompt for a binding"
+            );
         }
         shortcuts.push(
             NewShortcut::new(TRANSFORM_SHORTCUT_ID, "Transform selection with AI")
