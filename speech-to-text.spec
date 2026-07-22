@@ -1,6 +1,6 @@
 Name:           speech-to-text
 Version:        1.5.0
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/christosdaggas/speech-to-text
@@ -89,6 +89,16 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-5
+- Fixed: dictation from the mini panel / global shortcut said "No model loaded"
+  when the app was autostarted hidden — the selected model is now preloaded at
+  startup, and the transcription worker lazy-loads it as a safety net
+- Fixed: mini-panel dictation could translate speech to English even though the
+  Translate toggles showed off — the saved toggle state was never restored into
+  the UI, so a stale saved "on" kept translating silently
+- Changed: refreshed the application logo (yellow microphone)
+- Changed: the tray menu no longer shows an icon next to Quit
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-4
 - Rebuilt against patched dependencies: rustls-webpki 0.103.13 fixes a reachable
   panic in CRL parsing plus three name-constraint advisories on the HTTPS path

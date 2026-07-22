@@ -14,6 +14,8 @@ All notable changes to this project are documented here. This project adheres to
 
 ### Changed
 
+- Refreshed the application logo and icon (yellow microphone).
+- The tray menu no longer shows an icon next to Quit.
 - Redesigned the workspace, Settings, History, Help, model selector, navigation, and light-theme cards for a more consistent interface.
 - Made hidden startup genuinely lazy so background launch does not create the main window or load a model.
 - Moved inference to bounded workers and limited live previews to the latest audio tail for lower latency and memory use.
@@ -29,6 +31,14 @@ All notable changes to this project are documented here. This project adheres to
 
 ### Fixed
 
+- Dictation from the mini panel / global shortcut no longer fails with "No model
+  loaded" when the app was autostarted hidden: the selected Whisper model is
+  preloaded at startup, and the transcription worker lazy-loads it as a safety
+  net (mirroring the HTTP API worker).
+- Mini-panel dictation no longer translates speech to English while the
+  Translate toggles show off. The saved toggle state was restored too early to
+  take effect, so a stale saved "on" kept translating silently on the
+  config-driven dictation path.
 - Restored the symbolic tray icon to a readable size in 16-pixel status areas.
 - Tray icon no longer renders as an empty slot. The icon is now sent to the
   StatusNotifier host as raw pixels (`IconPixmap`) instead of relying on an icon
