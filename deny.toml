@@ -32,6 +32,12 @@ allow = [
     "MPL-2.0",
     "BSL-1.0",
     "OpenSSL",
+    # Public-domain dedication, no obligations on redistribution.
+    # Used by ksni, whisper-rs and whisper-rs-sys.
+    "Unlicense",
+    # Permissive data licence covering the bundled Mozilla CA root store
+    # (webpki-roots). Grants unrestricted use/redistribution of the data.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 # Per-crate license clarifications go here if a crate ships an ambiguous license.
