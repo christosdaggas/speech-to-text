@@ -20,6 +20,13 @@ All notable changes to this project are documented here. This project adheres to
 - Improved audio conditioning, non-blocking capture, sidecar deadlines, and release artifact verification.
 - Simplified Current Session to show either the latest completed transcription or the active live preview.
 
+### Security
+
+- Updated `rustls-webpki` to 0.103.13, which fixes a reachable panic when parsing
+  certificate revocation lists (RUSTSEC-2026-0104) and three name-constraint
+  advisories (RUSTSEC-2026-0099, -0098, -0049). This is the TLS stack behind
+  model and runtime downloads, so it ships in the binary.
+
 ### Fixed
 
 - Restored the symbolic tray icon to a readable size in 16-pixel status areas.

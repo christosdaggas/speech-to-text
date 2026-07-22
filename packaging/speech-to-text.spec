@@ -12,7 +12,7 @@
 
 Name:           speech-to-text
 Version:        1.5.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
 License:        MIT
@@ -96,6 +96,11 @@ appstream-util validate-relax --nonet \
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-4
+- Rebuilt against patched dependencies: rustls-webpki 0.103.13 fixes a reachable
+  panic in CRL parsing plus three name-constraint advisories on the HTTPS path
+  used for model downloads (RUSTSEC-2026-0104, -0099, -0098, -0049)
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-3
 - Fixed the tray icon showing as an empty slot: the icon is now sent as raw
   pixels (StatusNotifier IconPixmap) instead of relying on a themed icon name
