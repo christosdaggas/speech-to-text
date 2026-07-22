@@ -22,6 +22,7 @@ All notable changes to this project are documented here. This project adheres to
 
 ### Fixed
 
+- Restored the symbolic tray icon to a readable size in 16-pixel status areas.
 - Fixed pause and resume state, global shortcuts, automatic language persistence, onboarding races, and cancellation handling.
 - Prevented stale transcription, AI, and paste callbacks from overwriting newer operations.
 - Hardened active-record handling, setup recovery, file transcription, and history persistence.

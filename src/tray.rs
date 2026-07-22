@@ -51,6 +51,17 @@ impl Tray for SttTray {
         crate::APP_NAME.to_string()
     }
 
+    fn icon_theme_path(&self) -> String {
+        const SYSTEM_THEME: &str = "/usr/share/icons/hicolor";
+        const SYSTEM_ICON: &str = "/usr/share/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg";
+
+        if std::path::Path::new(SYSTEM_ICON).is_file() {
+            SYSTEM_THEME.to_string()
+        } else {
+            format!("{}/data/icons/hicolor", env!("CARGO_MANIFEST_DIR"))
+        }
+    }
+
     fn icon_name(&self) -> String {
         // Symbolic (monochrome) variant so the tray shows a small black-and-white
         // microphone that matches other status-area icons, not the large color icon.

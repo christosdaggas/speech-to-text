@@ -12,7 +12,7 @@
 
 Name:           speech-to-text
 Version:        1.5.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
 License:        MIT
@@ -96,6 +96,9 @@ appstream-util validate-relax --nonet \
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-2
+- Restored the symbolic tray icon to a readable size
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-1
 - Verified and resumable model/runtime downloads
 - Faster bounded inference and more reliable recording workflows
