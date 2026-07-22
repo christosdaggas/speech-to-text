@@ -1,6 +1,6 @@
 Name:           speech-to-text
 Version:        1.5.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/christosdaggas/speech-to-text
@@ -89,6 +89,10 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-3
+- Fixed the tray icon showing as an empty slot: the icon is now sent as raw
+  pixels (StatusNotifier IconPixmap) instead of relying on a themed icon name
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-2
 - Restored the symbolic tray icon to a readable size
 
