@@ -1,5 +1,5 @@
 # Speech to Text
-<img width="2762" height="1600" alt="Screenshot From 2026-06-20 15-31-27" src="https://github.com/user-attachments/assets/3eb85f72-1989-4e01-a2d8-281e95a21bfa" />
+<img width="1120" height="760" alt="Speech to Text 1.5.0 main window" src="docs/speech-to-text-1.5.0.png" />
 <img width="1004" height="656" alt="Screenshot From 2026-06-20 15-31-40" src="https://github.com/user-attachments/assets/e2a3ab99-f80c-4820-969a-b231b003be77" />
 
 A native Linux desktop app (GTK4 / libadwaita) for **local, offline**
