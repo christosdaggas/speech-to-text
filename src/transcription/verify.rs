@@ -81,7 +81,7 @@ pub async fn github_asset_sha256(
     if !resp.status().is_success() {
         return None;
     }
-    let json: serde_json::Value = resp.json().await.ok()?;
+    let json: serde_json::Value = super::read_json_capped(resp).await?;
     for a in json["assets"].as_array()? {
         if a["name"].as_str() == Some(asset) {
             return a["digest"].as_str().and_then(normalize_hf_oid);
@@ -112,7 +112,7 @@ pub async fn hf_lfs_sha256_with_token(
     if !resp.status().is_success() {
         return None;
     }
-    let json: serde_json::Value = resp.json().await.ok()?;
+    let json: serde_json::Value = super::read_json_capped(resp).await?;
     for e in json.as_array()? {
         if e["path"].as_str() == Some(path) {
             return e["lfs"]["oid"].as_str().and_then(normalize_hf_oid);

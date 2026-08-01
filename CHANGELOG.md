@@ -3,6 +3,89 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-08-01
+
+### Fixed (1.6.0-2)
+
+- The Cohere Transcribe runtime could not install: its bundled libtorch archive
+  contains ~9000 files, exceeding the hardened zip extractor's 8192-entry cap,
+  so the download finished but extraction was refused and the model download
+  stayed blocked. Raised the entry ceiling; the decompressed-size and
+  path-traversal zip-bomb guards are unchanged.
+
+### Fixed
+
+- Auto-paste now works reliably when the main window is open in the background:
+  the mini panel is no longer transient-for the main window, so hiding it
+  returns keyboard focus (and the injected Ctrl+V) to the user's editor instead
+  of our own window.
+- Paste delivery reports honestly whether the target application actually read
+  the transcript; the fallback chain runs on real failures, only injects Ctrl+V
+  when the clipboard was verifiably set, and the "Copied" badge never lies.
+- Fixed sleeps in the paste flow were replaced with event-driven focus waits,
+  removing the timing races behind intermittent "pasted the old text" failures.
+- A dictation finished while a new one was starting is no longer silently
+  discarded — the transcript is always saved to History.
+- A transcription panic can no longer permanently wedge the app (worker
+  `catch_unwind`, poisoned-lock recovery, visible error instead of an eternal
+  "Transcribing…" state), and hallucination stripping no longer risks a panic
+  on Unicode case-length changes.
+- The global shortcut re-registers itself with backoff if the desktop portal
+  restarts; a dead microphone stream now auto-stops the recording and
+  transcribes what was captured.
+- Cancelling a recording is instant (no full audio conditioning of discarded
+  audio on the UI thread), and voice-edit stops condition audio on a worker.
+- The live preview no longer disables itself for the rest of a recording after
+  a silent stretch or on hardware where greedy decoding would have kept up.
+
+### Added
+
+- While-recording chunked decoding for global dictation (Whisper backend):
+  long takes are transcribed in pause-aligned chunks as you speak, so the wait
+  after Stop covers only the final tail instead of growing with the dictation
+  length. Dictations under 20 seconds keep the classic single decode.
+- Warm sidecar servers for the Qwen3-ASR and Cohere backends: the bundled
+  `asr-server`/`transcribe-server` (OpenAI-compatible HTTP API on localhost)
+  is kept alive across dictations, so multi-GB model weights load once per
+  session instead of on every hotkey press. Falls back to the one-shot CLI
+  automatically; the server is torn down on backend switches and app exit and
+  can never outlive the app.
+
+### Changed
+
+- One persistent RemoteDesktop portal session is reused for every paste
+  (created at startup when auto-paste is on), removing roughly a second of
+  per-dictation portal handshake; the paste permission is requested once, from
+  Settings, never mid-paste.
+- LLM auto-improve no longer holds the paste hostage: if the model doesn't
+  answer within 12 seconds the raw transcript is delivered immediately and the
+  improvement arrives later as a variant.
+- Default beam size for dictation is now 2 (from 5) and unused token-timestamp
+  computation is disabled — noticeably faster decodes; the live preview always
+  uses greedy decoding as documented.
+- History is written on a background worker (the UI no longer stalls on an
+  fsync between transcription and delivery), loads without blocking the first
+  window paint, and search uses a precomputed index.
+- Settings text fields persist with a 500 ms debounce instead of a full
+  config fsync per keystroke.
+- The microphone device handle is cached between recordings so the first words
+  after the hotkey are no longer clipped by device enumeration.
+- Model switches/deletions in Settings can no longer freeze the UI behind an
+  in-flight decode (the engine slot only holds the lock for pointer swaps).
+
+### Security
+
+- Provider metadata (GitHub release listings, Hugging Face tree JSON) is read
+  with a hard size cap, and the download client refuses redirect chains that
+  downgrade to plaintext.
+- Secret redaction now catches unprefixed high-entropy tokens (including the
+  app's own API bearer token) across newlines, while leaving file paths and
+  checksums readable.
+- The unauthenticated `/v1/health` endpoint no longer exposes backend/model
+  names; language-name parameters on both API endpoints are restricted to a
+  safe character set before being interpolated into LLM prompts; IPv6 loopback
+  `Host` headers are parsed correctly.
+
 ## [1.5.0] — 2026-07-22
 
 ### Added

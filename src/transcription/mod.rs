@@ -11,6 +11,7 @@ pub mod model;
 pub mod postprocess;
 pub mod qwen;
 pub mod safe_path;
+pub mod sidecar_server;
 pub mod summary;
 pub mod verify;
 
@@ -27,8 +28,50 @@ pub fn download_client() -> reqwest::Client {
     reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(30))
         .read_timeout(Duration::from_secs(120))
+        // Providers legitimately redirect to CDNs, but never follow a
+        // downgrade to cleartext (an on-path attacker could bounce a download
+        // toward an internal or plaintext endpoint) and bound the chain.
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                attempt.error("too many redirects")
+            } else if attempt.url().scheme() != "https" {
+                attempt.error("redirect to a non-https target refused")
+            } else {
+                attempt.follow()
+            }
+        }))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// Hard cap for provider metadata bodies (release listings, HF tree JSON).
+/// Real listings are well under this; without a cap a compromised or on-path
+/// server with a valid certificate could stream an unbounded JSON body into
+/// memory before any hash verification runs.
+pub(crate) const MAX_METADATA_BYTES: u64 = 8 * 1024 * 1024;
+
+/// Read a JSON response body enforcing [`MAX_METADATA_BYTES`]. `None` on
+/// oversize, transport error, or malformed JSON.
+pub(crate) async fn read_json_capped(resp: reqwest::Response) -> Option<serde_json::Value> {
+    use futures::StreamExt;
+    if resp
+        .content_length()
+        .is_some_and(|l| l > MAX_METADATA_BYTES)
+    {
+        tracing::warn!("Metadata response advertises over {MAX_METADATA_BYTES} bytes; refusing");
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if (bytes.len() + chunk.len()) as u64 > MAX_METADATA_BYTES {
+            tracing::warn!("Metadata response exceeded {MAX_METADATA_BYTES} bytes; refusing");
+            return None;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&bytes).ok()
 }
 
 /// Encode mono f32 PCM samples as a 16-bit WAV file in memory. Shared by the
@@ -97,7 +140,9 @@ pub(crate) fn run_command_with_timeout(
                 });
             }
             Ok(None) if started.elapsed() < timeout => {
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                // 10ms keeps the average exit-detection latency ~5ms; at 100ms
+                // every sidecar transcription paid ~50ms of pure tail wait.
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
             Ok(None) => {
                 let _ = child.kill();

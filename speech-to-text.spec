@@ -1,6 +1,6 @@
 Name:           speech-to-text
-Version:        1.5.0
-Release:        5%{?dist}
+Version:        1.6.0
+Release:        2%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/christosdaggas/speech-to-text
@@ -89,6 +89,36 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Sat Aug 01 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-2
+- Fixed: the Cohere Transcribe runtime failed to install — its bundled libtorch
+  archive has ~9000 files, over the 8192 entry cap in the hardened zip
+  extractor, so the download completed but extraction was refused and the model
+  download stayed blocked ("Please download the runtime first"). Raised the
+  entry-count ceiling; the byte-size and path-safety zip-bomb guards are
+  unchanged.
+
+* Sat Aug 01 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-1
+- Fixed: auto-paste now works with the main window open in the background — the
+  mini panel is no longer transient-for the main window, so keyboard focus (and
+  the injected Ctrl+V) returns to the target app; delivery reports honestly and
+  the Copied badge never lies
+- Added: while-recording chunked decoding — long dictations are transcribed in
+  pause-aligned chunks as you speak, so the wait after Stop stays short
+- Added: warm sidecar servers for Qwen3-ASR and Cohere — model weights load
+  once per session instead of on every dictation (automatic CLI fallback)
+- Changed: one persistent RemoteDesktop portal session per app run (~1s less
+  overhead per paste); paste permission is requested once, from Settings
+- Changed: AI auto-improve no longer delays delivery (raw text first, polished
+  variant follows); leaner decoding defaults (beam 2, no token timestamps)
+- Changed: history/settings writes moved off the UI thread; instant recording
+  start via device caching; live preview no longer self-disables on silence
+- Fixed: finished transcriptions always reach History; dead microphones and
+  desktop portal restarts recover automatically; transcription panics can no
+  longer wedge the app
+- Security: size-capped provider metadata, no-plaintext redirect policy,
+  stronger secret redaction, minimal pre-auth health endpoint, strict language
+  parameter validation, correct IPv6 Host parsing
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-5
 - Fixed: dictation from the mini panel / global shortcut said "No model loaded"
   when the app was autostarted hidden — the selected model is now preloaded at

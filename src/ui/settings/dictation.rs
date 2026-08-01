@@ -182,7 +182,7 @@ impl DictationPage {
         let revoke_row = adw::ActionRow::builder()
             .title(gettext("Revoke Paste Permission").as_str())
             .subtitle(gettext(
-                "Forget the granted Remote Desktop permission. You'll be asked again the next time you auto-paste.",
+                "Forget the granted Remote Desktop permission. Toggle auto-paste to grant it again.",
             ).as_str())
             .build();
         let revoke_btn = gtk::Button::builder()
@@ -192,16 +192,18 @@ impl DictationPage {
         revoke_btn.add_css_class("flat");
         {
             let row_weak = revoke_row.downgrade();
+            let helper_row_weak = paste_helper_row.downgrade();
             revoke_btn.connect_clicked(move |_| {
                 let ok = crate::portal::paste::revoke_restore_token();
                 if let Some(row) = row_weak.upgrade() {
                     row.set_subtitle(&if ok {
-                        gettext(
-                            "Permission revoked — you'll be asked again next time you auto-paste.",
-                        )
+                        gettext("Permission revoked — toggle auto-paste to grant it again.")
                     } else {
                         gettext("Could not revoke the permission; see the logs for details.")
                     });
+                }
+                if let Some(row) = helper_row_weak.upgrade() {
+                    row.set_subtitle(&paste_helper_description());
                 }
             });
         }
@@ -335,11 +337,53 @@ impl DictationPage {
                 let mut c = AppConfig::load();
                 c.auto_paste = true;
                 c.save();
+                // Acquire the RemoteDesktop grant NOW, while the user is in
+                // Settings, so the desktop's consent dialog never pops up in
+                // the middle of an actual paste (where it would steal focus
+                // from the target app). On denial, delivery silently falls
+                // back to clipboard-only — tell the user that once, here.
+                page.acquire_paste_grant();
             } else {
                 // Revert the toggle without re-triggering the consent handler.
                 page.imp().loading.set(true);
                 switch.set_active(false);
                 page.imp().loading.set(false);
+            }
+        });
+    }
+
+    /// Request the RemoteDesktop grant interactively and reflect the result in
+    /// the Paste Method row; inform the user when it was denied.
+    fn acquire_paste_grant(&self) {
+        let (tx, rx) = async_channel::bounded::<bool>(1);
+        crate::application::tokio_runtime().spawn(async move {
+            let ok = crate::portal::paste::acquire_permission_interactive().await;
+            let _ = tx.send(ok).await;
+        });
+        let page_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let granted = rx.recv().await.unwrap_or(false);
+            let Some(page) = page_weak.upgrade() else {
+                return;
+            };
+            if let Some(row) = page.imp().paste_helper_row.borrow().as_ref() {
+                row.set_subtitle(&paste_helper_description());
+            }
+            if !granted {
+                let dialog = adw::AlertDialog::new(
+                    Some(gettext("Permission not granted").as_str()),
+                    Some(
+                        gettext(
+                            "Without the Remote Desktop permission the transcript is only copied \
+                             to the clipboard — press Ctrl+V yourself to paste it. Toggle \
+                             auto-paste again to re-request the permission.",
+                        )
+                        .as_str(),
+                    ),
+                );
+                dialog.add_response("ok", gettext("OK").as_str());
+                dialog.set_default_response(Some("ok"));
+                dialog.present(Some(&page));
             }
         });
     }
@@ -372,15 +416,20 @@ impl DictationPage {
             });
         }
         if let Some(e) = imp.shortcut_entry.borrow().as_ref() {
-            e.connect_changed(|e| {
+            let save = super::SaveDebouncer::new(500);
+            let save_flush = save.clone();
+            e.connect_changed(move |e| {
                 let text = e.text().to_string();
                 if text.trim().is_empty() {
                     return;
                 }
-                let mut c = AppConfig::load();
-                c.global_shortcut = text;
-                c.save();
+                save.schedule(Box::new(move || {
+                    let mut c = AppConfig::load();
+                    c.global_shortcut = text;
+                    c.save();
+                }));
             });
+            e.connect_unmap(move |_| save_flush.flush());
         }
         if let Some(s) = imp.auto_paste_switch.borrow().as_ref() {
             let page = self.clone();
@@ -431,7 +480,15 @@ impl DictationPage {
 fn paste_helper_description() -> String {
     use crate::portal::paste::PasteHelper;
     match crate::portal::paste::detect_paste_helper() {
-        PasteHelper::RemoteDesktopPortal => gettext("Desktop portal (asks for permission once)"),
+        PasteHelper::RemoteDesktopPortal => {
+            if crate::portal::paste::has_portal_grant() {
+                gettext("Desktop portal (permission granted)")
+            } else {
+                gettext(
+                    "Desktop portal (permission not granted yet — enable auto-paste to grant it)",
+                )
+            }
+        }
         PasteHelper::Ydotool => gettext("ydotool"),
         PasteHelper::None => gettext("Clipboard only — press Ctrl+V to paste"),
     }

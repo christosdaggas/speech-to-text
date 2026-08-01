@@ -166,7 +166,10 @@ impl TranscriptionEngine {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
-        params.set_token_timestamps(true);
+        // Token-level timestamps are never consumed (only segment t0/t1 and
+        // decoder-provided token probabilities are read), so skip whisper.cpp's
+        // per-token timestamp pass — pure decode-time savings.
+        params.set_token_timestamps(false);
         params.set_suppress_blank(true);
         params.set_suppress_non_speech_tokens(true);
         params.set_temperature(temperature);

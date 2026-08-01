@@ -1,6 +1,6 @@
 [package]
 name = "speech-to-text"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2021"
 authors = ["Christos A. Daggas"]
 description = "Native Linux desktop application for offline speech-to-text transcription using Whisper"
@@ -27,7 +27,7 @@ tokio = { version = "1", features = [
 ] }
 
 # HTTP client (for model downloads)
-reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json"], default-features = false }
+reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json", "multipart"], default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -78,6 +78,9 @@ num_cpus = "1"
 
 # Secret Service / keyring integration
 oo7 = "0.6"
+
+# PR_SET_PDEATHSIG for sidecar server processes (Linux-only app)
+libc = "0.2"
 
 # XDG Desktop Portals: global shortcuts + remote-desktop (auto-paste) + clipboard.
 # The Clipboard portal lets us own the system selection from the (unfocused) mini

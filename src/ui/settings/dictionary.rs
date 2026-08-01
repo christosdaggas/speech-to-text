@@ -136,6 +136,8 @@ impl DictionaryPage {
         });
 
         let page = self.clone();
+        let save = super::SaveDebouncer::new(500);
+        let save_flush = save.clone();
         terms_view.buffer().connect_changed(move |buf| {
             if page.imp().loading.get() {
                 return;
@@ -143,15 +145,18 @@ impl DictionaryPage {
             let text = buf
                 .text(&buf.start_iter(), &buf.end_iter(), false)
                 .to_string();
-            let terms: Vec<String> = text
-                .lines()
-                .map(|l| l.trim().to_string())
-                .filter(|l| !l.is_empty())
-                .collect();
-            let mut c = AppConfig::load();
-            c.dictionary_terms = terms;
-            c.save();
+            save.schedule(Box::new(move || {
+                let terms: Vec<String> = text
+                    .lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect();
+                let mut c = AppConfig::load();
+                c.dictionary_terms = terms;
+                c.save();
+            }));
         });
+        terms_view.connect_unmap(move |_| save_flush.flush());
 
         let page = self.clone();
         add_btn.connect_clicked(move |_| {

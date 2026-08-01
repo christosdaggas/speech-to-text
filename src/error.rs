@@ -24,7 +24,21 @@ const SECRET_PREFIXES: &[&str] = &[
 ];
 
 fn looks_secret(token: &str) -> bool {
-    token.len() >= 12 && SECRET_PREFIXES.iter().any(|p| token.starts_with(p))
+    if token.len() >= 12 && SECRET_PREFIXES.iter().any(|p| token.starts_with(p)) {
+        return true;
+    }
+    // Prefix-less keys: this app's own API bearer token is 64 plain hex chars,
+    // and many providers issue unprefixed keys. Redact any long run that looks
+    // like key material — alphanumeric/-/_ only, with both letters and digits.
+    // Deliberately NO '.', '/', '+', '=': file paths and dotted filenames
+    // (model-00001-of-00002.safetensors, ~/.local/share/...) are the dominant
+    // false-positive class, and diagnostic messages must keep them readable.
+    token.len() >= 32
+        && token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        && token.chars().any(|c| c.is_ascii_digit())
+        && token.chars().any(|c| c.is_ascii_alphabetic())
 }
 
 /// Remove sensitive substrings from a message before it is shown to the user or
@@ -32,28 +46,40 @@ fn looks_secret(token: &str) -> bool {
 /// path (which leaks the username). Best-effort and dependency-free.
 pub fn redact_secrets(input: &str) -> String {
     // Collapse the user's home directory to "~".
-    let mut s = match dirs::home_dir().and_then(|h| h.to_str().map(str::to_string)) {
+    let s = match dirs::home_dir().and_then(|h| h.to_str().map(str::to_string)) {
         Some(home) if !home.is_empty() => input.replace(home.as_str(), "~"),
         _ => input.to_string(),
     };
 
-    // Redact bearer tokens and key-like words, token by token.
+    // Redact bearer tokens and key-like words, token by token, splitting on
+    // ANY whitespace (upstream error bodies are often multi-line — a secret
+    // after a newline must not escape the tokenizer) while preserving the
+    // original separators.
+    let mut out = String::with_capacity(s.len());
     let mut prev_was_bearer = false;
-    let words: Vec<String> = s
-        .split(' ')
-        .map(|word| {
-            let core = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
-            let redact = !core.is_empty() && (prev_was_bearer || looks_secret(core));
-            prev_was_bearer = core.eq_ignore_ascii_case("bearer");
-            if redact {
-                word.replace(core, "[REDACTED]")
-            } else {
-                word.to_string()
-            }
-        })
-        .collect();
-    s = words.join(" ");
-    s
+    let mut rest = s.as_str();
+    while !rest.is_empty() {
+        let non_ws = rest
+            .find(|c: char| !c.is_whitespace())
+            .unwrap_or(rest.len());
+        out.push_str(&rest[..non_ws]);
+        rest = &rest[non_ws..];
+        if rest.is_empty() {
+            break;
+        }
+        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        let word = &rest[..end];
+        rest = &rest[end..];
+        let core = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
+        let redact = !core.is_empty() && (prev_was_bearer || looks_secret(core));
+        prev_was_bearer = core.eq_ignore_ascii_case("bearer");
+        if redact {
+            out.push_str(&word.replace(core, "[REDACTED]"));
+        } else {
+            out.push_str(word);
+        }
+    }
+    out
 }
 
 #[derive(Error, Debug)]
@@ -117,6 +143,39 @@ mod tests {
     fn redacts_hf_token_anywhere() {
         let r = redact_secrets("token hf_abcdefABCDEF0123 rejected");
         assert!(!r.contains("hf_abcdefABCDEF0123"));
+    }
+
+    #[test]
+    fn redacts_unprefixed_hex_tokens() {
+        // The app's own API bearer token: 64 plain hex chars, no known prefix.
+        let tok = "9f3a1c0b7d2e485196a0b3c4d5e6f7089f3a1c0b7d2e485196a0b3c4d5e6f708";
+        let r = redact_secrets(&format!("401 unauthorized for token {tok}"));
+        assert!(!r.contains(tok), "unprefixed token leaked: {r}");
+        assert!(r.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn redacts_secrets_after_newlines_and_tabs() {
+        let r = redact_secrets("upstream said:\nBearer\tsk-ABCDEF0123456789\ndone");
+        assert!(!r.contains("sk-ABCDEF0123456789"), "leaked: {r}");
+        // Original separators survive redaction.
+        assert!(r.contains('\n'));
+    }
+
+    #[test]
+    fn leaves_ordinary_text_alone() {
+        let msg = "Failed to load model ggml-large-v3-q5_1.bin from disk";
+        assert_eq!(redact_secrets(msg), msg);
+    }
+
+    #[test]
+    fn leaves_paths_and_dotted_filenames_alone() {
+        // Long path-like and dotted tokens must survive: integrity and
+        // model-missing errors are undiagnosable without them.
+        let msg = "Model file not found: \"/opt/stt/models/ggml-large-v3-q5_1.bin\"";
+        assert_eq!(redact_secrets(msg), msg);
+        let msg2 = "Refusing unexpected model file: model-00001-of-00002.safetensors";
+        assert_eq!(redact_secrets(msg2), msg2);
     }
 
     #[test]

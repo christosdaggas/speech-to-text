@@ -268,7 +268,11 @@ impl Default for AppConfig {
             auto_detect_language: true,
             save_directory: None,
             n_threads: 0,
-            beam_size: 5,
+            // 2 keeps a touch of beam robustness at roughly half the decode
+            // cost of 5 on the interactive dictation path; the built-in
+            // temperature fallback (set_temperature_inc) covers borderline
+            // audio. Users can still raise it in Settings → Performance.
+            beam_size: 2,
             temperature: 0.0,
             theme: None,
             model_directory: None,
@@ -365,7 +369,7 @@ fn default_true() -> bool {
 
 /// Default beam size for serde deserialization of old configs.
 fn default_beam_size() -> u32 {
-    5
+    2
 }
 
 /// Default preferred global shortcut for serde deserialization of old configs.
@@ -850,7 +854,7 @@ mod tests {
             "use_quantized": false
         }"#;
         let config: AppConfig = serde_json::from_str(legacy).expect("legacy config should load");
-        assert_eq!(config.beam_size, 5); // default_beam_size
+        assert_eq!(config.beam_size, 2); // default_beam_size
         assert_eq!(config.temperature, 0.0);
         assert_eq!(config.backend, "whisper"); // default_backend
         assert!(config.auto_detect_language); // default_true

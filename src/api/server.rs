@@ -136,9 +136,28 @@ fn host_is_loopback(req: &Request<Incoming>) -> bool {
         // No Host (HTTP/1.0): we are bound to 127.0.0.1 regardless.
         return true;
     };
-    // Strip the port; IPv6 hosts arrive as "[::1]:port".
-    let hostname = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
-    matches!(hostname, "127.0.0.1" | "localhost" | "[::1]" | "::1")
+    matches!(
+        strip_host_port(host).as_ref(),
+        "127.0.0.1" | "localhost" | "[::1]" | "::1"
+    )
+}
+
+/// Strip the port from an HTTP `Host` authority. IPv6 authorities arrive
+/// bracketed ("[::1]" or "[::1]:8765") with colons INSIDE the brackets, so a
+/// blind rsplit on ':' would split mid-address and wrongly reject a bare
+/// "[::1]".
+fn strip_host_port(host: &str) -> std::borrow::Cow<'_, str> {
+    if let Some(rest) = host.strip_prefix('[') {
+        match rest.split_once(']') {
+            Some((addr, _port)) => format!("[{addr}]").into(),
+            None => host.into(), // malformed; will not match the allow-list
+        }
+    } else if host.matches(':').count() == 1 {
+        host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host).into()
+    } else {
+        // No colon (plain host) or several (bare IPv6 like "::1").
+        host.into()
+    }
 }
 
 /// Returns `Some(401)` when auth is required and the bearer token is missing or
@@ -227,6 +246,17 @@ fn with_cors(mut resp: Resp, origin: Option<&str>, authenticated: bool) -> Resp 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strips_ports_without_breaking_ipv6_authorities() {
+        assert_eq!(strip_host_port("127.0.0.1:8765"), "127.0.0.1");
+        assert_eq!(strip_host_port("localhost:8765"), "localhost");
+        assert_eq!(strip_host_port("localhost"), "localhost");
+        assert_eq!(strip_host_port("[::1]"), "[::1]");
+        assert_eq!(strip_host_port("[::1]:8765"), "[::1]");
+        assert_eq!(strip_host_port("::1"), "::1");
+        assert_eq!(strip_host_port("evil.test:80"), "evil.test");
+    }
 
     #[test]
     fn cors_is_only_enabled_when_token_auth_is_active() {

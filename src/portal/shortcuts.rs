@@ -66,22 +66,44 @@ fn gtk_accel_to_xdg_trigger(accel: &str) -> Option<String> {
 
 /// Long-lived task: create the session, bind the preferred trigger(s), then
 /// forward each activation into `tx`. `transform_trigger` is `Some` only when
-/// the transform-selection shortcut is enabled. Best-effort — logs and returns
-/// on any error.
+/// the transform-selection shortcut is enabled.
+///
+/// The portal session can die mid-run (xdg-desktop-portal crash or upgrade,
+/// session teardown). For an app that lives in the tray for days, a one-shot
+/// registration silently killed the primary interaction path until restart —
+/// so the session is recreated with backoff for as long as the app runs. (If
+/// the portal dies without ending the signal stream, activations stop without
+/// a detectable event; that residual case still needs an app restart.)
 pub async fn run_global_shortcuts(
     dictation_trigger: String,
     transform_trigger: Option<String>,
     tx: async_channel::Sender<ShortcutKind>,
 ) {
-    if let Err(e) = run_inner(dictation_trigger, transform_trigger, tx).await {
-        warn!("Global shortcuts unavailable: {e}");
+    let mut delay = std::time::Duration::from_secs(2);
+    loop {
+        let started = std::time::Instant::now();
+        let result = run_inner(&dictation_trigger, transform_trigger.clone(), &tx).await;
+        if tx.is_closed() {
+            return; // app shutting down
+        }
+        match result {
+            Ok(()) => warn!("Global shortcuts stream ended; re-registering"),
+            Err(e) => warn!("Global shortcuts unavailable ({e}); retrying in {delay:?}"),
+        }
+        // A run that survived a while means the portal was healthy; restart
+        // the backoff from the beginning.
+        if started.elapsed() >= std::time::Duration::from_secs(60) {
+            delay = std::time::Duration::from_secs(2);
+        }
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(std::time::Duration::from_secs(120));
     }
 }
 
 async fn run_inner(
-    dictation_trigger: String,
+    dictation_trigger: &str,
     transform_trigger: Option<String>,
-    tx: async_channel::Sender<ShortcutKind>,
+    tx: &async_channel::Sender<ShortcutKind>,
 ) -> Result<(), ashpd::Error> {
     // Non-sandboxed apps must register their app id or the portal rejects the
     // request with "An app id is required".
@@ -93,7 +115,7 @@ async fn run_inner(
         .await?;
 
     // Pre-compute the XDG triggers so they outlive the borrowed `NewShortcut`s.
-    let dict_trigger = gtk_accel_to_xdg_trigger(&dictation_trigger);
+    let dict_trigger = gtk_accel_to_xdg_trigger(dictation_trigger);
     if dict_trigger.is_none() {
         warn!("Could not parse dictation shortcut '{dictation_trigger}'; the desktop will prompt for a binding");
     }

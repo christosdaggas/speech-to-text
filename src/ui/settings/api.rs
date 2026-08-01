@@ -126,8 +126,11 @@ impl ApiPage {
         let token_switch = adw::SwitchRow::builder()
             .title(gettext("Require token").as_str())
             .subtitle(
-                gettext("Strongly recommended — other local processes can reach the server.")
-                    .as_str(),
+                gettext(
+                    "Strongly recommended. Turning this OFF lets ANY local process \
+                     transcribe audio and use your configured AI endpoint without asking.",
+                )
+                .as_str(),
             )
             .build();
         token_switch.set_active(config.api_token_enabled);

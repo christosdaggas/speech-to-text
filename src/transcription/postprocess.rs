@@ -96,16 +96,30 @@ fn strip_hallucinations(text: &str) -> String {
 
     let mut result = text.to_string();
     for phrase in phrases_by_len {
-        let result_lower = result.to_lowercase();
-        if let Some(pos) = result_lower.rfind(*phrase) {
+        // Search a lowercase copy, but keep a map from lowercase byte offsets
+        // back to source byte offsets: `to_lowercase` is not byte-length
+        // preserving ('İ' expands to "i̇", 'ẞ' shrinks to 'ß'), so truncating
+        // the original at an offset found in the lowercased copy corrupted
+        // the transcript — or panicked mid-character and killed the worker.
+        let mut lower = String::with_capacity(result.len());
+        let mut offsets: Vec<(usize, usize)> = Vec::new(); // (lower_pos, orig_pos)
+        for (orig_pos, ch) in result.char_indices() {
+            offsets.push((lower.len(), orig_pos));
+            lower.extend(ch.to_lowercase());
+        }
+        if let Some(pos) = lower.rfind(*phrase) {
             // Only strip if it's near the end (allow trailing punctuation/space
             // after the phrase, e.g. "… Σας ευχαριστούμε!").
-            let tail = &result_lower[pos + phrase.len()..];
+            let tail = &lower[pos + phrase.len()..];
             let tail_is_trailing = tail.chars().all(|c| {
                 c.is_whitespace() || matches!(c, '.' | '!' | '?' | ',' | '…' | '"' | '»' | ')')
             });
             if tail_is_trailing {
-                result.truncate(pos);
+                // The match must start on a source-character boundary for the
+                // mapping (and the truncation) to be meaningful.
+                if let Ok(idx) = offsets.binary_search_by_key(&pos, |&(l, _)| l) {
+                    result.truncate(offsets[idx].1);
+                }
             }
         }
     }

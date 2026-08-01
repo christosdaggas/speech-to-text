@@ -218,13 +218,11 @@ impl MiniPanel {
             glib::Propagation::Proceed
         });
 
-        // Best-effort keep-on-top: re-raise when it loses focus while visible.
-        self.connect_is_active_notify(move |panel| {
-            if !panel.imp().keep_on_top.get() || panel.is_active() || !panel.is_visible() {
-                return;
-            }
-            panel.present();
-        });
+        // NOTE: no present()-on-focus-loss "keep on top" emulation here. On
+        // Wayland, present() is an activation (focus) request, not a raise —
+        // Mutter has no keep-above for Wayland clients — so re-presenting on
+        // every focus loss only fights the user's editor for keyboard focus
+        // right when the transcript was pasted into it.
     }
 
     /// Common page scaffold: a vertical box with standard margins.
@@ -600,7 +598,10 @@ impl MiniPanel {
         *self.imp().action_callback.borrow_mut() = Some(Box::new(f));
     }
 
-    /// Enable/disable the best-effort keep-on-top behavior.
+    /// Record the keep-on-top preference. GTK4/Wayland offers no true
+    /// keep-above; the old emulation (present() on every focus loss) actively
+    /// stole keyboard focus from the app the transcript was pasted into, so
+    /// the preference is retained only for future compositor support.
     pub fn set_keep_on_top(&self, enabled: bool) {
         self.imp().keep_on_top.set(enabled);
     }

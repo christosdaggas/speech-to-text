@@ -279,12 +279,17 @@ impl PerformancePage {
             });
         }
         if let Some(e) = imp.initial_prompt_entry.borrow().as_ref() {
-            e.connect_changed(|e| {
-                let mut c = AppConfig::load();
+            let save = super::SaveDebouncer::new(500);
+            let save_flush = save.clone();
+            e.connect_changed(move |e| {
                 let text = e.text().to_string();
-                c.initial_prompt = if text.is_empty() { None } else { Some(text) };
-                c.save();
+                save.schedule(Box::new(move || {
+                    let mut c = AppConfig::load();
+                    c.initial_prompt = if text.is_empty() { None } else { Some(text) };
+                    c.save();
+                }));
             });
+            e.connect_unmap(move |_| save_flush.flush());
         }
     }
 

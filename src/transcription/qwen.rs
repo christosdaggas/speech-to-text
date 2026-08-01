@@ -60,6 +60,56 @@ fn qwen_asr_binary() -> Option<PathBuf> {
     find_file_recursive(&qwen_runtime_dir(), "asr")
 }
 
+fn qwen_server_binary() -> Option<PathBuf> {
+    find_file_recursive(&qwen_runtime_dir(), "asr-server")
+}
+
+/// Preferred entry point: transcribe via the warm `asr-server` (the multi-GB
+/// weights stay loaded across dictations), falling back to the one-shot CLI on
+/// any failure — the warm path is an optimization, never a requirement.
+pub fn transcribe(audio: &[f32], language: Option<&str>) -> AppResult<TranscriptionResult> {
+    if audio.is_empty() {
+        return Ok(TranscriptionResult {
+            segments: Vec::new(),
+            text: String::new(),
+            average_confidence: None,
+            detected_language: None,
+        });
+    }
+    if !qwen_ready() {
+        return Err(AppError::Transcription(
+            "Qwen3-ASR is not set up. Download the runtime and model in Settings → Model.".into(),
+        ));
+    }
+    // The server reads the same model dir as the CLI — tokenizer included.
+    ensure_tokenizer(&active_size())?;
+    if let Some(binary) = qwen_server_binary() {
+        let root = binary
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(qwen_runtime_dir);
+        let spec = super::sidecar_server::ServerSpec {
+            binary,
+            model_dir: qwen_model_dir(),
+            ld_dirs: vec![
+                root.join("libtorch").join("lib"),
+                root.join("libtorch"),
+                root,
+            ],
+        };
+        let wav = super::encode_wav_16bit(audio, 16000);
+        match super::sidecar_server::transcribe_via_server(
+            &spec,
+            wav,
+            language.and_then(qwen_language_name),
+        ) {
+            Ok(r) => return Ok(r),
+            Err(e) => tracing::warn!("Qwen warm server unavailable ({e}); using one-shot CLI"),
+        }
+    }
+    transcribe_via_cli(audio, language)
+}
+
 /// Returns `true` if the `asr` binary is present.
 pub fn is_runtime_installed() -> bool {
     qwen_asr_binary().is_some()
@@ -210,16 +260,16 @@ pub async fn download_model(size: &str, progress: impl Fn(u64, u64)) -> AppResul
         "https://huggingface.co/api/models/{}/tree/main?recursive=true",
         repo
     );
-    let tree: serde_json::Value = client
+    let resp = client
         .get(&api)
         .send()
         .await
         .map_err(|e| AppError::ModelDownloadFailed(format!("Model listing failed: {}", e)))?
         .error_for_status()
-        .map_err(|e| AppError::ModelDownloadFailed(format!("Model listing failed: {}", e)))?
-        .json()
-        .await
-        .map_err(|e| AppError::ModelDownloadFailed(format!("Model listing parse failed: {}", e)))?;
+        .map_err(|e| AppError::ModelDownloadFailed(format!("Model listing failed: {}", e)))?;
+    let tree: serde_json::Value = super::read_json_capped(resp).await.ok_or_else(|| {
+        AppError::ModelDownloadFailed("Model listing too large or malformed.".into())
+    })?;
 
     let entries = tree
         .as_array()

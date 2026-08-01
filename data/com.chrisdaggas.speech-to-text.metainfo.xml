@@ -74,6 +74,18 @@
   </keywords>
 
   <releases>
+    <release version="1.6.0" date="2026-08-01">
+      <description>
+        <p>Reliable paste, instant delivery, and heavy lifting while you speak.</p>
+        <ul>
+          <li>Auto-paste now works when the main window is open in the background, and a persistent portal session makes every paste faster</li>
+          <li>Long dictations are transcribed in chunks while you speak, so the wait after Stop stays short</li>
+          <li>Qwen3-ASR and Cohere keep their models loaded between dictations (warm sidecar servers)</li>
+          <li>Finished transcriptions are always saved to History; dead microphones and portal restarts recover automatically</li>
+          <li>Security hardening: capped metadata downloads, stricter redaction, tighter API validation</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-07-22">
       <description>
         <p>A faster, safer, and more polished release for everyday dictation and transcription.</p>

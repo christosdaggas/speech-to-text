@@ -20,14 +20,14 @@ mod server;
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::Response;
 
 use crate::recording::{DictationOutcome, DictationParams};
-use crate::transcription::{ModelCatalog, TranscriptionEngine};
+use crate::transcription::ModelCatalog;
 
 /// Shared response type: every endpoint returns a buffered JSON body.
 type Resp = Response<Full<Bytes>>;
@@ -136,7 +136,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// loop on the global Tokio runtime and a dedicated OS thread for blocking
 /// inference. `token` is the bearer token to require, or `None` to disable auth.
 pub fn start(
-    engine: Arc<Mutex<Option<TranscriptionEngine>>>,
+    engine: crate::recording::SharedEngine,
     catalog: Arc<ModelCatalog>,
     port: u16,
     token: Option<String>,
@@ -174,10 +174,7 @@ pub fn start(
 /// Dedicated inference worker: pulls jobs off the bounded queue and runs the
 /// blocking decode + transcription, serialized on the shared engine. Exits when
 /// the queue's senders are all dropped (i.e. the server stopped).
-fn worker_loop(
-    engine: Arc<Mutex<Option<TranscriptionEngine>>>,
-    jobs: async_channel::Receiver<Job>,
-) {
+fn worker_loop(engine: crate::recording::SharedEngine, jobs: async_channel::Receiver<Job>) {
     while let Ok(job) = jobs.recv_blocking() {
         if job.cancelled.load(std::sync::atomic::Ordering::Relaxed) {
             continue;
@@ -193,10 +190,7 @@ fn worker_loop(
     tracing::debug!("API inference worker stopped");
 }
 
-fn run_job(
-    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
-    job: &Job,
-) -> Result<DictationOutcome, String> {
+fn run_job(engine: &crate::recording::SharedEngine, job: &Job) -> Result<DictationOutcome, String> {
     let config = crate::config::AppConfig::load();
     // Whisper needs a loaded engine; Cohere/Qwen run via CLI in run_transcription.
     if job.params.backend == "whisper" {
@@ -212,6 +206,7 @@ fn run_job(
 mod tests {
     use super::*;
     use std::io::{Read, Write};
+    use std::sync::Mutex;
 
     #[test]
     fn constant_time_eq_matches_only_equal_slices() {

@@ -78,6 +78,10 @@ mod imp {
         pub api_start_generation: std::cell::Cell<u64>,
         /// Invalidates stale global-dictation, LLM, and auto-paste callbacks.
         pub dictation_generation: std::cell::Cell<u64>,
+        /// While-recording chunked-decode state for the current global
+        /// dictation (whisper backend only; `None` when not dictating or when
+        /// the backend decodes via a sidecar).
+        pub chunked: RefCell<Option<super::ChunkedDictation>>,
     }
 
     #[glib::object_subclass]
@@ -99,6 +103,17 @@ mod imp {
     }
 
     impl ApplicationImpl for Application {
+        fn shutdown(&self) {
+            // Stop any warm sidecar server (it also dies with us via
+            // PDEATHSIG, but an orderly kill releases its memory immediately).
+            crate::transcription::sidecar_server::shutdown_all();
+            // History writes run on detached worker threads that die with the
+            // process; give a dictation saved right before quitting a bounded
+            // moment to reach the disk.
+            crate::ui::history_page::wait_for_pending_writes(std::time::Duration::from_secs(3));
+            self.parent_shutdown();
+        }
+
         fn activate(&self) {
             let application = self.obj();
 
@@ -224,6 +239,13 @@ mod imp {
                     crate::portal::shortcuts::run_global_shortcuts(trigger, transform_trigger, tx),
                 );
 
+                // Pre-warm the persistent RemoteDesktop session (grant already
+                // held → never prompts) so the first auto-paste of the run
+                // doesn't pay the portal handshake.
+                if config.auto_paste {
+                    crate::portal::paste::warm_up();
+                }
+
                 let app_weak = self.obj().downgrade();
                 glib::spawn_future_local(async move {
                     while let Ok(kind) = rx.recv().await {
@@ -276,6 +298,46 @@ glib::wrapper! {
         @extends gio::Application, gtk::Application, adw::Application,
         @implements gio::ActionGroup, gio::ActionMap;
 }
+
+/// While-recording chunked-decode state for one global dictation. Long
+/// dictations are decoded in pause-aligned chunks as they are spoken, so the
+/// post-stop wait covers only the remaining tail instead of the whole take.
+/// Dictations shorter than the minimum chunk length never chunk and follow the
+/// classic single-decode path unchanged.
+pub struct ChunkedDictation {
+    /// The dictation this state belongs to (guards every async continuation).
+    generation: u64,
+    /// Outcomes of successfully decoded chunks, in take order. Their
+    /// `raw_text` is joined and polished once at finalize.
+    results: Vec<crate::recording::DictationOutcome>,
+    /// A chunk decode is in flight (at most one at a time).
+    pending: bool,
+    /// Chunking stopped for this take (a chunk decode failed); the unconsumed
+    /// audio simply goes to the final decode.
+    disabled: bool,
+    /// Language pinned from the first decoded chunk so auto-detect can't
+    /// switch languages between chunks of one take.
+    language: Option<String>,
+}
+
+impl ChunkedDictation {
+    fn new(generation: u64) -> Self {
+        Self {
+            generation,
+            results: Vec::new(),
+            pending: false,
+            disabled: false,
+            language: None,
+        }
+    }
+}
+
+/// Minimum chunk length: below this the take is decoded in one piece, so
+/// short dictations behave exactly as before chunking existed.
+const CHUNK_MIN_SECS: f32 = 20.0;
+/// Force a cut at the quietest point once this much audio has accumulated,
+/// so a non-stop talker still gets bounded chunks.
+const CHUNK_MAX_SECS: f32 = 40.0;
 
 impl Application {
     pub fn new() -> Self {
@@ -369,7 +431,7 @@ impl Application {
 
     fn finish_start_api_server(
         &self,
-        engine: Arc<std::sync::Mutex<Option<crate::transcription::TranscriptionEngine>>>,
+        engine: crate::recording::SharedEngine,
         catalog: Arc<crate::transcription::ModelCatalog>,
         port: u16,
         token: Option<String>,
@@ -453,15 +515,14 @@ impl Application {
             return panel.clone();
         }
         let panel = MiniPanel::new(self);
-        // Anchor the panel to the main window as a transient child. GTK4 has no
-        // skip-taskbar API, but window managers don't give transient children a
-        // separate taskbar/dock entry — so the app shows a single icon instead of
-        // two (main window + panel) while both are open. The main window object
-        // lives for the whole app lifetime (hide_on_close), so this stays valid
-        // even when it's hidden in the tray.
-        if let Some(main) = self.main_window() {
-            panel.set_transient_for(Some(&main));
-        }
+        // Deliberately NOT transient-for the main window: when a focused window
+        // is unmapped, Mutter hands keyboard focus to its mapped transient
+        // parent in preference to the previously focused window. A transient
+        // panel would therefore send the post-hide focus — and the injected
+        // Ctrl+V with it — to our own main window whenever it is open in the
+        // background, instead of back to the user's editor. That was the
+        // "never pastes while the main window is open" bug. The cost is a
+        // second taskbar entry while both windows are open; correctness wins.
         let app_weak = self.downgrade();
         panel.connect_action(move |action| {
             if let Some(app) = app_weak.upgrade() {
@@ -526,6 +587,15 @@ impl Application {
         self.imp().dictation_generation.set(generation);
 
         let config = self.config_snapshot();
+        // Chunked while-recording decode: long dictations are decoded in
+        // pause-aligned chunks as they are spoken, so the post-stop wait stays
+        // roughly constant (the tail) instead of growing with the take.
+        // Whisper only — the sidecar backends reload weights per invocation.
+        *self.imp().chunked.borrow_mut() = if config.backend == "whisper" {
+            Some(ChunkedDictation::new(generation))
+        } else {
+            None
+        };
         let lang_label = panel_lang_label(&config);
         let panel = self.mini_panel();
         // Re-apply each run so toggling the setting takes effect without restart.
@@ -553,6 +623,7 @@ impl Application {
                 let app_weak = self.downgrade();
                 let panel_weak = panel.downgrade();
                 // 100ms tick so the timer can show centiseconds.
+                let mut chunk_tick = 0u32;
                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
                     let (Some(app), Some(panel)) = (app_weak.upgrade(), panel_weak.upgrade())
                     else {
@@ -564,7 +635,20 @@ impl Application {
                     {
                         return glib::ControlFlow::Break;
                     }
+                    // Dead stream (mic unplugged): auto-stop and transcribe
+                    // what was captured instead of recording silence forever.
+                    if let Some(err) = controller.take_stream_error() {
+                        tracing::warn!("Audio stream died mid-dictation: {err}");
+                        app.stop_global_dictation();
+                        return glib::ControlFlow::Break;
+                    }
                     panel.set_timer(controller.recording_duration_secs() as f64);
+                    // Chunked decode check once a second (the peek scans audio
+                    // for a pause — too heavy for every 100ms tick).
+                    chunk_tick += 1;
+                    if chunk_tick.is_multiple_of(10) {
+                        app.maybe_chunk_decode();
+                    }
                     glib::ControlFlow::Continue
                 });
 
@@ -601,27 +685,68 @@ impl Application {
         let panel = self.mini_panel();
         let config = self.config_snapshot();
         panel.show_transcribing(&panel_model_label(&config), &panel_lang_label(&config));
-        if config.backend == "cohere" && !crate::transcription::cohere::cohere_ready() {
-            panel.show_error(&crate::i18n::gettext(
-                "Cohere is not set up. Go to Settings → Model to download the runtime and model.",
-            ));
-            return;
-        }
-        if config.backend == "qwen" && !crate::transcription::qwen::qwen_ready() {
-            panel.show_error(&crate::i18n::gettext(
-                "Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.",
-            ));
-            return;
-        }
 
-        let params = DictationParams::from_config(&config);
+        let mut params = DictationParams::from_config(&config);
+
+        // Chunked-decode handover — BEFORE any early return below: the state
+        // must never stay live past stop (a late chunk continuation would find
+        // it, push a result, and commit a stale cut into a future capture).
+        // TAKE it out entirely and move the committed chunk outcomes into the
+        // tail continuation BY VALUE: at stop the committed results are final
+        // (a still-in-flight chunk's late result finds no state and is
+        // discarded; its audio was never committed, so the tail snapshot above
+        // includes it), and owning them means a quick next dictation or a
+        // Cancel can no longer destroy this take's already-decoded text.
+        let chunked_results: Option<Vec<DictationOutcome>> = {
+            let mut chunked = self.imp().chunked.borrow_mut();
+            match chunked.take() {
+                Some(st) if st.generation == generation && !st.results.is_empty() => {
+                    // Pin the chunk-detected language for the tail too.
+                    if params.language_code.is_none() {
+                        params.language_code = st.language.clone();
+                    }
+                    Some(st.results)
+                }
+                _ => None, // nothing chunk-decoded: plain single-decode path
+            }
+        };
+
+        // The backend can have changed mid-take (Settings are live). If it now
+        // points at an uninstalled sidecar, delivery is abandoned — but any
+        // already-decoded chunk text is real speech and must reach History.
+        if (config.backend == "cohere" && !crate::transcription::cohere::cohere_ready())
+            || (config.backend == "qwen" && !crate::transcription::qwen::qwen_ready())
+        {
+            if let Some(chunks) = chunked_results {
+                self.salvage_chunked_to_history(chunks, duration_secs);
+            }
+            let msg = if config.backend == "cohere" {
+                crate::i18n::gettext(
+                    "Cohere is not set up. Go to Settings → Model to download the runtime and model.",
+                )
+            } else {
+                crate::i18n::gettext(
+                    "Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.",
+                )
+            };
+            panel.show_error(&msg);
+            return;
+        }
+        // The tail's own stats cover only the remaining audio; the full take
+        // duration goes to the combined outcome (correct WPM/history stats and
+        // duration-weighted confidence).
+        let tail_duration = if chunked_results.is_some() {
+            audio.duration_secs()
+        } else {
+            duration_secs
+        };
 
         // The pop-up always uses a clean batch decode (no in-decode hooks).
         // Whisper.cpp callbacks under Vulkan + GTK always-on-top compositing
         // trip -6 here, and live-segment preview adds little UX value for the
         // pop-up's short dictations. The live_transcription setting applies to
         // the main window's live loop, not this path.
-        let receiver = controller.transcribe_snapshot_async(audio, params, duration_secs);
+        let receiver = controller.transcribe_snapshot_async(audio, params, tail_duration);
 
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
@@ -629,19 +754,175 @@ impl Application {
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
-            if app.imp().dictation_generation.get() != generation {
+            if let Some(chunks) = chunked_results {
+                // Combine the owned chunk outcomes with the tail. A failed
+                // tail must not discard the chunks — they carry most of the
+                // take.
+                let tail = match result {
+                    Ok(Ok(outcome)) => Some(outcome),
+                    Ok(Err(msg)) => {
+                        tracing::warn!("Tail decode failed ({msg}); delivering chunked text only");
+                        None
+                    }
+                    Err(_) => {
+                        tracing::warn!("Tail decode reply lost; delivering chunked text only");
+                        None
+                    }
+                };
+                let config = app.config_snapshot();
+                let params = DictationParams::from_config(&config);
+                let outcome = crate::recording::combine_chunked_outcomes(
+                    chunks,
+                    tail,
+                    &params,
+                    duration_secs,
+                );
+                let stale = app.imp().dictation_generation.get() != generation
+                    || app.controller().owner() == RecordingOwner::Mini;
+                if stale {
+                    if !outcome.cleaned_text.is_empty() {
+                        info!("Stale chunked dictation finished — saving to history only");
+                        app.record_global_history(&outcome.cleaned_text, &outcome);
+                    }
+                    return;
+                }
+                app.finish_global_dictation(outcome, generation);
                 return;
             }
-            // If the user already started a new dictation while this one was
-            // transcribing, drop this (stale) result so it doesn't overwrite the
-            // live recording UI.
-            if app.controller().owner() == RecordingOwner::Mini {
-                return;
-            }
+            // Stale check: the user already started a new dictation while this
+            // one was transcribing. The finished transcript must still reach
+            // History — silently discarding completed speech is data loss —
+            // but the panel UI and clipboard belong to the newer dictation.
+            let stale = app.imp().dictation_generation.get() != generation
+                || app.controller().owner() == RecordingOwner::Mini;
             match result {
-                Ok(Ok(outcome)) => app.finish_global_dictation(outcome, generation),
-                Ok(Err(msg)) => app.mini_panel().show_error(&msg),
-                Err(_) => {}
+                Ok(Ok(outcome)) => {
+                    if stale {
+                        if !outcome.cleaned_text.is_empty() {
+                            info!("Stale dictation finished — saving transcript to history only");
+                            app.record_global_history(&outcome.cleaned_text, &outcome);
+                        }
+                        return;
+                    }
+                    app.finish_global_dictation(outcome, generation);
+                }
+                Ok(Err(msg)) => {
+                    if !stale {
+                        app.mini_panel().show_error(&msg);
+                    }
+                }
+                Err(_) => {
+                    // The inference worker died without replying. Surface it —
+                    // leaving the panel on "Transcribing" forever with no
+                    // message wedges the whole session from the user's view.
+                    if !stale {
+                        app.mini_panel().show_error(&crate::i18n::gettext(
+                            "Transcription failed unexpectedly — please try again.",
+                        ));
+                    }
+                }
+            }
+        });
+    }
+
+    /// Save already-decoded chunk text to History when delivery is being
+    /// abandoned (e.g. the backend was switched to an uninstalled sidecar
+    /// mid-take) — decoded speech must never silently vanish.
+    fn salvage_chunked_to_history(&self, chunks: Vec<DictationOutcome>, total_duration: f32) {
+        if chunks.is_empty() {
+            return;
+        }
+        let config = self.config_snapshot();
+        let params = DictationParams::from_config(&config);
+        let outcome =
+            crate::recording::combine_chunked_outcomes(chunks, None, &params, total_duration);
+        if !outcome.cleaned_text.is_empty() {
+            info!("Salvaging chunk-decoded text to history");
+            self.record_global_history(&outcome.cleaned_text, &outcome);
+        }
+    }
+
+    /// Attempt one while-recording chunk decode: if the take has accumulated
+    /// enough audio since the last committed cut AND contains a real speech
+    /// pause, decode that region on the inference worker while recording
+    /// continues. Called ~1/s from the dictation timer; at most one chunk
+    /// decode runs at a time.
+    fn maybe_chunk_decode(&self) {
+        let generation = self.imp().dictation_generation.get();
+        {
+            let chunked = self.imp().chunked.borrow();
+            let Some(st) = chunked.as_ref() else { return };
+            if st.generation != generation || st.pending || st.disabled {
+                return;
+            }
+        }
+        let controller = self.controller();
+        if controller.owner() != RecordingOwner::Mini {
+            return;
+        }
+        let Some((snapshot, cut)) = controller.peek_stable_chunk(CHUNK_MIN_SECS, CHUNK_MAX_SECS)
+        else {
+            return;
+        };
+        let chunk_secs = snapshot.duration_secs();
+        let config = self.config_snapshot();
+        let mut params = DictationParams::from_config(&config);
+        if params.language_code.is_none() {
+            // Keep auto-detect consistent across the take: later chunks reuse
+            // the language the first chunk detected.
+            params.language_code = self
+                .imp()
+                .chunked
+                .borrow()
+                .as_ref()
+                .and_then(|st| st.language.clone());
+        }
+        if let Some(st) = self.imp().chunked.borrow_mut().as_mut() {
+            st.pending = true;
+        }
+        info!("Chunk decode: {chunk_secs:.1}s of audio while recording continues");
+        let receiver = controller.transcribe_snapshot_async(snapshot, params, chunk_secs);
+        let app_weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let result = receiver.recv().await;
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
+            let commit = {
+                let mut chunked = app.imp().chunked.borrow_mut();
+                // Stop already took the state (this late result's audio went,
+                // uncommitted, into the tail decode — dropping it here is what
+                // prevents the text from appearing twice), or a new dictation
+                // replaced it: both mean this result is obsolete.
+                let Some(st) = chunked.as_mut() else { return };
+                if st.generation != generation {
+                    return;
+                }
+                st.pending = false;
+                match result {
+                    Ok(Ok(outcome)) => {
+                        if st.language.is_none() {
+                            st.language = outcome.detected_language.clone();
+                        }
+                        st.results.push(outcome);
+                        true
+                    }
+                    Ok(Err(msg)) if msg.starts_with("No clear speech") => {
+                        // A pause-only region: commit it (nothing to say)
+                        // and keep chunking.
+                        true
+                    }
+                    _ => {
+                        // Real decode failure: stop chunking; the audio was
+                        // never committed, so the final decode covers it.
+                        tracing::warn!("Chunk decode failed; falling back to single decode");
+                        st.disabled = true;
+                        false
+                    }
+                }
+            };
+            if commit {
+                app.controller().commit_chunk(cut);
             }
         });
     }
@@ -672,7 +953,14 @@ impl Application {
 
         let config = self.config_snapshot();
         if config.llm_enabled && config.llm_auto_apply && !config.llm_presets.is_empty() {
-            // Improve the transcript with the active preset before delivering it.
+            // Improve the transcript with the active preset before delivering it,
+            // but never let the LLM hold an already-finished transcript hostage:
+            // the chat client allows up to 300s (cold local model loads), which
+            // is far too long for the interactive dictate→paste loop. If the
+            // reply doesn't arrive in time, deliver the raw transcript now and
+            // apply the improvement as a variant when it eventually lands.
+            const AUTO_APPLY_DELIVERY_TIMEOUT: std::time::Duration =
+                std::time::Duration::from_secs(12);
             let idx = config.llm_active_preset.min(config.llm_presets.len() - 1);
             let preset = config.llm_presets[idx].clone();
             let llm_cfg = resolve_llm_cfg(&config, &preset);
@@ -681,27 +969,73 @@ impl Application {
             let app_weak = self.downgrade();
             let label = preset.name.clone();
             glib::spawn_future_local(async move {
-                let res = rx.recv().await;
-                let Some(app) = app_weak.upgrade() else {
-                    return;
-                };
-                if app.imp().dictation_generation.get() != generation {
-                    return;
-                }
-                // Drop stale results if a new dictation has started meanwhile.
-                if app.controller().owner() == RecordingOwner::Mini {
-                    return;
-                }
-                // On success, add the improved text as the active variant; on any
-                // error fall back to the raw transcript (active stays 0).
-                if let Ok(Ok(improved)) = &res {
-                    if !improved.trim().is_empty() {
-                        if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
-                            st.push_variant(label, improved.trim().to_string());
+                let apply_variant = |app: &Application, res: &Result<String, String>| {
+                    // On success, add the improved text as the active variant; on
+                    // any error the raw transcript stays active.
+                    if let Ok(improved) = res {
+                        if !improved.trim().is_empty() {
+                            if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
+                                st.push_variant(label.clone(), improved.trim().to_string());
+                            }
                         }
                     }
+                };
+                let recv = rx.recv();
+                futures::pin_mut!(recv);
+                let timeout = glib::timeout_future(AUTO_APPLY_DELIVERY_TIMEOUT);
+                futures::pin_mut!(timeout);
+                match futures::future::select(recv, timeout).await {
+                    futures::future::Either::Left((res, _)) => {
+                        let Some(app) = app_weak.upgrade() else {
+                            return;
+                        };
+                        if app.imp().dictation_generation.get() != generation
+                            || app.controller().owner() == RecordingOwner::Mini
+                        {
+                            // Stale: a new dictation started meanwhile.
+                            return;
+                        }
+                        if let Ok(res) = res {
+                            apply_variant(&app, &res);
+                        }
+                        app.deliver_active_result();
+                    }
+                    futures::future::Either::Right((_, recv)) => {
+                        // Timed out: deliver the raw transcript immediately…
+                        {
+                            let Some(app) = app_weak.upgrade() else {
+                                return;
+                            };
+                            if app.imp().dictation_generation.get() != generation
+                                || app.controller().owner() == RecordingOwner::Mini
+                            {
+                                return;
+                            }
+                            tracing::info!(
+                                "LLM auto-apply exceeded {}s — delivering raw transcript",
+                                AUTO_APPLY_DELIVERY_TIMEOUT.as_secs()
+                            );
+                            app.deliver_active_result();
+                        }
+                        // …and surface the improvement as a variant when (if) it
+                        // arrives, without re-pasting. Deliberately no clipboard
+                        // write here: this can land minutes later, and silently
+                        // replacing whatever the user has copied since (or lying
+                        // with a "Copied" badge while the portal still serves
+                        // the raw transcript) is worse than showing the variant.
+                        let Ok(res) = recv.await else { return };
+                        let Some(app) = app_weak.upgrade() else {
+                            return;
+                        };
+                        if app.imp().dictation_generation.get() != generation
+                            || app.controller().owner() != RecordingOwner::None
+                        {
+                            return;
+                        }
+                        apply_variant(&app, &res);
+                        app.refresh_active_result_view();
+                    }
                 }
-                app.deliver_active_result();
             });
         } else {
             self.deliver_active_result();
@@ -726,7 +1060,8 @@ impl Application {
     }
 
     /// Re-show the active result in the panel WITHOUT auto-pasting (used after a
-    /// chip or raw/polished switch, when the user is interacting with the panel).
+    /// chip or raw/polished switch, when the user is interacting with the panel —
+    /// the panel holds focus then, so the clipboard set actually works).
     fn show_active_result(&self) {
         let text = self
             .imp()
@@ -742,6 +1077,25 @@ impl Application {
             display.flush();
         }
         panel.show_result(&text, true);
+        self.render_panel_result_extras();
+    }
+
+    /// Update the panel view to the active result WITHOUT touching the
+    /// clipboard and without claiming "Copied". For asynchronous late arrivals
+    /// (e.g. a slow LLM improvement) where the panel is typically unfocused: a
+    /// GTK clipboard set would silently no-op on Wayland — or, worse, actually
+    /// replace something the user has copied since.
+    fn refresh_active_result_view(&self) {
+        let text = self
+            .imp()
+            .last_result_state
+            .borrow()
+            .as_ref()
+            .map(|s| s.active_text().to_string())
+            .unwrap_or_default();
+        *self.imp().last_text.borrow_mut() = text.clone();
+        let panel = self.mini_panel();
+        panel.show_result(&text, false);
         self.render_panel_result_extras();
     }
 
@@ -782,6 +1136,7 @@ impl Application {
         };
         let llm_cfg = resolve_llm_cfg(&config, &preset);
         self.mini_panel().set_chips_sensitive(false);
+        let generation = self.imp().dictation_generation.get();
         let rx = crate::llm::improve_async(llm_cfg, preset.system_prompt(), source);
         let app_weak = self.downgrade();
         let label = preset.name.clone();
@@ -791,6 +1146,16 @@ impl Application {
                 return;
             };
             app.mini_panel().set_chips_sensitive(true);
+            // Drop stale results: the user started a new dictation while the
+            // LLM was working — replacing the live Recording view (and the
+            // result state a newer dictation now owns) with the old result
+            // would also expose "Again", which restarts capture and silently
+            // discards the in-progress recording.
+            if app.imp().dictation_generation.get() != generation
+                || app.controller().owner() != RecordingOwner::None
+            {
+                return;
+            }
             if let Ok(Ok(improved)) = &res {
                 if !improved.trim().is_empty() {
                     if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
@@ -865,6 +1230,12 @@ impl Application {
                     {
                         return glib::ControlFlow::Break;
                     }
+                    // Dead stream: stop and transcribe what was captured.
+                    if let Some(err) = controller.take_stream_error() {
+                        tracing::warn!("Audio stream died mid voice edit: {err}");
+                        app.stop_voice_edit();
+                        return glib::ControlFlow::Break;
+                    }
                     panel.set_timer(controller.recording_duration_secs() as f64);
                     glib::ControlFlow::Continue
                 });
@@ -883,8 +1254,12 @@ impl Application {
         if controller.owner() != RecordingOwner::VoiceEdit {
             return;
         }
+        let generation = self.imp().dictation_generation.get();
         let duration_secs = controller.recording_duration_secs();
-        let audio = match controller.stop() {
+        // Detach raw audio only; the expensive conditioning (mono + sinc
+        // resample of the whole capture) runs on the inference worker, not the
+        // GTK thread.
+        let audio = match controller.stop_snapshot() {
             Ok(a) => a,
             Err(e) => {
                 controller.release();
@@ -896,7 +1271,7 @@ impl Application {
         controller.release();
 
         let panel = self.mini_panel();
-        if audio.is_empty() {
+        if audio.raw_len() == 0 {
             panel.show_error(&crate::i18n::gettext("Didn't catch an instruction."));
             self.show_active_result();
             return;
@@ -905,23 +1280,38 @@ impl Application {
         panel.show_transcribing(&panel_model_label(&config), &panel_lang_label(&config));
 
         let params = DictationParams::from_config(&config);
-        let receiver = controller.transcribe_async(audio, params, duration_secs);
+        let receiver = controller.transcribe_snapshot_async(audio, params, duration_secs);
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let result = receiver.recv().await;
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
+            // Drop stale results: the user cancelled the edit or started a new
+            // recording while the instruction was transcribing.
+            if app.imp().dictation_generation.get() != generation
+                || app.controller().owner() != RecordingOwner::None
+            {
+                return;
+            }
             match result {
                 Ok(Ok(outcome)) => app.run_voice_edit_llm(outcome.cleaned_text),
                 Ok(Err(msg)) => app.mini_panel().show_error(&msg),
-                Err(_) => {}
+                Err(_) => app.mini_panel().show_error(&crate::i18n::gettext(
+                    "Transcription failed unexpectedly — please try again.",
+                )),
             }
         });
     }
 
     /// Cancel a Voice-edit capture and restore the previous result view.
     fn cancel_voice_edit(&self) {
+        // Invalidate any in-flight voice-edit transcription/LLM callbacks so a
+        // cancelled edit can't resurface seconds later and silently replace
+        // the clipboard/result state.
+        self.imp()
+            .dictation_generation
+            .set(self.imp().dictation_generation.get().wrapping_add(1));
         let controller = self.controller();
         if controller.owner() == RecordingOwner::VoiceEdit {
             controller.cancel();
@@ -964,6 +1354,7 @@ impl Application {
                       language. Do not add explanations or quotes.";
         let user = format!("Apply this instruction: {instruction}\n\nText:\n{target}");
         panel.show_improving();
+        let generation = self.imp().dictation_generation.get();
         let rx = crate::llm::improve_async(llm_cfg, system.to_string(), user);
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
@@ -971,6 +1362,14 @@ impl Application {
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
+            // Drop stale results: the user cancelled or started a new recording
+            // while the LLM was working — applying the edit now would overwrite
+            // newer state (and the clipboard) with old data.
+            if app.imp().dictation_generation.get() != generation
+                || app.controller().owner() != RecordingOwner::None
+            {
+                return;
+            }
             match res {
                 Ok(Ok(edited)) if !edited.trim().is_empty() => {
                     if let Some(st) = app.imp().last_result_state.borrow_mut().as_mut() {
@@ -996,26 +1395,73 @@ impl Application {
     fn deliver_global_result(&self, text: String) {
         *self.imp().last_text.borrow_mut() = text.clone();
 
-        let panel = self.mini_panel();
         if self.config_snapshot().auto_paste {
-            // Auto-paste path: the clipboard MUST be set while the panel surface
-            // holds keyboard focus. On Wayland, Mutter rejects a set_selection from
-            // an unfocused surface, so setting it here — when the user may have
-            // clicked into their editor mid-recording — silently keeps the
-            // *previous* clipboard and pastes stale text. The reshow task
-            // re-acquires focus, sets the clipboard, hides, then pastes.
+            // Auto-paste path: hide the panel so focus returns to the target
+            // app, deliver via the persistent portal session (focus-
+            // independent selection + injected Ctrl+V, honest outcome), then
+            // re-show the panel with the result.
             let generation = self.imp().dictation_generation.get();
             self.spawn_autopaste_then_reshow(text, generation);
         } else {
-            // Non-auto-paste: the panel stays visible and focused (its preceding
-            // transcribing/improving state was presented), so the set succeeds and
-            // the manual Copy/Paste buttons can read from it.
-            if let Some(display) = gtk::gdk::Display::default() {
-                display.clipboard().set_text(&text);
-                display.flush();
+            // Non-auto-paste: put the transcript on the clipboard and show it.
+            // Prefer the focus-independent portal selection — a plain set_text
+            // from an unfocused surface silently no-ops on Wayland (the user
+            // may have clicked into another window mid-transcription). Fall
+            // back to the GTK clipboard, and only claim "Copied" when the
+            // panel actually holds focus, so the badge never lies.
+            let generation = self.imp().dictation_generation.get();
+            let app_weak = self.downgrade();
+            glib::spawn_future_local(async move {
+                let (tx, rx) = async_channel::bounded::<bool>(1);
+                let portal_text = text.clone();
+                crate::application::tokio_runtime().spawn(async move {
+                    let ok = crate::portal::paste::set_clipboard_via_portal(portal_text).await;
+                    let _ = tx.send(ok).await;
+                });
+                // Bounded wait: the serialized portal actor can stall behind a
+                // session handshake or an unanswered consent dialog, and the
+                // result view must still appear.
+                let mut copied = Self::await_bool_with_timeout(rx, 5_000).await;
+                let Some(app) = app_weak.upgrade() else {
+                    return;
+                };
+                // The await opened a window for a new dictation to start; a
+                // stale result must not repaint the live Recording view (from
+                // PanelState::Result the titlebar X merely hides the panel,
+                // which would leave the microphone running headless).
+                if app.imp().dictation_generation.get() != generation
+                    || app.controller().owner() != RecordingOwner::None
+                {
+                    return;
+                }
+                let panel = app.mini_panel();
+                if !copied {
+                    if let Some(display) = gtk::gdk::Display::default() {
+                        display.clipboard().set_text(&text);
+                        display.flush();
+                        let _ = display.clipboard().read_text_future().await;
+                    }
+                    copied = panel.is_active();
+                }
+                panel.show_result(&text, copied);
+                app.render_panel_result_extras();
+            });
+        }
+    }
+
+    /// Await a `bool` reply from the portal actor with a timeout, treating
+    /// expiry (or a dropped channel) as `false`.
+    async fn await_bool_with_timeout(rx: async_channel::Receiver<bool>, timeout_ms: u64) -> bool {
+        let recv = rx.recv();
+        futures::pin_mut!(recv);
+        let timeout = glib::timeout_future(std::time::Duration::from_millis(timeout_ms));
+        futures::pin_mut!(timeout);
+        match futures::future::select(recv, timeout).await {
+            futures::future::Either::Left((res, _)) => res.unwrap_or(false),
+            futures::future::Either::Right(_) => {
+                tracing::warn!("Portal clipboard call timed out");
+                false
             }
-            panel.show_result(&text, true);
-            self.render_panel_result_extras();
         }
     }
 
@@ -1112,6 +1558,9 @@ impl Application {
         self.imp()
             .dictation_generation
             .set(self.imp().dictation_generation.get().wrapping_add(1));
+        // Drop any chunked-decode state; in-flight chunk results are already
+        // invalidated by the generation bump above.
+        *self.imp().chunked.borrow_mut() = None;
         let controller = self.controller();
         if controller.owner() == RecordingOwner::Mini {
             controller.cancel();
@@ -1128,6 +1577,13 @@ impl Application {
     /// uses the PRIMARY selection / clipboard text the user already highlighted
     /// or copied.
     fn transform_selection(&self) {
+        // Never hijack an active capture: this flow repaints the panel and
+        // ultimately hides it for the paste — doing that mid-recording left a
+        // live microphone running with no visible UI to stop it.
+        if self.controller().owner() != RecordingOwner::None {
+            info!("Transform selection ignored: a recording is in progress");
+            return;
+        }
         let config = self.config_snapshot();
         if !config.llm_enabled || config.llm_presets.is_empty() {
             self.mini_panel().show_error(&crate::i18n::gettext(
@@ -1202,7 +1658,23 @@ impl Application {
     }
 
     fn paste_preview_text(&self) {
-        // The clipboard already holds the text; hide to return focus, then paste.
+        // Refresh the clipboard with the SHOWN transcript before pasting: the
+        // honest-copied delivery paths can display a result that never reached
+        // the clipboard (copied=false), and injecting Ctrl+V then would paste
+        // stale content. The user just clicked the panel, so it holds focus
+        // and the GTK clipboard set actually works here.
+        let panel = self.mini_panel();
+        let mut text = panel.transcript_text();
+        if text.trim().is_empty() {
+            text = self.imp().last_text.borrow().clone();
+        }
+        if !text.is_empty() {
+            if let Some(display) = gtk::gdk::Display::default() {
+                display.clipboard().set_text(&text);
+                display.flush();
+            }
+        }
+        // Hide to return focus to the target app, then paste.
         self.close_mini_panel();
         self.spawn_autopaste();
     }
@@ -1230,25 +1702,27 @@ impl Application {
         }
     }
 
-    /// Wait until the freshly-set clipboard content is actually live, then a
-    /// short focus-settle delay, so a synthesized Ctrl+V reads the *current*
-    /// transcript and not the previously-owned clipboard content (Wayland sets
-    /// the selection asynchronously).
-    async fn await_clipboard_ready() {
+    /// Wait until the freshly-set clipboard content is actually live and the
+    /// compositor has moved keyboard focus off the (just-hidden) panel, so a
+    /// synthesized Ctrl+V reads the *current* transcript in the right window.
+    /// Event-driven (focus-loss notify) instead of a fixed sleep: a fixed delay
+    /// races the compositor's asynchronous focus hand-back under load.
+    async fn await_clipboard_ready(panel: &MiniPanel) {
         if let Some(display) = gtk::gdk::Display::default() {
             // Round-trip read forces GTK to process the pending set_selection.
             let _ = display.clipboard().read_text_future().await;
         }
-        // Give the compositor time to return focus to the target app after the
-        // panel unmapped before we inject the paste keystroke.
-        glib::timeout_future(std::time::Duration::from_millis(250)).await;
+        Self::wait_for_panel_inactive(panel, 400).await;
+        // Short settle for the compositor to focus the target app.
+        glib::timeout_future(std::time::Duration::from_millis(80)).await;
     }
 
     /// Hide the panel, then auto-paste the (already-set) clipboard into the
     /// now-focused app on the Tokio runtime.
     fn spawn_autopaste(&self) {
-        glib::spawn_future_local(async {
-            Self::await_clipboard_ready().await;
+        let panel = self.mini_panel();
+        glib::spawn_future_local(async move {
+            Self::await_clipboard_ready(&panel).await;
             crate::application::tokio_runtime().spawn(async {
                 let _ = crate::portal::paste::try_autopaste().await;
             });
@@ -1256,18 +1730,21 @@ impl Application {
     }
 
     /// Hide the panel so keyboard focus returns to the target app, deliver the
-    /// transcript into it, then re-present the panel in the result state so the
+    /// transcript into it, then re-show the panel in the result state so the
     /// user can immediately dictate again — the "dictate → paste → stay open →
     /// repeat" loop.
     ///
-    /// Primary path: the Clipboard portal owns the system selection
+    /// Primary path: the persistent portal session owns the system selection
     /// focus-independently (see
-    /// [`crate::portal::paste::paste_text_via_remote_desktop`]), so the *current*
-    /// transcript is pasted even when the panel never held focus — including when
-    /// the user clicked into another window mid-transcription. Fallback (compositor
-    /// without the Clipboard portal): set the GTK clipboard while the panel is
-    /// focused, then inject Ctrl+V.
+    /// [`crate::portal::paste::deliver_text_via_portal`]), so the *current*
+    /// transcript is pasted even when the panel never held focus — including
+    /// when the user clicked into another window mid-transcription. The
+    /// delivery outcome is honest: the fallback (GTK clipboard + Ctrl+V) only
+    /// runs when the portal was truly unavailable, and it only injects the
+    /// keystroke when the panel actually obtained focus for the clipboard set —
+    /// otherwise Ctrl+V would paste the *previous* clipboard content.
     fn spawn_autopaste_then_reshow(&self, text: String, generation: u64) {
+        use crate::portal::paste::DeliveryOutcome;
         let app_weak = self.downgrade();
         glib::spawn_future_local(async move {
             let Some(app) = app_weak.upgrade() else {
@@ -1279,12 +1756,13 @@ impl Application {
             let panel = app.mini_panel();
 
             // Hide so the compositor hands keyboard focus back to the previously
-            // focused app — the injected Ctrl+V must land there, not on the panel.
-            // We deliberately do NOT try to (re)focus the panel: the portal sets
-            // the clipboard without focus, which is what makes the
-            // click-into-another-window case work.
+            // focused app — the injected Ctrl+V must land there, not on the
+            // panel. Wait for the focus to actually leave (event-driven) rather
+            // than a fixed sleep; if the panel never held focus this returns
+            // immediately.
             panel.set_visible(false);
-            glib::timeout_future(std::time::Duration::from_millis(300)).await;
+            Self::wait_for_panel_inactive(&panel, 400).await;
+            glib::timeout_future(std::time::Duration::from_millis(80)).await;
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
@@ -1292,30 +1770,86 @@ impl Application {
                 return;
             }
 
-            // Primary: Clipboard portal + Ctrl+V on one RemoteDesktop session.
-            let (tx, rx) = async_channel::bounded::<bool>(1);
+            // Primary: persistent portal session (selection + Ctrl+V). Bounded
+            // wait: the serialized actor can stall behind a session handshake
+            // or an unanswered (expired-grant) consent dialog, and the panel
+            // must never stay hidden with the transcript unshown.
+            let (tx, rx) = async_channel::bounded::<DeliveryOutcome>(1);
             let portal_text = text.clone();
             crate::application::tokio_runtime().spawn(async move {
-                let ok = crate::portal::paste::paste_text_via_remote_desktop(portal_text).await;
-                let _ = tx.send(ok).await;
+                let out = crate::portal::paste::deliver_text_via_portal(portal_text).await;
+                let _ = tx.send(out).await;
             });
-            let pasted = rx.recv().await.unwrap_or(false);
+            let (outcome, timed_out) = {
+                let recv = rx.recv();
+                futures::pin_mut!(recv);
+                let timeout = glib::timeout_future(std::time::Duration::from_secs(8));
+                futures::pin_mut!(timeout);
+                match futures::future::select(recv, timeout).await {
+                    futures::future::Either::Left((res, _)) => {
+                        (res.unwrap_or(DeliveryOutcome::Unavailable), false)
+                    }
+                    futures::future::Either::Right(_) => {
+                        tracing::warn!("Portal delivery timed out; showing the result instead");
+                        (DeliveryOutcome::Unavailable, true)
+                    }
+                }
+            };
 
-            // Fallback when the compositor has no Clipboard portal: set the GTK
-            // clipboard while the panel holds focus, then inject Ctrl+V.
-            if !pasted {
-                if let Some(app) = app_weak.upgrade() {
-                    let panel = app.mini_panel();
-                    panel.set_visible(true);
-                    panel.present();
-                    Self::wait_for_panel_active(&panel, 600).await;
+            // The portal round-trip can take a while (expired-grant consent
+            // dialog); re-check that this delivery is still current before
+            // touching the panel or the clipboard.
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
+            if app.imp().dictation_generation.get() != generation
+                || app.controller().owner() != RecordingOwner::None
+            {
+                return;
+            }
+
+            // Pasted/NotConsumed: the portal session owns the selection with the
+            // current transcript and keeps serving it, so the clipboard is good
+            // either way; only an actually-consumed paste counts as pasted.
+            let mut copied = matches!(
+                outcome,
+                DeliveryOutcome::Pasted | DeliveryOutcome::NotConsumed
+            );
+
+            // On timeout, skip the fallback injection entirely: the actor may
+            // still be mid-delivery (e.g. a consent dialog answered late), and
+            // a second keystroke on top of its eventual Ctrl+V would paste
+            // twice. The result view below keeps the transcript reachable.
+            if outcome == DeliveryOutcome::Unavailable && !timed_out {
+                // Fallback (no portal / no grant): set the GTK clipboard while
+                // the panel holds focus, then inject Ctrl+V — but ONLY if focus
+                // was actually obtained. present() from a background app can be
+                // denied by focus-stealing prevention, and set_text from an
+                // unfocused surface silently no-ops on Wayland; injecting then
+                // would paste stale content.
+                let panel = app.mini_panel();
+                panel.set_visible(true);
+                panel.present();
+                Self::wait_for_panel_active(&panel, 600).await;
+                if panel.is_active() {
                     if let Some(display) = gtk::gdk::Display::default() {
                         display.clipboard().set_text(&text);
                         display.flush();
                         let _ = display.clipboard().read_text_future().await;
                     }
+                    copied = true;
                     panel.set_visible(false);
-                    glib::timeout_future(std::time::Duration::from_millis(300)).await;
+                    Self::wait_for_panel_inactive(&panel, 400).await;
+                    glib::timeout_future(std::time::Duration::from_millis(80)).await;
+                    // Re-check once more before injecting the keystroke.
+                    let Some(app) = app_weak.upgrade() else {
+                        return;
+                    };
+                    if app.imp().dictation_generation.get() != generation
+                        || app.controller().owner() != RecordingOwner::None
+                    {
+                        return;
+                    }
                     let (done_tx, done_rx) = async_channel::bounded::<()>(1);
                     crate::application::tokio_runtime().spawn(async move {
                         let _ = crate::portal::paste::try_autopaste().await;
@@ -1323,10 +1857,18 @@ impl Application {
                     });
                     let _ = done_rx.recv().await;
                 }
+                // If focus was never obtained the transcript is still shown in
+                // the result panel below (with an honest not-copied badge), so
+                // nothing is silently lost.
             }
 
-            // Re-present the panel showing the transcript, unless the user has
-            // already started a new recording in the meantime.
+            // Re-show the panel with the transcript, unless the user has
+            // already started a new recording in the meantime. No present():
+            // an activation request would steal focus back from the app the
+            // text was just pasted into. Display the CURRENT active text — a
+            // late LLM improvement may have landed while the delivery ran, and
+            // showing the captured raw text would contradict the variant
+            // selector rendered by render_panel_result_extras.
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
@@ -1335,10 +1877,16 @@ impl Application {
             {
                 return;
             }
+            let display_text = app
+                .imp()
+                .last_result_state
+                .borrow()
+                .as_ref()
+                .map(|s| s.active_text().to_string())
+                .unwrap_or_else(|| text.clone());
             let panel = app.mini_panel();
             panel.set_visible(true);
-            panel.present();
-            panel.show_result(&text, true);
+            panel.show_result(&display_text, copied);
             app.render_panel_result_extras();
         });
     }
@@ -1356,6 +1904,31 @@ impl Application {
             let tx = tx.clone();
             move |p| {
                 if p.is_active() {
+                    let _ = tx.try_send(());
+                }
+            }
+        });
+        glib::timeout_add_local_once(std::time::Duration::from_millis(timeout_ms), move || {
+            let _ = tx.try_send(());
+        });
+        let _ = rx.recv().await;
+        panel.disconnect(handler);
+    }
+
+    /// Wait until the mini panel surface is NOT active (keyboard focus has
+    /// left it), up to `timeout_ms`. Used after hiding the panel: the
+    /// compositor hands focus back asynchronously, and injecting Ctrl+V before
+    /// that completes pastes into the wrong (or no) surface. Returns
+    /// immediately when the panel never held focus.
+    async fn wait_for_panel_inactive(panel: &MiniPanel, timeout_ms: u64) {
+        if !panel.is_active() {
+            return;
+        }
+        let (tx, rx) = async_channel::bounded::<()>(1);
+        let handler = panel.connect_is_active_notify({
+            let tx = tx.clone();
+            move |p| {
+                if !p.is_active() {
                     let _ = tx.try_send(());
                 }
             }
@@ -1471,7 +2044,17 @@ impl Application {
             .developers(vec!["Christos A. Daggas"])
             .comments("Offline speech-to-text transcription using Whisper")
             .release_notes(
-                "<p>Version 1.5.0</p>\
+                "<p>Version 1.6.0</p>\
+                <ul>\
+                    <li>Auto-paste now works reliably — including with the main window open in the background — with honest clipboard feedback and a persistent portal session that makes every paste faster.</li>\
+                    <li>Long dictations are transcribed in pause-aligned chunks while you speak, so the wait after Stop stays short instead of growing with the take.</li>\
+                    <li>Qwen3-ASR and Cohere keep their models loaded between dictations via warm local servers, removing tens of seconds of cold start per dictation.</li>\
+                    <li>AI improvement no longer delays delivery: the raw transcript arrives immediately and the polished variant follows.</li>\
+                    <li>Finished transcriptions always reach History; unplugged microphones and desktop portal restarts recover automatically.</li>\
+                    <li>Faster and smoother throughout: history and settings writes moved off the UI thread, instant recording start, leaner decoding defaults.</li>\
+                    <li>Security hardening: size-capped provider metadata, stricter secret redaction, tighter API validation.</li>\
+                </ul>\
+                <p>Version 1.5.0</p>\
                 <ul>\
                     <li>Verified runtime and model downloads with resumable transfers.</li>\
                     <li>Faster inference, bounded background work, and smoother live previews.</li>\
@@ -1555,7 +2138,7 @@ impl Application {
         let header = adw::HeaderBar::new();
         let title = adw::WindowTitle::builder()
             .title(gettext("What's New"))
-            .subtitle(gettext("Version 1.5.0"))
+            .subtitle(gettext("Version 1.6.0"))
             .build();
         header.set_title_widget(Some(&title));
         toolbar.add_top_bar(&header);
@@ -1570,14 +2153,14 @@ impl Application {
         hero_icon.set_pixel_size(80);
         content.append(&hero_icon);
 
-        let heading = gtk::Label::new(Some(&gettext("Speech to Text 1.5")));
+        let heading = gtk::Label::new(Some(&gettext("Speech to Text 1.6")));
         heading.add_css_class("title-1");
         heading.set_wrap(true);
         heading.set_justify(gtk::Justification::Center);
         content.append(&heading);
 
         let intro = gtk::Label::new(Some(&gettext(
-            "A faster, safer, and more polished release for everyday dictation and transcription.",
+            "Reliable paste, instant delivery, and heavy lifting while you speak.",
         )));
         intro.add_css_class("dim-label");
         intro.set_wrap(true);
@@ -1588,42 +2171,42 @@ impl Application {
 
         Self::append_whats_new_group(
             &content,
-            &gettext("Faster and smoother"),
+            &gettext("Paste you can trust"),
             &[
-                gettext("Faster startup when launching hidden, without loading the interface or a model."),
-                gettext("Bounded inference work and non-blocking audio capture keep recording responsive."),
-                gettext("Live previews process only the latest audio tail and discard stale results."),
-                gettext("Interrupted model downloads can resume instead of starting over."),
+                gettext("Auto-paste now works when the main window is open in the background — keyboard focus returns to your editor, not to the app."),
+                gettext("A persistent desktop portal session removes about a second of overhead from every paste."),
+                gettext("The paste permission is requested once, from Settings — never in the middle of a dictation."),
+                gettext("The Copied badge appears only when the text really is on the clipboard."),
             ],
         );
         Self::append_whats_new_group(
             &content,
-            &gettext("Safer by default"),
+            &gettext("Faster from voice to text"),
             &[
-                gettext("Runtime, model, and sidecar downloads are verified before use."),
-                gettext("The local API now enforces validation, request limits, timeouts, and safer access controls."),
-                gettext("AI features use endpoint-specific consent, bounded responses, and explicit automation choices."),
-                gettext("Credentials stay out of plaintext settings and release signing now fails closed."),
+                gettext("Long dictations are transcribed in the background while you speak, so the wait after Stop stays short."),
+                gettext("Qwen3-ASR and Cohere keep their models loaded between dictations instead of reloading gigabytes every time."),
+                gettext("Recording starts instantly — the microphone device is cached between takes."),
+                gettext("AI improvement no longer delays delivery: the raw transcript arrives first and the polished variant follows."),
             ],
         );
         Self::append_whats_new_group(
             &content,
-            &gettext("More reliable"),
+            &gettext("Sturdier under pressure"),
             &[
-                gettext("Pause, resume, shortcuts, language selection, onboarding, and cancellation behave consistently."),
-                gettext("Outdated transcription and AI callbacks can no longer overwrite newer work."),
-                gettext("Corrupt settings and history files are backed up before recovery."),
-                gettext("File transcriptions are preserved in History and can be searched in full."),
+                gettext("A finished transcription is always saved to History, even if you have already started the next one."),
+                gettext("The global shortcut re-registers itself if the desktop portal restarts."),
+                gettext("A disconnected microphone stops the recording and transcribes what was captured."),
+                gettext("Transcription errors are shown instead of leaving the panel stuck on Transcribing."),
             ],
         );
         Self::append_whats_new_group(
             &content,
-            &gettext("Refined experience"),
+            &gettext("Hardened"),
             &[
-                gettext("The workspace, Settings, History, Help, and model selector share a clearer visual language."),
-                gettext("Current Session shows either the live preview or the latest completed transcription."),
-                gettext("Navigation, keyboard behavior, light-theme cards, and compact layouts have been polished."),
-                gettext("History detail views make complete transcripts easier to review and manage."),
+                gettext("Provider metadata downloads are size-capped, and redirects can no longer downgrade to plaintext."),
+                gettext("Secret redaction now catches unprefixed tokens, across line breaks."),
+                gettext("The health endpoint exposes less, and language parameters are strictly validated."),
+                gettext("History and settings are written off the UI thread with safe ordering."),
             ],
         );
 
@@ -1637,6 +2220,17 @@ impl Application {
         history_heading.set_halign(gtk::Align::Start);
         content.append(&history_heading);
 
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.5.0",
+            &[
+                gettext("Faster hidden startup, bounded inference work, and non-blocking audio capture."),
+                gettext("Verified, resumable runtime and model downloads; keyring-only credentials."),
+                gettext("Endpoint-specific AI consent, request limits, and safer access controls for the local API."),
+                gettext("Expanded History with full-text search and file-transcription recovery."),
+                gettext("A refined workspace: Settings, History, Help, and the model selector share a clearer visual language."),
+            ],
+        );
         Self::append_whats_new_group(
             &content,
             "Version 1.4.0",

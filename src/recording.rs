@@ -249,7 +249,7 @@ pub struct DictationOutcome {
 /// worker thread (it blocks on the engine). Handles both the Whisper and
 /// Cohere backends and applies sanitize + mode formatting.
 pub fn run_transcription(
-    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
+    engine: &SharedEngine,
     audio: &[f32],
     params: &DictationParams,
     duration_secs: f32,
@@ -261,10 +261,7 @@ pub fn run_transcription(
                     .to_string(),
             );
         }
-        match crate::transcription::cohere::transcribe_via_cli(
-            audio,
-            params.language_code.as_deref(),
-        ) {
+        match crate::transcription::cohere::transcribe(audio, params.language_code.as_deref()) {
             Ok(r) => Ok(build_outcome(r, params, duration_secs)),
             Err(e) => Err(format!("{}", e)),
         }
@@ -272,38 +269,38 @@ pub fn run_transcription(
         if !crate::transcription::qwen::qwen_ready() {
             return Err("Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model.".to_string());
         }
-        match crate::transcription::qwen::transcribe_via_cli(audio, params.language_code.as_deref())
-        {
+        match crate::transcription::qwen::transcribe(audio, params.language_code.as_deref()) {
             Ok(r) => Ok(build_outcome(r, params, duration_secs)),
             Err(e) => Err(format!("{}", e)),
         }
     } else {
-        let mut guard = match engine.lock() {
-            Ok(g) => g,
-            Err(e) => return Err(format!("Lock error: {}", e)),
+        // Take a handle to the loaded engine and RELEASE the mutex before
+        // decoding: the GTK thread locks this same mutex to switch backends,
+        // delete models and swap freshly-loaded engines, and a decode can hold
+        // it for minutes. Concurrent decodes are safe — each transcribe call
+        // creates its own whisper state over the shared immutable context. A
+        // poisoned lock is recovered with into_inner (the slot is a plain
+        // replaceable Option) instead of permanently failing all transcription.
+        let eng: Arc<TranscriptionEngine> = {
+            let guard = engine.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(eng) => Arc::clone(eng),
+                None => return Err("No model loaded".to_string()),
+            }
         };
-
         // First attempt on the loaded engine (GPU if it was loaded with it).
-        // Capture what we'd need for a CPU reload, then drop the borrow so we can
-        // swap the engine in the shared slot below.
-        let (first, gpu_reload) = {
-            let Some(eng) = guard.as_ref() else {
-                return Err("No model loaded".to_string());
-            };
-            let reload = eng
-                .uses_gpu()
-                .then(|| (eng.model_path().to_path_buf(), eng.model_id().to_string()));
-            let res = eng.transcribe(
-                audio,
-                params.language_code.as_deref(),
-                params.n_threads,
-                params.translate,
-                params.beam_size,
-                params.temperature,
-                params.initial_prompt.as_deref(),
-            );
-            (res, reload)
-        };
+        let gpu_reload = eng
+            .uses_gpu()
+            .then(|| (eng.model_path().to_path_buf(), eng.model_id().to_string()));
+        let first = eng.transcribe(
+            audio,
+            params.language_code.as_deref(),
+            params.n_threads,
+            params.translate,
+            params.beam_size,
+            params.temperature,
+            params.initial_prompt.as_deref(),
+        );
 
         match first {
             Ok(r) => Ok(build_outcome(r, params, duration_secs)),
@@ -322,6 +319,7 @@ pub fn run_transcription(
                 );
                 match TranscriptionEngine::load_model_with_gpu(&model_path, &model_id, false) {
                     Ok(cpu_eng) => {
+                        let cpu_eng = Arc::new(cpu_eng);
                         let retry = cpu_eng.transcribe(
                             audio,
                             params.language_code.as_deref(),
@@ -331,7 +329,20 @@ pub fn run_transcription(
                             params.temperature,
                             params.initial_prompt.as_deref(),
                         );
-                        *guard = Some(cpu_eng);
+                        // Swap the CPU engine into the shared slot so later
+                        // transcriptions skip the doomed GPU path — but ONLY
+                        // if the slot still holds the engine this decode
+                        // started from. During the (long) failed decode +
+                        // reload, the GTK thread may have switched models,
+                        // switched backends (slot = None to free memory), or
+                        // deleted the model; clobbering that would silently
+                        // resurrect a multi-GB engine the user just discarded.
+                        {
+                            let mut guard = engine.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.as_ref().is_some_and(|cur| Arc::ptr_eq(cur, &eng)) {
+                                *guard = Some(cpu_eng);
+                            }
+                        }
                         retry
                             .map(|r| build_outcome(r, params, duration_secs))
                             .map_err(|e2| format!("Transcription failed: {}", e2))
@@ -352,7 +363,7 @@ pub fn run_transcription(
 /// Only relevant for the Whisper backend; Cohere/Qwen run via their CLIs and
 /// need no preloaded engine.
 pub fn ensure_engine_loaded(
-    engine: &Arc<Mutex<Option<TranscriptionEngine>>>,
+    engine: &SharedEngine,
     config: &crate::config::AppConfig,
 ) -> Result<(), String> {
     if engine
@@ -416,7 +427,7 @@ pub fn ensure_engine_loaded(
         .as_ref()
         .is_none_or(|engine| engine.model_id() != model_id)
     {
-        *guard = Some(loaded);
+        *guard = Some(Arc::new(loaded));
     }
     Ok(())
 }
@@ -438,15 +449,7 @@ fn build_outcome(
             )
         })
         .collect();
-    let sanitized = postprocess::sanitize_transcript(&result.text, Some(confidence));
-    // Apply personal-dictionary "heard → correct" replacements on the raw ASR
-    // text before mode formatting (LLM variants are left untouched).
-    let corrected = if params.replacements.is_empty() {
-        sanitized
-    } else {
-        postprocess::apply_dictionary_replacements(&sanitized, &params.replacements)
-    };
-    let cleaned_text = apply_mode(&corrected, params.mode);
+    let cleaned_text = polish_transcript(&result.text, Some(confidence), params);
     DictationOutcome {
         raw_text: result.text,
         cleaned_text,
@@ -457,6 +460,75 @@ fn build_outcome(
     }
 }
 
+/// The single polish pipeline applied to raw engine text — sanitize,
+/// personal-dictionary replacements, mode formatting. Shared by the one-shot
+/// and chunked paths so both produce identical output for the same raw text.
+fn polish_transcript(raw: &str, confidence: Option<f32>, params: &DictationParams) -> String {
+    let sanitized = postprocess::sanitize_transcript(raw, confidence);
+    // Apply personal-dictionary "heard → correct" replacements on the raw ASR
+    // text before mode formatting (LLM variants are left untouched).
+    let corrected = if params.replacements.is_empty() {
+        sanitized
+    } else {
+        postprocess::apply_dictionary_replacements(&sanitized, &params.replacements)
+    };
+    apply_mode(&corrected, params.mode)
+}
+
+/// Combine while-recording chunk outcomes and the final tail outcome into one
+/// polished [`DictationOutcome`], as if the whole take had been decoded at
+/// once: RAW texts joined in order, the polish pipeline applied ONCE over the
+/// combined text (so end-of-take hallucination stripping and mode formatting
+/// see the full transcript — stripping per chunk would eat phrases that only
+/// LOOK like endings), duration-weighted confidence, and segments concatenated
+/// with cumulative time offsets.
+pub fn combine_chunked_outcomes(
+    chunks: Vec<DictationOutcome>,
+    tail: Option<DictationOutcome>,
+    params: &DictationParams,
+    total_duration_secs: f32,
+) -> DictationOutcome {
+    let mut parts = chunks;
+    if let Some(t) = tail {
+        parts.push(t);
+    }
+    let raw_text = parts
+        .iter()
+        .map(|o| o.raw_text.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut segments: Vec<(i64, i64, String)> = Vec::new();
+    let mut offset_ms: i64 = 0;
+    let mut conf_sum = 0.0f32;
+    let mut weight = 0.0f32;
+    for o in &parts {
+        for (s, e, t) in &o.segments {
+            segments.push((s + offset_ms, e + offset_ms, t.clone()));
+        }
+        offset_ms += (o.duration_secs * 1000.0) as i64;
+        let w = o.duration_secs.max(0.1);
+        conf_sum += o.confidence * w;
+        weight += w;
+    }
+    let confidence = if weight > 0.0 { conf_sum / weight } else { 0.0 };
+    let detected_language = parts.iter().find_map(|o| o.detected_language.clone());
+    let cleaned_text = polish_transcript(&raw_text, Some(confidence), params);
+    DictationOutcome {
+        raw_text,
+        cleaned_text,
+        confidence,
+        segments,
+        detected_language,
+        duration_secs: total_duration_secs,
+    }
+}
+
+/// The shared engine slot: an `Arc<TranscriptionEngine>` inside so workers can
+/// clone the handle out and decode WITHOUT holding the mutex — the lock is only
+/// ever held for pointer swaps and metadata reads, never across a decode.
+pub type SharedEngine = Arc<Mutex<Option<Arc<TranscriptionEngine>>>>;
+
 /// Shared recording + transcription controller, owned by the `Application` and
 /// `Rc`-shared with each UI. Lives entirely on the glib main thread.
 pub struct RecordingController {
@@ -465,7 +537,7 @@ pub struct RecordingController {
     /// below. The controller itself is what gets `Rc`-shared, so a plain
     /// `Mutex` field is enough for interior mutability behind `&self`.
     audio: Mutex<AudioCapture>,
-    engine: Arc<Mutex<Option<TranscriptionEngine>>>,
+    engine: SharedEngine,
     model_catalog: Arc<ModelCatalog>,
     owner: Cell<RecordingOwner>,
     inference_tx: SyncSender<InferenceJob>,
@@ -486,47 +558,62 @@ struct InferenceJob {
 impl RecordingController {
     pub fn new() -> Rc<Self> {
         let engine = Arc::new(Mutex::new(None));
-        let (inference_tx, inference_rx) = std::sync::mpsc::sync_channel::<InferenceJob>(2);
+        // Capacity 4: while-recording chunk decodes are steady-state load now
+        // (≤1 in flight + its queued successor) and a stop's TAIL job must
+        // never be rejected — the tail owns the take's only remaining audio
+        // (the capture buffer was already drained into it), so a full-queue
+        // drop there would destroy speech irrecoverably.
+        let (inference_tx, inference_rx) = std::sync::mpsc::sync_channel::<InferenceJob>(4);
         let worker_engine = engine.clone();
         std::thread::Builder::new()
             .name("gui-transcribe".into())
             .spawn(move || {
                 while let Ok(job) = inference_rx.recv() {
-                    let audio = match job.audio {
-                        InferenceAudio::Prepared(audio) => audio,
-                        InferenceAudio::Raw(snapshot) => snapshot.condition(),
-                    };
-                    let result = if audio.is_empty() {
-                        Err(
-                            "No clear speech detected — try speaking closer to the microphone"
-                                .into(),
-                        )
-                    } else {
-                        // Lazy-load the configured model when the shared slot
-                        // is still empty (mirrors the API worker), so dictation
-                        // from the mini panel / tray works even if no window
-                        // ever loaded a model. Only when empty — a filled slot
-                        // is the main window's to manage.
-                        let lazy = if job.params.backend == "whisper"
-                            && worker_engine
-                                .lock()
-                                .unwrap_or_else(|e| e.into_inner())
-                                .is_none()
-                        {
-                            ensure_engine_loaded(&worker_engine, &crate::config::AppConfig::load())
-                        } else {
-                            Ok(())
-                        };
-                        lazy.and_then(|()| {
-                            run_transcription(
-                                &worker_engine,
-                                &audio,
-                                &job.params,
-                                job.duration_secs,
-                            )
-                        })
-                    };
-                    let _ = job.reply.send_blocking(result);
+                    let InferenceJob {
+                        audio,
+                        params,
+                        duration_secs,
+                        reply,
+                    } = job;
+                    // One panicking job (a whisper edge case, bad audio) must
+                    // not kill this sole worker thread — that would wedge every
+                    // later dictation with "worker unavailable" until restart.
+                    // Mirrors the API worker's catch_unwind.
+                    let engine = worker_engine.clone();
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                        move || {
+                            let audio = match audio {
+                                InferenceAudio::Prepared(audio) => audio,
+                                InferenceAudio::Raw(snapshot) => snapshot.condition(),
+                            };
+                            if audio.is_empty() {
+                                return Err(
+                                    "No clear speech detected — try speaking closer to the microphone"
+                                        .into(),
+                                );
+                            }
+                            // Lazy-load the configured model when the shared slot
+                            // is still empty (mirrors the API worker), so dictation
+                            // from the mini panel / tray works even if no window
+                            // ever loaded a model. Only when empty — a filled slot
+                            // is the main window's to manage.
+                            let lazy = if params.backend == "whisper"
+                                && engine.lock().unwrap_or_else(|e| e.into_inner()).is_none()
+                            {
+                                ensure_engine_loaded(&engine, &crate::config::AppConfig::load())
+                            } else {
+                                Ok(())
+                            };
+                            lazy.and_then(|()| {
+                                run_transcription(&engine, &audio, &params, duration_secs)
+                            })
+                        },
+                    ))
+                    .unwrap_or_else(|_| {
+                        tracing::error!("Transcription job panicked; worker recovered");
+                        Err("Transcription crashed unexpectedly — please try again.".into())
+                    });
+                    let _ = reply.send_blocking(result);
                 }
             })
             .expect("failed to start transcription worker");
@@ -541,7 +628,7 @@ impl RecordingController {
     }
 
     /// The shared Whisper engine slot.
-    pub fn engine_arc(&self) -> Arc<Mutex<Option<TranscriptionEngine>>> {
+    pub fn engine_arc(&self) -> SharedEngine {
         self.engine.clone()
     }
 
@@ -605,10 +692,13 @@ impl RecordingController {
         cap.stop_recording_snapshot()
     }
 
-    /// Stop capturing and discard the audio.
+    /// Stop capturing and discard the audio. O(1): detaches the raw samples
+    /// and drops them — running the full mono+sinc conditioning pipeline (as
+    /// `stop_recording` does) for audio nobody wants froze the GTK thread for
+    /// seconds when cancelling long recordings.
     pub fn cancel(&self) {
         let mut cap = self.audio.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = cap.stop_recording();
+        let _ = cap.stop_recording_snapshot();
     }
 
     pub fn pause(&self) {
@@ -637,13 +727,41 @@ impl RecordingController {
             .unwrap_or(0.0)
     }
 
-    /// Non-destructive snapshot of the audio captured so far (mono 16 kHz), for
-    /// live transcription while recording continues.
-    pub fn live_snapshot(&self, max_samples: usize) -> Vec<f32> {
+    /// Take (and clear) a fatal stream error reported by the audio backend.
+    /// UI timers poll this while recording so a dead stream (mic unplugged)
+    /// auto-stops instead of showing a live "Recording" state forever.
+    pub fn take_stream_error(&self) -> Option<String> {
+        self.audio.lock().ok().and_then(|c| c.take_stream_error())
+    }
+
+    /// While-recording chunk peek for the global dictation's chunked decode
+    /// (see [`crate::audio::buffer::AudioBuffer::peek_stable_chunk`]).
+    pub fn peek_stable_chunk(
+        &self,
+        min_secs: f32,
+        max_secs: f32,
+    ) -> Option<(RawAudioSnapshot, usize)> {
         self.audio
             .lock()
-            .map(|c| c.snapshot_mono_16khz(max_samples))
-            .unwrap_or_default()
+            .ok()
+            .and_then(|c| c.peek_stable_chunk(min_secs, max_secs))
+    }
+
+    /// Commit a successfully decoded chunk's cut point so the final decode
+    /// covers only the remaining tail.
+    pub fn commit_chunk(&self, cut: usize) {
+        if let Ok(cap) = self.audio.lock() {
+            cap.commit_consumed(cut);
+        }
+    }
+
+    /// Non-destructive RAW snapshot of the audio captured so far, for live
+    /// transcription while recording continues. Conditioning (mono + sinc
+    /// resample) is deliberately left to the inference worker via
+    /// [`Self::transcribe_snapshot_async`] — running it on the GTK thread
+    /// caused visible jank on every live-preview tick.
+    pub fn live_snapshot_raw(&self, max_samples: usize) -> Option<RawAudioSnapshot> {
+        self.audio.lock().ok().map(|c| c.snapshot_raw(max_samples))
     }
 
     // --- transcription -------------------------------------------------------

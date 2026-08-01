@@ -66,6 +66,9 @@ mod imp {
         pub preset_combo: RefCell<Option<adw::ComboRow>>,
         pub name_entry: RefCell<Option<adw::EntryRow>>,
         pub prompt_view: RefCell<Option<gtk::TextView>>,
+        /// Debouncer for the preset-prompt save; flushed before any preset
+        /// list mutation so a pending save can't target a shifted index.
+        pub prompt_saver: RefCell<Option<crate::ui::settings::SaveDebouncer>>,
         pub preset_model_combo: RefCell<Option<adw::ComboRow>>,
         pub temp_override_switch: RefCell<Option<adw::SwitchRow>>,
         pub preset_temp_spin: RefCell<Option<adw::SpinRow>>,
@@ -437,7 +440,12 @@ impl LlmPage {
         if self.imp().loading.get() {
             return;
         }
-        let idx = self.current_preset_index();
+        self.update_preset_at(self.current_preset_index(), f);
+    }
+
+    /// Mutate the preset at `idx` and persist. Used directly by debounced
+    /// saves, which must pin the index at schedule time.
+    fn update_preset_at(&self, idx: usize, f: impl FnOnce(&mut LlmPreset)) {
         let mut c = AppConfig::load();
         if let Some(p) = c.llm_presets.get_mut(idx) {
             f(p);
@@ -773,6 +781,9 @@ impl LlmPage {
 
         if let Some(v) = imp.prompt_view.borrow().as_ref() {
             let page = self.clone();
+            let save = super::SaveDebouncer::new(500);
+            *imp.prompt_saver.borrow_mut() = Some(save.clone());
+            let save_flush = save.clone();
             v.buffer().connect_changed(move |buf| {
                 if page.imp().loading.get() {
                     return;
@@ -780,8 +791,15 @@ impl LlmPage {
                 let text = buf
                     .text(&buf.start_iter(), &buf.end_iter(), false)
                     .to_string();
-                page.update_active_preset(|p| p.prompt = text.clone());
+                // Pin the preset index NOW: by the time the debounced save
+                // fires, the user may have switched the active preset.
+                let idx = page.current_preset_index();
+                let page = page.clone();
+                save.schedule(Box::new(move || {
+                    page.update_preset_at(idx, |p| p.prompt = text);
+                }));
             });
+            v.connect_unmap(move |_| save_flush.flush());
         }
 
         if let Some(c) = imp.preset_model_combo.borrow().as_ref() {
@@ -1060,7 +1078,17 @@ impl LlmPage {
         self.rebuild_preset_combo(new_idx);
     }
 
+    /// Run any pending debounced prompt save immediately.
+    fn flush_prompt_saver(&self) {
+        if let Some(saver) = self.imp().prompt_saver.borrow().as_ref() {
+            saver.flush();
+        }
+    }
+
     fn duplicate_preset(&self) {
+        // Flush so the copy clones the text the user actually typed, not a
+        // stale not-yet-saved prompt.
+        self.flush_prompt_saver();
         let idx = self.current_preset_index();
         let mut c = AppConfig::load();
         if let Some(p) = c.llm_presets.get(idx).cloned() {
@@ -1075,6 +1103,9 @@ impl LlmPage {
     }
 
     fn delete_preset(&self) {
+        // A pending debounced prompt save pinned an INDEX; run it before the
+        // remove shifts the list, or it would overwrite a different preset.
+        self.flush_prompt_saver();
         let idx = self.current_preset_index();
         let mut c = AppConfig::load();
         if c.llm_presets.len() <= 1 {

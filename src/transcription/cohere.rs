@@ -249,6 +249,43 @@ pub async fn download_model(hf_token: &str, progress: impl Fn(u64, u64)) -> AppR
 /// Transcribe audio via the Cohere CLI binary.
 ///
 /// `audio` is mono 16 kHz f32 PCM. This is a **blocking** call.
+/// Preferred entry point: transcribe via the warm `transcribe-server` when the
+/// installed runtime ships it (the ~4 GB weights stay loaded across
+/// dictations), falling back to the one-shot CLI on any failure or when the
+/// runtime predates the server binary.
+pub fn transcribe(audio: &[f32], language: Option<&str>) -> AppResult<TranscriptionResult> {
+    if audio.is_empty() {
+        return Ok(TranscriptionResult {
+            segments: Vec::new(),
+            text: String::new(),
+            average_confidence: None,
+            detected_language: None,
+        });
+    }
+    if !cohere_ready() {
+        return Err(AppError::Transcription(
+            "Cohere Transcribe is not set up. Download the runtime and model in Settings → Model."
+                .into(),
+        ));
+    }
+    let server = cohere_runtime_dir().join("transcribe-server");
+    if server.is_file() {
+        let spec = super::sidecar_server::ServerSpec {
+            binary: server,
+            model_dir: cohere_model_dir(),
+            ld_dirs: vec![cohere_runtime_dir()],
+        };
+        let wav = super::encode_wav_16bit(audio, 16000);
+        match super::sidecar_server::transcribe_via_server(&spec, wav, language) {
+            Ok(r) => return Ok(r),
+            Err(e) => tracing::warn!("Cohere warm server unavailable ({e}); using one-shot CLI"),
+        }
+    } else {
+        tracing::debug!("Cohere runtime has no transcribe-server binary; using one-shot CLI");
+    }
+    transcribe_via_cli(audio, language)
+}
+
 pub fn transcribe_via_cli(audio: &[f32], language: Option<&str>) -> AppResult<TranscriptionResult> {
     if audio.is_empty() {
         return Ok(TranscriptionResult {

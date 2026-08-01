@@ -12,8 +12,13 @@ use crate::error::{AppError, AppResult};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
-/// Max entries in a runtime archive.
-const MAX_ENTRIES: usize = 8192;
+/// Max entries in a runtime archive. The Cohere runtime bundles a full libtorch
+/// tree (cmake configs, headers, per-op sources), which alone is ~9000 files —
+/// the previous 8192 cap rejected the legitimate release. The real zip-bomb
+/// defense is [`MAX_TOTAL_BYTES`] plus per-entry path/size validation; the
+/// entry count only guards against pathological metadata blow-up, so a headroom
+/// ceiling is enough.
+const MAX_ENTRIES: usize = 32_768;
 /// Max total decompressed bytes (zip-bomb guard). Runtimes bundle libtorch, so
 /// allow a generous ceiling but still bounded.
 const MAX_TOTAL_BYTES: u64 = 6 * 1024 * 1024 * 1024; // 6 GiB

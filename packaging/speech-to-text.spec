@@ -11,8 +11,8 @@
 %global appid com.chrisdaggas.speech-to-text
 
 Name:           speech-to-text
-Version:        1.5.0
-Release:        5%{?dist}
+Version:        1.6.0
+Release:        1%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
 License:        MIT
@@ -96,6 +96,18 @@ appstream-util validate-relax --nonet \
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
+* Sat Aug 01 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-1
+- Fixed: auto-paste now works with the main window open in the background;
+  honest delivery reporting and a persistent portal session (~1s faster pastes)
+- Added: while-recording chunked decoding for long dictations
+- Added: warm sidecar servers for Qwen3-ASR and Cohere (weights load once)
+- Changed: AI auto-improve no longer delays delivery; leaner decode defaults;
+  history/settings writes off the UI thread; instant recording start
+- Fixed: finished transcriptions always reach History; microphone loss and
+  portal restarts recover automatically
+- Security: capped metadata downloads, no-plaintext redirects, stronger
+  redaction, minimal health endpoint, strict parameter validation
+
 * Wed Jul 22 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.5.0-5
 - Fixed: dictation from the mini panel / global shortcut said "No model loaded"
   when the app was autostarted hidden — the selected model is now preloaded at

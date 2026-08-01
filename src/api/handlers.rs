@@ -52,19 +52,18 @@ struct TranscribeResponse {
 // ── GET /v1/health ───────────────────────────────────────────────────────────
 
 pub(super) fn health() -> Resp {
-    let config = AppConfig::load();
+    // Pre-auth endpoint (and CORS-readable): expose liveness only. Backend and
+    // model names are configuration details an unauthenticated local page has
+    // no business fingerprinting — they remain available on the authenticated
+    // /v1/models route.
     #[derive(Serialize)]
     struct Health {
         status: &'static str,
         version: &'static str,
-        backend: String,
-        model: String,
     }
     json_ok(&Health {
         status: "ok",
         version: crate::VERSION,
-        backend: config.backend.clone(),
-        model: config.selected_model.clone(),
     })
 }
 
@@ -188,6 +187,9 @@ pub(super) async fn transcribe(req: Request<Incoming>, state: &ServerState) -> R
         if let Err(message) = validate_text_parameter("translate_to", target, 64) {
             return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
         }
+        if let Err(message) = validate_language_name("translate_to", target) {
+            return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+        }
     }
     let include_segments = fields.get("segments").map(|v| v != "false").unwrap_or(true);
 
@@ -307,6 +309,9 @@ pub(super) async fn translate(req: Request<Incoming>) -> Resp {
         return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
     }
     if let Err(message) = validate_text_parameter("target_language", &parsed.target_language, 64) {
+        return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
+    }
+    if let Err(message) = validate_language_name("target_language", &parsed.target_language) {
         return json_error(StatusCode::UNPROCESSABLE_ENTITY, "bad_parameter", &message);
     }
     let config = AppConfig::load();
@@ -461,6 +466,23 @@ fn validate_text_parameter(name: &str, value: &str, max_bytes: usize) -> Result<
         return Err(format!("{name} exceeds the {max_bytes}-byte limit"));
     }
     Ok(())
+}
+
+/// Language-name values are interpolated into the LLM system prompt
+/// (`{lang}` in `LlmPreset::system_prompt`), so restrict them to what a
+/// language name can contain — otherwise a caller can smuggle prompt
+/// instructions through them. Shared by every endpoint that accepts one.
+fn validate_language_name(name: &str, value: &str) -> Result<(), String> {
+    if value
+        .chars()
+        .all(|c| c.is_alphabetic() || matches!(c, ' ' | '-' | '(' | ')'))
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "{name} must be a language name (letters, spaces, hyphens)"
+        ))
+    }
 }
 
 /// Translate `text` into `target_lang` via the configured LLM (the same path

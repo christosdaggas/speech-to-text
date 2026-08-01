@@ -12,7 +12,7 @@ use gtk4::{gio, glib};
 use libadwaita as adw;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::application::Application;
 use crate::config::{AppConfig, LlmPreset};
@@ -187,7 +187,7 @@ mod imp {
         pub config: RefCell<Option<Arc<AppConfig>>>,
         /// Shared recording + transcription controller (owned by the Application).
         pub controller: RefCell<Option<Rc<RecordingController>>>,
-        pub engine: RefCell<Option<Arc<Mutex<Option<TranscriptionEngine>>>>>,
+        pub engine: RefCell<Option<crate::recording::SharedEngine>>,
         pub model_catalog: RefCell<Option<Arc<ModelCatalog>>>,
         /// Last transcription segments for SRT export: (start_ms, end_ms, text).
         pub last_segments: RefCell<Vec<(i64, i64, String)>>,
@@ -747,9 +747,23 @@ impl MainWindow {
         self.imp().selected_message.set(idx as isize);
         tv.set_confidence(confidence);
         tv.set_stats(words, wpm);
-        if let Some(display) = gtk::gdk::Display::default() {
-            display.clipboard().set_text(&text);
-        }
+        // Copy to the clipboard focus-independently when possible: a plain
+        // set_text silently no-ops on Wayland if this window lost focus while
+        // the (long) transcription ran, leaving stale clipboard content.
+        let copy_text = text.clone();
+        glib::spawn_future_local(async move {
+            let (tx, rx) = async_channel::bounded::<bool>(1);
+            let portal_text = copy_text.clone();
+            crate::application::tokio_runtime().spawn(async move {
+                let ok = crate::portal::paste::set_clipboard_via_portal(portal_text).await;
+                let _ = tx.send(ok).await;
+            });
+            if !rx.recv().await.unwrap_or(false) {
+                if let Some(display) = gtk::gdk::Display::default() {
+                    display.clipboard().set_text(&copy_text);
+                }
+            }
+        });
         self.refresh_result_controls();
     }
 
@@ -961,6 +975,35 @@ impl MainWindow {
                         "Listening for your edit… click \"Stop edit\" when done",
                     ));
                 }
+                // Poll for a dead stream (mic unplugged) so this edit can't
+                // sit on "Listening…" over silence forever — the app-level
+                // pollers only cover panel-initiated sessions. voice_editing
+                // scopes the poll to THIS window's edit, so it never consumes
+                // a stream error belonging to a panel session.
+                let win_weak = self.downgrade();
+                glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+                    let Some(win) = win_weak.upgrade() else {
+                        return glib::ControlFlow::Break;
+                    };
+                    if !win.imp().voice_editing.get() {
+                        return glib::ControlFlow::Break;
+                    }
+                    let Some(controller) = win.controller() else {
+                        return glib::ControlFlow::Break;
+                    };
+                    if controller.owner() != RecordingOwner::VoiceEdit
+                        || controller.state() == crate::audio::capture::RecordingState::Idle
+                    {
+                        return glib::ControlFlow::Break;
+                    }
+                    if let Some(err) = controller.take_stream_error() {
+                        tracing::warn!("Audio stream died during voice edit: {err}");
+                        win.show_toast(&gettext("Microphone stopped — finishing the edit."));
+                        win.stop_voice_edit_main();
+                        return glib::ControlFlow::Break;
+                    }
+                    glib::ControlFlow::Continue
+                });
             }
             Err(e) => {
                 controller.release();
@@ -981,7 +1024,9 @@ impl MainWindow {
             return;
         }
         let dur = controller.recording_duration_secs();
-        let audio = match controller.stop() {
+        // Detach raw audio only; conditioning runs on the inference worker so
+        // stopping a long voice-edit capture can't freeze the GTK thread.
+        let audio = match controller.stop_snapshot() {
             Ok(a) => a,
             Err(e) => {
                 controller.release();
@@ -990,7 +1035,7 @@ impl MainWindow {
             }
         };
         controller.release();
-        if audio.is_empty() {
+        if audio.raw_len() == 0 {
             self.show_toast(&gettext("Didn't catch an instruction."));
             if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
                 sb.set_recording_status(&gettext("Ready"));
@@ -1015,7 +1060,7 @@ impl MainWindow {
         }
         // Transcribe the spoken instruction (normal short dictation).
         let params = self.build_dictation_params(self.active_backend());
-        let receiver = controller.transcribe_async(audio, params, dur);
+        let receiver = controller.transcribe_snapshot_async(audio, params, dur);
         let window = self.clone();
         glib::spawn_future_local(async move {
             let instruction = match receiver.recv().await {
@@ -1749,6 +1794,10 @@ impl MainWindow {
                 window.replace_config(new_config);
             }
 
+            // Any backend change invalidates the warm sidecar server (a new
+            // one spawns lazily on the next dictation if needed) — freeing its
+            // multi-GB weights immediately, mirroring the engine drop below.
+            crate::transcription::sidecar_server::shutdown_all();
             if backend != "whisper" {
                 // Non-Whisper backends (Cohere, Qwen3-ASR) don't use the loaded
                 // Whisper engine — drop it to free memory.
@@ -2060,22 +2109,32 @@ impl MainWindow {
                 return glib::ControlFlow::Continue;
             }
             const LIVE_WINDOW: usize = 12 * 16_000;
-            let mut snapshot = controller.live_snapshot(LIVE_WINDOW);
-            // Need at least ~1s of conditioned audio to bother.
-            if snapshot.len() < 16_000 {
+            // Cheap O(n) copy of the raw tail under the lock; conditioning
+            // (mono + sinc resample) runs on the inference worker —
+            // resampling ~13s of audio on the GTK thread every tick caused
+            // visible jank throughout every live-preview recording. The raw
+            // tail is already bounded to the ~12s window (+1s context), so
+            // decode cost stays capped; the final on-stop pass still decodes
+            // the whole take at full quality.
+            let Some(snapshot) = controller.live_snapshot_raw(LIVE_WINDOW) else {
                 return glib::ControlFlow::Continue;
-            }
-            // Bound cost: decode only the most recent ~12s window. The final
-            // on-stop pass still decodes the whole take at full quality.
-            if snapshot.len() > LIVE_WINDOW {
-                snapshot = snapshot.split_off(snapshot.len() - LIVE_WINDOW);
+            };
+            // Need at least ~1s of audio to bother.
+            if snapshot.duration_secs() < 1.0 {
+                return glib::ControlFlow::Continue;
             }
             win.imp().live_decoding.set(true);
             let mut params = DictationParams::from_config(&AppConfig::load());
             params.mode = DictationMode::Plain; // show raw-ish text live
+                                                // Greedy, as documented: a beam-5 live decode costs 2-3x more and
+                                                // trips the 3.5s self-disable cutoff on hardware where greedy would
+                                                // have kept the preview alive. The final on-stop decode still uses
+                                                // the configured beam size.
+            params.beam_size = 1;
+            params.temperature = 0.0;
             let dur = controller.recording_duration_secs();
             let started = std::time::Instant::now();
-            let rx = controller.transcribe_async(snapshot, params, dur);
+            let rx = controller.transcribe_snapshot_async(snapshot, params, dur);
             let win2 = win.downgrade();
             glib::spawn_future_local(async move {
                 let res = rx.recv().await;
@@ -2105,8 +2164,13 @@ impl MainWindow {
                             }
                         }
                     }
-                    // Any failure (e.g. "failed to encode" on a VRAM-tight GPU):
-                    // stop the live loop silently so it can't repeat.
+                    // A silence-only window conditions down to empty audio and
+                    // comes back as "No clear speech detected". That is not a
+                    // decode failure — the user just hasn't spoken yet — so
+                    // keep the loop alive and try again on the next tick.
+                    Ok(Err(msg)) if msg.starts_with("No clear speech") => {}
+                    // Any real failure (e.g. "failed to encode" on a VRAM-tight
+                    // GPU): stop the live loop silently so it can't repeat.
                     _ => win.imp().live_too_slow.set(true),
                 }
             });
@@ -2314,7 +2378,7 @@ impl MainWindow {
                     }
                 }
                 tracing::info!(
-                    "Transcription complete ({:.0}% confidence), copied to clipboard",
+                    "Transcription complete ({:.0}% confidence)",
                     confidence * 100.0
                 );
                 // Summarize long dictations; auto-improve with the active preset
@@ -2505,7 +2569,23 @@ impl MainWindow {
             let Some(controller) = window.controller() else {
                 return glib::ControlFlow::Break;
             };
+            // This timer belongs to a Main-owned recording. If ownership moved
+            // (the user stopped and immediately started a panel dictation or
+            // voice edit within the same tick), stop — and never consume
+            // take_stream_error for a session someone else's poller owns.
+            if controller.owner() != RecordingOwner::Main {
+                return glib::ControlFlow::Break;
+            }
             if controller.state() == crate::audio::capture::RecordingState::Idle {
+                return glib::ControlFlow::Break;
+            }
+            // A dead stream (mic unplugged, backend restart) never delivers
+            // audio again: auto-stop and transcribe what was captured instead
+            // of showing a live "Recording" state forever.
+            if let Some(err) = controller.take_stream_error() {
+                tracing::warn!("Audio stream died mid-recording: {err}");
+                window.show_toast(&gettext("Microphone stopped — finishing the recording."));
+                window.on_stop();
                 return glib::ControlFlow::Break;
             }
             let secs = controller.recording_duration_secs() as u64;
@@ -2876,7 +2956,7 @@ impl MainWindow {
                             return;
                         }
                         if let Ok(mut guard) = engine_arc.lock() {
-                            *guard = Some(engine);
+                            *guard = Some(std::sync::Arc::new(engine));
                         }
                         if downgraded {
                             window.show_toast(&gettext("GPU unavailable — loaded model on CPU"));

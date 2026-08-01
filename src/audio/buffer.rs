@@ -11,6 +11,10 @@ const MIN_SPEECH_SAMPLES: usize = 1600;
 const NORMALIZE_TARGET_PEAK: f32 = 0.85;
 const MAX_NORMALIZE_GAIN: f32 = 6.0;
 
+/// Quiet-window length used when searching for a chunk cut point (250 ms of
+/// source frames — long enough to be a real speech pause, not a plosive gap).
+const CHUNK_QUIET_WINDOW_SECS: f32 = 0.25;
+
 /// Accumulates raw audio samples and provides resampled output.
 pub struct AudioBuffer {
     /// Raw samples as received from cpal (may be multi-channel, any sample rate).
@@ -21,6 +25,11 @@ pub struct AudioBuffer {
     source_channels: u32,
     /// Target sample rate for Whisper.
     target_sample_rate: u32,
+    /// Raw samples already delivered to a while-recording chunk decode.
+    /// Advanced only AFTER a chunk decodes successfully (see
+    /// [`Self::commit_consumed`]), so a failed chunk loses nothing — its audio
+    /// simply stays for the final decode.
+    consumed_raw: usize,
 }
 
 /// Detached raw audio that can be conditioned away from the capture lock.
@@ -47,8 +56,23 @@ impl RawAudioSnapshot {
             source_sample_rate: self.source_sample_rate,
             source_channels: self.source_channels,
             target_sample_rate: self.target_sample_rate,
+            consumed_raw: 0,
         }
         .get_mono_16khz()
+    }
+
+    /// Number of raw source samples (pre-conditioning).
+    pub fn raw_len(&self) -> usize {
+        self.raw_samples.len()
+    }
+
+    /// Duration of the raw capture in seconds.
+    pub fn duration_secs(&self) -> f32 {
+        let per_second = (self.source_sample_rate * self.source_channels.max(1)) as f32;
+        if per_second == 0.0 {
+            return 0.0;
+        }
+        self.raw_samples.len() as f32 / per_second
     }
 }
 
@@ -59,6 +83,7 @@ impl AudioBuffer {
             source_sample_rate: target_sample_rate,
             source_channels: 1,
             target_sample_rate,
+            consumed_raw: 0,
         }
     }
 
@@ -113,16 +138,102 @@ impl AudioBuffer {
     /// Clear the buffer for a new recording.
     pub fn clear(&mut self) {
         self.raw_samples.clear();
+        self.consumed_raw = 0;
     }
 
-    /// Detach the complete raw recording in O(1), allowing conditioning on a
-    /// worker without holding the real-time capture mutex.
+    /// Detach the raw recording NOT yet consumed by while-recording chunk
+    /// decodes (the whole take when chunking was never used), allowing
+    /// conditioning on a worker without holding the real-time capture mutex.
     pub fn take_raw_snapshot(&mut self) -> RawAudioSnapshot {
+        let mut raw = std::mem::take(&mut self.raw_samples);
+        if self.consumed_raw > 0 {
+            let consumed = self.consumed_raw.min(raw.len());
+            raw.drain(..consumed);
+            self.consumed_raw = 0;
+        }
         RawAudioSnapshot {
-            raw_samples: std::mem::take(&mut self.raw_samples),
+            raw_samples: raw,
             source_sample_rate: self.source_sample_rate,
             source_channels: self.source_channels,
             target_sample_rate: self.target_sample_rate,
+        }
+    }
+
+    /// Look for a stable chunk for while-recording decoding: audio from the
+    /// consumed mark up to a cut at a quiet point (a real speech pause), so
+    /// the decoder never gets a word sliced in half. Returns a COPY of the
+    /// chunk plus the cut index; the caller commits the cut only after the
+    /// chunk decoded successfully ([`Self::commit_consumed`]).
+    ///
+    /// `min_secs`/`max_secs` bound the chunk length: below the minimum this
+    /// returns `None` (keep buffering); if no window under the silence
+    /// threshold exists before the maximum, the QUIETEST window in range is
+    /// used so a non-stop talker still gets bounded chunks.
+    pub fn peek_stable_chunk(
+        &self,
+        min_secs: f32,
+        max_secs: f32,
+    ) -> Option<(RawAudioSnapshot, usize)> {
+        let channels = self.source_channels.max(1) as usize;
+        let rate = self.source_sample_rate.max(1) as usize;
+        let start = self.consumed_raw.min(self.raw_samples.len());
+        let available = self.raw_samples.len() - start;
+
+        let min_samples = ((min_secs * rate as f32) as usize).saturating_mul(channels);
+        let max_samples = ((max_secs * rate as f32) as usize).saturating_mul(channels);
+        if available < min_samples || min_samples == 0 {
+            return None;
+        }
+
+        // Scan [start+min .. start+max] in quiet-window steps for a pause.
+        let window = (((CHUNK_QUIET_WINDOW_SECS * rate as f32) as usize).max(1)) * channels;
+        let scan_from = start + min_samples;
+        let scan_to = (start + max_samples).min(self.raw_samples.len());
+        if scan_from + window > scan_to {
+            return None;
+        }
+
+        let mut best: Option<(usize, f32)> = None; // (window start, rms)
+        let mut pos = scan_from;
+        while pos + window <= scan_to {
+            let rms = Self::window_rms(&self.raw_samples[pos..pos + window]);
+            if rms < SILENCE_RMS_THRESHOLD {
+                best = Some((pos, rms));
+                break; // first real pause wins — earliest cut, freshest chunks
+            }
+            match best {
+                Some((_, b)) if rms >= b => {}
+                _ => best = Some((pos, rms)),
+            }
+            pos += window;
+        }
+
+        // Without a real pause, only force a cut once the region hit its max —
+        // otherwise wait for more audio (the next attempt scans further).
+        let (win_start, rms) = best?;
+        if rms >= SILENCE_RMS_THRESHOLD && available < max_samples {
+            return None;
+        }
+
+        // Cut mid-window (frame-aligned): quiet on both sides of the boundary.
+        let mut cut = win_start + window / 2;
+        cut -= cut % channels;
+        Some((
+            RawAudioSnapshot {
+                raw_samples: self.raw_samples[start..cut].to_vec(),
+                source_sample_rate: self.source_sample_rate,
+                source_channels: self.source_channels,
+                target_sample_rate: self.target_sample_rate,
+            },
+            cut,
+        ))
+    }
+
+    /// Advance the consumed mark after a chunk decoded successfully. Ignored
+    /// if the buffer was since taken/cleared (`cut` no longer valid).
+    pub fn commit_consumed(&mut self, cut: usize) {
+        if cut > self.consumed_raw && cut <= self.raw_samples.len() {
+            self.consumed_raw = cut;
         }
     }
 
@@ -411,5 +522,81 @@ mod tests {
         buf.push_samples(&vec![0.0; 16000]);
 
         assert!(buf.get_mono_16khz().is_empty());
+    }
+
+    #[test]
+    fn chunk_peek_waits_for_minimum_audio() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        buf.push_samples(&vec![0.1; 16000 * 5]); // 5s of "speech"
+        assert!(buf.peek_stable_chunk(20.0, 40.0).is_none());
+    }
+
+    #[test]
+    fn chunk_cuts_at_a_pause_and_commit_advances() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        // 22s speech, 1s pause, 5s speech.
+        let mut s = vec![0.1; 16000 * 22];
+        s.extend(vec![0.0; 16000]);
+        s.extend(vec![0.1; 16000 * 5]);
+        buf.push_samples(&s);
+
+        let (chunk, cut) = buf
+            .peek_stable_chunk(20.0, 40.0)
+            .expect("pause exists past the minimum");
+        // The cut lands inside the pause second (22s..23s).
+        assert!((16000 * 22..=16000 * 23).contains(&cut), "cut at {cut}");
+        assert_eq!(chunk.raw_len(), cut);
+
+        buf.commit_consumed(cut);
+        // The final snapshot excludes the committed chunk.
+        let tail = buf.take_raw_snapshot();
+        assert_eq!(tail.raw_len(), s.len() - cut);
+    }
+
+    #[test]
+    fn chunk_without_pause_waits_until_max_then_forces_cut() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        // 25s of continuous speech: past the minimum but no pause and below
+        // the maximum — keep buffering.
+        buf.push_samples(&vec![0.2; 16000 * 25]);
+        assert!(buf.peek_stable_chunk(20.0, 40.0).is_none());
+        // Past the maximum: a cut is forced at the quietest window in range.
+        buf.push_samples(&vec![0.2; 16000 * 16]); // 41s total
+        let (chunk, cut) = buf
+            .peek_stable_chunk(20.0, 40.0)
+            .expect("forced cut once the region hits its max");
+        assert!(cut >= 16000 * 20, "cut at {cut}");
+        assert_eq!(chunk.raw_len(), cut);
+    }
+
+    #[test]
+    fn chunk_commit_is_ignored_after_take_or_clear() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 1);
+        buf.push_samples(&vec![0.1; 16000]);
+        let _ = buf.take_raw_snapshot();
+        // A late commit for the already-taken recording must not corrupt the
+        // consumed mark of the (empty or future) buffer.
+        buf.commit_consumed(500);
+        buf.push_samples(&vec![0.1; 800]);
+        assert_eq!(buf.take_raw_snapshot().raw_len(), 800);
+    }
+
+    #[test]
+    fn chunk_cut_is_frame_aligned_for_stereo() {
+        let mut buf = AudioBuffer::new(WHISPER_SAMPLE_RATE);
+        buf.set_source_params(16000, 2);
+        // Stereo: 21s speech, 1s pause, 2s speech (samples = 2 per frame).
+        let mut s = vec![0.1; 16000 * 2 * 21];
+        s.extend(vec![0.0; 16000 * 2]);
+        s.extend(vec![0.1; 16000 * 2 * 2]);
+        buf.push_samples(&s);
+        let (_, cut) = buf
+            .peek_stable_chunk(20.0, 40.0)
+            .expect("pause exists past the minimum");
+        assert_eq!(cut % 2, 0, "cut must land on a frame boundary");
     }
 }

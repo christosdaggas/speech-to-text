@@ -32,6 +32,66 @@ pub use performance::PerformancePage;
 /// allocation maths.
 const UNLIMITED_CLAMP: i32 = 1_000_000;
 
+/// Coalesces config saves from text inputs: runs the last scheduled action
+/// once, `delay` after the LAST `schedule()` call. A per-keystroke
+/// `AppConfig::save()` costs a full serialize + fsync on the GTK thread
+/// (~10 fsyncs/second while typing), which made these entries visibly lag.
+/// Call `flush()` when the widget unmaps so a pending save can't be lost.
+#[derive(Clone)]
+pub struct SaveDebouncer {
+    inner: std::rc::Rc<std::cell::RefCell<DebouncerState>>,
+    delay: std::time::Duration,
+}
+
+#[derive(Default)]
+struct DebouncerState {
+    source: Option<gtk::glib::SourceId>,
+    action: Option<Box<dyn FnOnce()>>,
+}
+
+impl SaveDebouncer {
+    pub fn new(delay_ms: u64) -> Self {
+        Self {
+            inner: std::rc::Rc::new(std::cell::RefCell::new(DebouncerState::default())),
+            delay: std::time::Duration::from_millis(delay_ms),
+        }
+    }
+
+    /// Replace any pending action with `action` and restart the delay.
+    pub fn schedule(&self, action: Box<dyn FnOnce() + 'static>) {
+        let mut st = self.inner.borrow_mut();
+        if let Some(id) = st.source.take() {
+            id.remove();
+        }
+        st.action = Some(action);
+        let inner = self.inner.clone();
+        st.source = Some(gtk::glib::timeout_add_local_once(self.delay, move || {
+            let action = {
+                let mut st = inner.borrow_mut();
+                st.source = None;
+                st.action.take()
+            };
+            if let Some(action) = action {
+                action();
+            }
+        }));
+    }
+
+    /// Run any pending action immediately.
+    pub fn flush(&self) {
+        let action = {
+            let mut st = self.inner.borrow_mut();
+            if let Some(id) = st.source.take() {
+                id.remove();
+            }
+            st.action.take()
+        };
+        if let Some(action) = action {
+            action();
+        }
+    }
+}
+
 /// libadwaita wraps every `AdwPreferencesPage` in an internal `AdwClampScrollable`
 /// that caps its content at 600px and centres it in a narrow column. The rest of
 /// this app lays content out full-width, so walk the page's widget tree and lift
