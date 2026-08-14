@@ -12,7 +12,7 @@
 
 Name:           speech-to-text
 Version:        1.6.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Local speech-to-text transcription using Whisper (GTK4/libadwaita)
 
 License:        MIT
@@ -96,6 +96,10 @@ appstream-util validate-relax --nonet \
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 
 %changelog
+* Fri Aug 14 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-2
+- Rebuilt the public source RPM with the Vulkan backend enabled for AMD and
+  other Vulkan-capable GPUs; CPU fallback remains available
+
 * Sat Aug 01 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-1
 - Fixed: auto-paste now works with the main window open in the background;
   honest delivery reporting and a persistent portal session (~1s faster pastes)
