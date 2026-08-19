@@ -78,6 +78,19 @@
   </keywords>
 
   <releases>
+    <release version="1.7.0" date="2026-08-20">
+      <description>
+        <p>Much faster transcription, silence-aware decoding, and four complete translations.</p>
+        <ul>
+          <li>Transcription is up to 4x faster on Vulkan GPUs (upgraded whisper.cpp engine with flash attention)</li>
+          <li>A voice-activity pre-pass skips silent recordings and trims silence, ending hallucinated text from dead air</li>
+          <li>Complete Greek, Italian, Spanish and German translations</li>
+          <li>The global dictation shortcut no longer fails to register after a portal race at startup</li>
+          <li>The update notice is a single clickable indicator that opens the latest release</li>
+          <li>Assorted UI refinements</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-08-01">
       <description>
         <p>Reliable paste, instant delivery, and heavy lifting while you speak.</p>

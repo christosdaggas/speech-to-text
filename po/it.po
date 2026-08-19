@@ -5,9 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: speech-to-text 1.6.0\n"
-"Report-Msgid-Bugs-To: https://github.com/christosdaggas/speech-to-text/"
-"issues\n"
-"POT-Creation-Date: 2026-08-19 22:35+0300\n"
+"Report-Msgid-Bugs-To: https://github.com/christosdaggas/speech-to-text/issues\n"
+"POT-Creation-Date: 2026-08-20 01:13+0300\n"
 "PO-Revision-Date: 2026-08-19 22:00+0300\n"
 "Last-Translator: Christos A. Daggas\n"
 "Language-Team: Italian\n"
@@ -17,382 +16,288 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: src/application.rs:2082 src/application.rs:2095
+#: src/application.rs:2094 src/application.rs:2107
 #: src/ui/widgets/theme_popover.rs:206
 msgid "What's New"
 msgstr "Novità"
 
-#: src/application.rs:2096
-msgid "Version 1.6.0"
-msgstr "Versione 1.6.0"
+#: src/application.rs:2108
+msgid "Version"
+msgstr "Versione"
 
-#: src/application.rs:2111
-msgid "Speech to Text 1.6"
-msgstr "Speech to Text 1.6"
+#: src/application.rs:2123
+msgid "Speech to Text 1.7"
+msgstr "Speech to Text 1.7"
 
-#: src/application.rs:2118
-msgid "Reliable paste, instant delivery, and heavy lifting while you speak."
-msgstr ""
-"Incolla affidabile, consegna istantanea e lavoro pesante mentre si parla."
-
-#: src/application.rs:2133
-msgid ""
-"Auto-paste now works when the main window is open in the background — "
-"keyboard focus returns to your editor, not to the app."
-msgstr ""
-"L'incolla automatico ora funziona quando la finestra principale è aperta in "
-"secondo piano — il focus della tastiera torna all'editor, non "
-"all'applicazione."
-
-#: src/application.rs:2134
-msgid ""
-"A persistent desktop portal session removes about a second of overhead from "
-"every paste."
-msgstr ""
-"Una sessione persistente del portale desktop elimina circa un secondo di "
-"attesa a ogni incolla."
-
-#: src/application.rs:2135
-msgid ""
-"The paste permission is requested once, from Settings — never in the middle "
-"of a dictation."
-msgstr ""
-"Il permesso di incollare viene richiesto una sola volta, dalle impostazioni "
-"— mai nel mezzo di una dettatura."
-
-#: src/application.rs:2136
-msgid "The Copied badge appears only when the text really is on the clipboard."
-msgstr ""
-"L'indicatore «Copiato» appare solo quando il testo è davvero negli appunti."
-
-#: src/application.rs:2137
-msgid ""
-"Long dictations are transcribed in the background while you speak, so the "
-"wait after Stop stays short."
-msgstr ""
-"Le dettature lunghe vengono trascritte in secondo piano mentre si parla, "
-"così l'attesa dopo l'arresto resta breve."
-
-#: src/application.rs:2138
-msgid ""
-"Qwen3-ASR and Cohere keep their models loaded between dictations instead of "
-"reloading gigabytes every time."
-msgstr ""
-"Qwen3-ASR e Cohere mantengono i modelli caricati tra una dettatura e l'altra "
-"invece di ricaricare gigabyte ogni volta."
-
-#: src/application.rs:2139
-msgid ""
-"Recording starts instantly — the microphone device is cached between takes."
-msgstr ""
-"La registrazione parte istantaneamente — il dispositivo microfono resta in "
-"cache tra una ripresa e l'altra."
-
-#: src/application.rs:2140
-msgid ""
-"AI improvement no longer delays delivery: the raw transcript arrives first "
-"and the polished variant follows."
-msgstr ""
-"Il miglioramento con l'IA non ritarda più la consegna: prima arriva la "
-"trascrizione grezza, poi la variante rifinita."
-
-#: src/application.rs:2141
-msgid ""
-"A finished transcription is always saved to History, even if you have "
-"already started the next one."
-msgstr ""
-"Una trascrizione completata viene sempre salvata nella cronologia, anche se "
-"ne è già stata avviata un'altra."
-
-#: src/application.rs:2142
-msgid "The global shortcut re-registers itself if the desktop portal restarts."
-msgstr ""
-"La scorciatoia globale si registra di nuovo se il portale desktop viene "
-"riavviato."
-
-#: src/application.rs:2143
-msgid ""
-"A disconnected microphone stops the recording and transcribes what was "
-"captured."
-msgstr ""
-"Un microfono scollegato interrompe la registrazione e trascrive quanto è "
-"stato catturato."
-
-#: src/application.rs:2144
-msgid ""
-"Transcription errors are shown instead of leaving the panel stuck on "
-"Transcribing."
-msgstr ""
-"Gli errori di trascrizione vengono mostrati invece di lasciare il pannello "
-"bloccato su «Trascrizione in corso»."
+#: src/application.rs:2130
+msgid "Much faster transcription, silence-aware decoding, and four complete translations."
+msgstr "Trascrizione molto più veloce, decodifica consapevole del silenzio e quattro traduzioni complete."
 
 #: src/application.rs:2145
-msgid ""
-"Provider metadata downloads are size-capped, and redirects can no longer "
-"downgrade to plaintext."
-msgstr ""
-"Gli scaricamenti dei metadati dei provider hanno un limite di dimensione e i "
-"reindirizzamenti non possono più ricadere sul testo in chiaro."
+msgid "Transcription is up to 4× faster on Vulkan GPUs: the upgraded whisper.cpp engine uses the GPU's matrix cores, with flash attention on top."
+msgstr "La trascrizione è fino a 4× più veloce sulle GPU Vulkan: il motore whisper.cpp aggiornato usa i core matriciali della GPU, con in più la flash attention."
 
 #: src/application.rs:2146
-msgid "Secret redaction now catches unprefixed tokens, across line breaks."
-msgstr ""
-"L'oscuramento dei segreti ora intercetta anche i token senza prefisso, a "
-"cavallo delle interruzioni di riga."
+msgid "A Silero voice-activity pre-pass skips silent recordings outright — no more invented text out of dead air — and trims leading and trailing silence before decoding."
+msgstr "Un pre-controllo di attività vocale Silero salta del tutto le registrazioni silenziose — niente più testo inventato dal silenzio — e rimuove il silenzio iniziale e finale prima della decodifica."
 
 #: src/application.rs:2147
-msgid ""
-"The health endpoint exposes less, and language parameters are strictly "
-"validated."
-msgstr ""
-"L'endpoint di stato espone meno informazioni e i parametri di lingua sono "
-"validati in modo rigoroso."
+msgid "Complete Greek, Italian, Spanish and German translations, covering the whole app, the menu entry and the software-centre listing."
+msgstr "Traduzioni complete in greco, italiano, spagnolo e tedesco, che coprono l'intera applicazione, la voce di menu e la scheda nel centro software."
 
 #: src/application.rs:2148
-msgid "History and settings are written off the UI thread with safe ordering."
-msgstr ""
-"Cronologia e impostazioni vengono scritte fuori dal thread dell'interfaccia "
-"con un ordinamento sicuro."
+msgid "Greek all-caps headings now drop the tonos, as Greek orthography requires."
+msgstr "Le intestazioni greche in maiuscolo ora omettono il tonos, come richiede l'ortografia greca."
 
-#: src/application.rs:2157
+#: src/application.rs:2149
+msgid "The global dictation shortcut no longer fails to register when another portal request wins the startup race — the hotkey works on every launch."
+msgstr "La scorciatoia globale di dettatura non manca più la registrazione quando un'altra richiesta del portale vince la corsa all'avvio — la scorciatoia funziona a ogni avvio."
+
+#: src/application.rs:2150
+msgid "The mini panel returns right after a dictation instead of waiting out a portal timeout."
+msgstr "Il mini pannello ricompare subito dopo la dettatura, invece di attendere il timeout del portale."
+
+#: src/application.rs:2151
+msgid "The update notice is a single indicator in the status bar; clicking it opens the latest release on GitHub."
+msgstr "L'avviso di aggiornamento è un unico indicatore nella barra di stato; con un clic si apre l'ultima versione su GitHub."
+
+#: src/application.rs:2152
+msgid "Assorted fixes and refinements across the interface."
+msgstr "Varie correzioni e rifiniture nell'interfaccia."
+
+#: src/application.rs:2161
 msgid "Previous releases"
 msgstr "Versioni precedenti"
 
-#: src/application.rs:2166
-msgid ""
-"Faster hidden startup, bounded inference work, and non-blocking audio "
-"capture."
-msgstr ""
-"Avvio nascosto più rapido, lavoro di inferenza limitato e cattura audio non "
-"bloccante."
-
-#: src/application.rs:2167
-msgid ""
-"Verified, resumable runtime and model downloads; keyring-only credentials."
-msgstr ""
-"Scaricamenti di runtime e modelli verificati e riprendibili; credenziali "
-"solo nel portachiavi."
-
-#: src/application.rs:2168
-msgid ""
-"Endpoint-specific AI consent, request limits, and safer access controls for "
-"the local API."
-msgstr ""
-"Consenso IA specifico per endpoint, limiti alle richieste e controlli di "
-"accesso più sicuri per l'API locale."
-
-#: src/application.rs:2169
-msgid "Expanded History with full-text search and file-transcription recovery."
-msgstr ""
-"Cronologia ampliata con ricerca full-text e recupero delle trascrizioni da "
-"file."
-
 #: src/application.rs:2170
-msgid ""
-"A refined workspace: Settings, History, Help, and the model selector share a "
-"clearer visual language."
-msgstr ""
-"Un ambiente di lavoro più curato: impostazioni, cronologia, aiuto e "
-"selettore dei modelli condividono un linguaggio visivo più chiaro."
+msgid "Auto-paste now works when the main window is open in the background — keyboard focus returns to your editor, not to the app."
+msgstr "L'incolla automatico ora funziona quando la finestra principale è aperta in secondo piano — il focus della tastiera torna all'editor, non all'applicazione."
+
+#: src/application.rs:2171
+msgid "A persistent desktop portal session removes about a second of overhead from every paste."
+msgstr "Una sessione persistente del portale desktop elimina circa un secondo di attesa a ogni incolla."
+
+#: src/application.rs:2172
+msgid "The paste permission is requested once, from Settings — never in the middle of a dictation."
+msgstr "Il permesso di incollare viene richiesto una sola volta, dalle impostazioni — mai nel mezzo di una dettatura."
+
+#: src/application.rs:2173
+msgid "The Copied badge appears only when the text really is on the clipboard."
+msgstr "L'indicatore «Copiato» appare solo quando il testo è davvero negli appunti."
+
+#: src/application.rs:2174
+msgid "Long dictations are transcribed in the background while you speak, so the wait after Stop stays short."
+msgstr "Le dettature lunghe vengono trascritte in secondo piano mentre si parla, così l'attesa dopo l'arresto resta breve."
+
+#: src/application.rs:2175
+msgid "Qwen3-ASR and Cohere keep their models loaded between dictations instead of reloading gigabytes every time."
+msgstr "Qwen3-ASR e Cohere mantengono i modelli caricati tra una dettatura e l'altra invece di ricaricare gigabyte ogni volta."
+
+#: src/application.rs:2176
+msgid "Recording starts instantly — the microphone device is cached between takes."
+msgstr "La registrazione parte istantaneamente — il dispositivo microfono resta in cache tra una ripresa e l'altra."
 
 #: src/application.rs:2177
-msgid ""
-"Added an Open File button for transcribing WAV, MP3, FLAC, OGG, Opus, and "
-"M4A files with the same results and tools as live recordings."
-msgstr ""
-"Aggiunto il pulsante «Apri file» per trascrivere file WAV, MP3, FLAC, OGG, "
-"Opus e M4A con gli stessi risultati e strumenti delle registrazioni dal vivo."
+msgid "AI improvement no longer delays delivery: the raw transcript arrives first and the polished variant follows."
+msgstr "Il miglioramento con l'IA non ritarda più la consegna: prima arriva la trascrizione grezza, poi la variante rifinita."
 
 #: src/application.rs:2178
-msgid ""
-"Fixed mini-panel failures on Vulkan GPUs by always using a clean batch "
-"decode."
-msgstr ""
-"Corretti gli errori del mini pannello sulle GPU Vulkan usando sempre una "
-"decodifica batch pulita."
+msgid "A finished transcription is always saved to History, even if you have already started the next one."
+msgstr "Una trascrizione completata viene sempre salvata nella cronologia, anche se ne è già stata avviata un'altra."
 
 #: src/application.rs:2179
-msgid ""
-"Re-enabled Whisper temperature retry so difficult audio degrades gracefully "
-"instead of failing the entire transcription."
-msgstr ""
-"Riabilitato il nuovo tentativo con temperatura di Whisper, così l'audio "
-"difficile degrada in modo controllato invece di far fallire l'intera "
-"trascrizione."
+msgid "The global shortcut re-registers itself if the desktop portal restarts."
+msgstr "La scorciatoia globale si registra di nuovo se il portale desktop viene riavviato."
 
 #: src/application.rs:2180
-msgid ""
-"Limited live transcription previews to the main window so the mini panel "
-"remains a clean batch decode."
-msgstr ""
-"Limitate le anteprime di trascrizione dal vivo alla finestra principale, "
-"così il mini pannello resta una decodifica batch pulita."
+msgid "A disconnected microphone stops the recording and transcribes what was captured."
+msgstr "Un microfono scollegato interrompe la registrazione e trascrive quanto è stato catturato."
 
 #: src/application.rs:2181
-msgid "Applied the configured beam size consistently to live previews."
-msgstr ""
-"Applicata in modo coerente la dimensione beam configurata alle anteprime dal "
-"vivo."
+msgid "Transcription errors are shown instead of leaving the panel stuck on Transcribing."
+msgstr "Gli errori di trascrizione vengono mostrati invece di lasciare il pannello bloccato su «Trascrizione in corso»."
 
 #: src/application.rs:2182
+msgid "Provider metadata downloads are size-capped, and redirects can no longer downgrade to plaintext."
+msgstr "Gli scaricamenti dei metadati dei provider hanno un limite di dimensione e i reindirizzamenti non possono più ricadere sul testo in chiaro."
+
+#: src/application.rs:2183
+msgid "Secret redaction now catches unprefixed tokens, across line breaks."
+msgstr "L'oscuramento dei segreti ora intercetta anche i token senza prefisso, a cavallo delle interruzioni di riga."
+
+#: src/application.rs:2184
+msgid "The health endpoint exposes less, and language parameters are strictly validated."
+msgstr "L'endpoint di stato espone meno informazioni e i parametri di lingua sono validati in modo rigoroso."
+
+#: src/application.rs:2185
+msgid "History and settings are written off the UI thread with safe ordering."
+msgstr "Cronologia e impostazioni vengono scritte fuori dal thread dell'interfaccia con un ordinamento sicuro."
+
+#: src/application.rs:2192
+msgid "Faster hidden startup, bounded inference work, and non-blocking audio capture."
+msgstr "Avvio nascosto più rapido, lavoro di inferenza limitato e cattura audio non bloccante."
+
+#: src/application.rs:2193
+msgid "Verified, resumable runtime and model downloads; keyring-only credentials."
+msgstr "Scaricamenti di runtime e modelli verificati e riprendibili; credenziali solo nel portachiavi."
+
+#: src/application.rs:2194
+msgid "Endpoint-specific AI consent, request limits, and safer access controls for the local API."
+msgstr "Consenso IA specifico per endpoint, limiti alle richieste e controlli di accesso più sicuri per l'API locale."
+
+#: src/application.rs:2195
+msgid "Expanded History with full-text search and file-transcription recovery."
+msgstr "Cronologia ampliata con ricerca full-text e recupero delle trascrizioni da file."
+
+#: src/application.rs:2196
+msgid "A refined workspace: Settings, History, Help, and the model selector share a clearer visual language."
+msgstr "Un ambiente di lavoro più curato: impostazioni, cronologia, aiuto e selettore dei modelli condividono un linguaggio visivo più chiaro."
+
+#: src/application.rs:2203
+msgid "Added an Open File button for transcribing WAV, MP3, FLAC, OGG, Opus, and M4A files with the same results and tools as live recordings."
+msgstr "Aggiunto il pulsante «Apri file» per trascrivere file WAV, MP3, FLAC, OGG, Opus e M4A con gli stessi risultati e strumenti delle registrazioni dal vivo."
+
+#: src/application.rs:2204
+msgid "Fixed mini-panel failures on Vulkan GPUs by always using a clean batch decode."
+msgstr "Corretti gli errori del mini pannello sulle GPU Vulkan usando sempre una decodifica batch pulita."
+
+#: src/application.rs:2205
+msgid "Re-enabled Whisper temperature retry so difficult audio degrades gracefully instead of failing the entire transcription."
+msgstr "Riabilitato il nuovo tentativo con temperatura di Whisper, così l'audio difficile degrada in modo controllato invece di far fallire l'intera trascrizione."
+
+#: src/application.rs:2206
+msgid "Limited live transcription previews to the main window so the mini panel remains a clean batch decode."
+msgstr "Limitate le anteprime di trascrizione dal vivo alla finestra principale, così il mini pannello resta una decodifica batch pulita."
+
+#: src/application.rs:2207
+msgid "Applied the configured beam size consistently to live previews."
+msgstr "Applicata in modo coerente la dimensione beam configurata alle anteprime dal vivo."
+
+#: src/application.rs:2208
 msgid "Consolidated the mini panel's AI tools into an Actions menu."
 msgstr "Raggruppati gli strumenti IA del mini pannello in un menu Azioni."
 
-#: src/application.rs:2183
+#: src/application.rs:2209
 msgid "Allowed Settings pages to use the full available content width."
-msgstr ""
-"Consentito alle pagine delle impostazioni di usare tutta la larghezza "
-"disponibile per i contenuti."
+msgstr "Consentito alle pagine delle impostazioni di usare tutta la larghezza disponibile per i contenuti."
 
-#: src/application.rs:2190
-msgid ""
-"Hardened downloads, secret storage, configuration, History, AI connections, "
-"resource limits, and log redaction."
-msgstr ""
-"Rafforzati scaricamenti, archiviazione dei segreti, configurazione, "
-"cronologia, connessioni IA, limiti alle risorse e oscuramento dei registri."
+#: src/application.rs:2216
+msgid "Hardened downloads, secret storage, configuration, History, AI connections, resource limits, and log redaction."
+msgstr "Rafforzati scaricamenti, archiviazione dei segreti, configurazione, cronologia, connessioni IA, limiti alle risorse e oscuramento dei registri."
 
-#: src/application.rs:2191
-msgid ""
-"Disabled auto-paste by default for new installs, made update checks "
-"configurable, and added confirmation before clearing History."
-msgstr ""
-"Disattivato l'incolla automatico in modo predefinito nelle nuove "
-"installazioni, resi configurabili i controlli degli aggiornamenti e aggiunta "
-"una conferma prima di cancellare la cronologia."
+#: src/application.rs:2217
+msgid "Disabled auto-paste by default for new installs, made update checks configurable, and added confirmation before clearing History."
+msgstr "Disattivato l'incolla automatico in modo predefinito nelle nuove installazioni, resi configurabili i controlli degli aggiornamenti e aggiunta una conferma prima di cancellare la cronologia."
 
-#: src/application.rs:2192
-msgid ""
-"Fixed the mini panel pasting the previous transcript when focus changed "
-"during recording."
-msgstr ""
-"Corretto il mini pannello che incollava la trascrizione precedente quando il "
-"focus cambiava durante la registrazione."
+#: src/application.rs:2218
+msgid "Fixed the mini panel pasting the previous transcript when focus changed during recording."
+msgstr "Corretto il mini pannello che incollava la trascrizione precedente quando il focus cambiava durante la registrazione."
 
-#: src/application.rs:2193
-msgid ""
-"Made the mini-panel AI indicator appear only when automatic improvement will "
-"run."
-msgstr ""
-"Fatto in modo che l'indicatore IA del mini pannello appaia solo quando verrà "
-"eseguito il miglioramento automatico."
+#: src/application.rs:2219
+msgid "Made the mini-panel AI indicator appear only when automatic improvement will run."
+msgstr "Fatto in modo che l'indicatore IA del mini pannello appaia solo quando verrà eseguito il miglioramento automatico."
 
-#: src/application.rs:2200
-msgid ""
-"Added the Mini Panel for dictating into any application with a global "
-"shortcut."
-msgstr ""
-"Aggiunto il mini pannello per dettare in qualsiasi applicazione con una "
-"scorciatoia globale."
+#: src/application.rs:2226
+msgid "Added the Mini Panel for dictating into any application with a global shortcut."
+msgstr "Aggiunto il mini pannello per dettare in qualsiasi applicazione con una scorciatoia globale."
 
-#: src/application.rs:2201
+#: src/application.rs:2227
 msgid "Added a system tray icon and background mode."
-msgstr ""
-"Aggiunta un'icona nell'area di notifica e la modalità in secondo piano."
+msgstr "Aggiunta un'icona nell'area di notifica e la modalità in secondo piano."
 
-#: src/application.rs:2202
+#: src/application.rs:2228
 msgid "Added Plain, Message, Email, Note, and Code Prompt dictation modes."
-msgstr ""
-"Aggiunte le modalità di dettatura Semplice, Messaggio, Email, Nota e "
-"Istruzione di codice."
+msgstr "Aggiunte le modalità di dettatura Semplice, Messaggio, Email, Nota e Istruzione di codice."
 
-#: src/application.rs:2203
+#: src/application.rs:2229
 msgid "Added full and quantized Whisper Large v3 Turbo models."
 msgstr "Aggiunti i modelli Whisper Large v3 Turbo completi e quantizzati."
 
-#: src/application.rs:2204
+#: src/application.rs:2230
 msgid "Moved the transcription engine selector to Model settings."
-msgstr ""
-"Spostato il selettore del motore di trascrizione nelle impostazioni del "
-"modello."
+msgstr "Spostato il selettore del motore di trascrizione nelle impostazioni del modello."
 
-#: src/application.rs:2205
+#: src/application.rs:2231
 msgid "Applied Translate to English to mini-panel transcriptions."
-msgstr ""
-"Applicata la traduzione in inglese alle trascrizioni del mini pannello."
+msgstr "Applicata la traduzione in inglese alle trascrizioni del mini pannello."
 
-#: src/application.rs:2206
+#: src/application.rs:2232
 msgid "Fixed empty transcriptions when automatically detecting the language."
-msgstr ""
-"Corrette le trascrizioni vuote durante il rilevamento automatico della "
-"lingua."
+msgstr "Corrette le trascrizioni vuote durante il rilevamento automatico della lingua."
 
-#: src/application.rs:2207
+#: src/application.rs:2233
 msgid "Fixed Cohere Transcribe ignoring the selected language."
 msgstr "Corretto Cohere Transcribe che ignorava la lingua selezionata."
 
-#: src/application.rs:2208
+#: src/application.rs:2234
 msgid "Fixed recording sessions repeating old text."
-msgstr ""
-"Corrette le sessioni di registrazione che ripetevano il testo precedente."
+msgstr "Corrette le sessioni di registrazione che ripetevano il testo precedente."
 
-#: src/application.rs:2215
+#: src/application.rs:2241
 msgid "Added multiple transcription backend support."
 msgstr "Aggiunto il supporto per più backend di trascrizione."
 
-#: src/application.rs:2216
+#: src/application.rs:2242
 msgid "Fixed icon display in the welcome wizard."
 msgstr "Corretta la visualizzazione delle icone nell'assistente di benvenuto."
 
-#: src/application.rs:2217
+#: src/application.rs:2243
 msgid "Improved stability and reliability."
 msgstr "Migliorate la stabilità e l'affidabilità."
 
-#: src/application.rs:2224
+#: src/application.rs:2250
 msgid "Enabled GPU acceleration by default."
 msgstr "Attivata l'accelerazione GPU in modo predefinito."
 
-#: src/application.rs:2225
+#: src/application.rs:2251
 msgid "Added GNOME accent-color support for waveform animation."
-msgstr ""
-"Aggiunto il supporto per il colore d'accento di GNOME nell'animazione della "
-"forma d'onda."
+msgstr "Aggiunto il supporto per il colore d'accento di GNOME nell'animazione della forma d'onda."
 
-#: src/application.rs:2226
+#: src/application.rs:2252
 msgid "Improved visual consistency with the sidebar theme."
 msgstr "Migliorata la coerenza visiva con il tema della barra laterale."
 
-#: src/application.rs:2227
+#: src/application.rs:2253
 msgid "Added offline transcription using Whisper."
 msgstr "Aggiunta la trascrizione offline con Whisper."
 
-#: src/application.rs:2228
+#: src/application.rs:2254
 msgid "Added Whisper model sizes from Tiny through Large v3."
 msgstr "Aggiunte le dimensioni dei modelli Whisper da Tiny fino a Large v3."
 
-#: src/application.rs:2229
+#: src/application.rs:2255
 msgid "Added real-time confidence scoring."
 msgstr "Aggiunto il punteggio di affidabilità in tempo reale."
 
-#: src/application.rs:2230
+#: src/application.rs:2256
 msgid "Added searchable transcription History."
 msgstr "Aggiunta la cronologia delle trascrizioni con ricerca."
 
-#: src/application.rs:2231
+#: src/application.rs:2257
 msgid "Added audio-device selection."
 msgstr "Aggiunta la selezione del dispositivo audio."
 
-#: src/application.rs:2232
+#: src/application.rs:2258
 msgid "Added pause and resume recording."
 msgstr "Aggiunte la pausa e la ripresa della registrazione."
 
-#: src/application.rs:2233
+#: src/application.rs:2259
 msgid "Added transcript file export."
 msgstr "Aggiunta l'esportazione della trascrizione su file."
 
-#: src/application.rs:2234
+#: src/application.rs:2260
 msgid "Added automatic language detection."
 msgstr "Aggiunto il rilevamento automatico della lingua."
 
-#: src/application.rs:2235
+#: src/application.rs:2261
 msgid "Added System, Light, and Dark themes."
 msgstr "Aggiunti i temi Sistema, Chiaro e Scuro."
 
-#: src/application.rs:2236
+#: src/application.rs:2262
 msgid "Added a configurable model storage location."
 msgstr "Aggiunta una posizione configurabile per l'archiviazione dei modelli."
 
-#: src/application.rs:2237
+#: src/application.rs:2263
 msgid "Added automatic update checks from GitHub."
 msgstr "Aggiunto il controllo automatico degli aggiornamenti da GitHub."
 
@@ -416,12 +321,12 @@ msgstr "Esci"
 msgid "Start recording (Ctrl+R)"
 msgstr "Avvia registrazione (Ctrl+R)"
 
-#: src/ui/controls.rs:164 src/ui/controls.rs:438 src/ui/main_window.rs:868
-#: src/ui/main_window.rs:1039 src/ui/main_window.rs:1070
-#: src/ui/main_window.rs:1090 src/ui/main_window.rs:1693
-#: src/ui/main_window.rs:1699 src/ui/main_window.rs:2312
-#: src/ui/main_window.rs:2320 src/ui/main_window.rs:2428
-#: src/ui/main_window.rs:3019
+#: src/ui/controls.rs:164 src/ui/controls.rs:438 src/ui/main_window.rs:852
+#: src/ui/main_window.rs:1023 src/ui/main_window.rs:1054
+#: src/ui/main_window.rs:1074 src/ui/main_window.rs:1677
+#: src/ui/main_window.rs:1683 src/ui/main_window.rs:2296
+#: src/ui/main_window.rs:2304 src/ui/main_window.rs:2412
+#: src/ui/main_window.rs:3003
 msgid "Ready"
 msgstr "Pronto"
 
@@ -430,12 +335,8 @@ msgid "Start a new recording"
 msgstr "Avviare una nuova registrazione"
 
 #: src/ui/controls.rs:179 src/ui/controls.rs:456
-msgid ""
-"Capture a thought, draft a message, or transcribe an audio file with local "
-"speech recognition."
-msgstr ""
-"Catturare un pensiero, abbozzare un messaggio o trascrivere un file audio "
-"con il riconoscimento vocale locale."
+msgid "Capture a thought, draft a message, or transcribe an audio file with local speech recognition."
+msgstr "Catturare un pensiero, abbozzare un messaggio o trascrivere un file audio con il riconoscimento vocale locale."
 
 #: src/ui/controls.rs:196 src/ui/controls.rs:464
 msgid "Ctrl+R to start · Esc to cancel"
@@ -475,8 +376,7 @@ msgstr "Migliora"
 
 #: src/ui/controls.rs:331
 msgid "Improve the next transcriptions with the LLM (active preset)"
-msgstr ""
-"Migliorare le trascrizioni successive con l'LLM (preimpostazione attiva)"
+msgstr "Migliorare le trascrizioni successive con l'LLM (preimpostazione attiva)"
 
 #: src/ui/controls.rs:436 src/ui/help_page.rs:105 src/ui/mini_panel.rs:184
 #: src/ui/mini_panel.rs:774
@@ -488,11 +388,8 @@ msgid "Listening now"
 msgstr "In ascolto"
 
 #: src/ui/controls.rs:453
-msgid ""
-"Your words appear below as you speak. Use the button again when you are done."
-msgstr ""
-"Le parole appaiono qui sotto mentre si parla. Premere di nuovo il pulsante "
-"al termine."
+msgid "Your words appear below as you speak. Use the button again when you are done."
+msgstr "Le parole appaiono qui sotto mentre si parla. Premere di nuovo il pulsante al termine."
 
 #: src/ui/controls.rs:462
 msgid "Recording in progress · Esc to stop"
@@ -514,8 +411,8 @@ msgstr "Menu principale"
 msgid "Select model"
 msgstr "Seleziona modello"
 
-#: src/ui/header.rs:122 src/ui/header.rs:190 src/ui/main_window.rs:1438
-#: src/ui/main_window.rs:2837
+#: src/ui/header.rs:122 src/ui/header.rs:190 src/ui/main_window.rs:1422
+#: src/ui/main_window.rs:2821
 msgid "No Model"
 msgstr "Nessun modello"
 
@@ -533,8 +430,7 @@ msgstr "Modello"
 
 #: src/ui/header.rs:217
 msgid "Transcription is 100% local — audio never leaves your device"
-msgstr ""
-"La trascrizione è al 100% locale — l'audio non lascia mai il dispositivo"
+msgstr "La trascrizione è al 100% locale — l'audio non lascia mai il dispositivo"
 
 #: src/ui/header.rs:221
 msgid "Local · Private"
@@ -545,12 +441,8 @@ msgid "Help"
 msgstr "Aiuto"
 
 #: src/ui/help_page.rs:69
-msgid ""
-"Everything you need to get great transcriptions — and choose the right "
-"settings."
-msgstr ""
-"Tutto il necessario per ottenere ottime trascrizioni — e scegliere le "
-"impostazioni giuste."
+msgid "Everything you need to get great transcriptions — and choose the right settings."
+msgstr "Tutto il necessario per ottenere ottime trascrizioni — e scegliere le impostazioni giuste."
 
 #: src/ui/help_page.rs:96
 msgid "Quick start"
@@ -558,14 +450,11 @@ msgstr "Avvio rapido"
 
 #: src/ui/help_page.rs:98
 msgid "Open Settings → Model and download a Whisper model (start with Base)."
-msgstr ""
-"Aprire Impostazioni → Modello e scaricare un modello Whisper (iniziare con "
-"Base)."
+msgstr "Aprire Impostazioni → Modello e scaricare un modello Whisper (iniziare con Base)."
 
 #: src/ui/help_page.rs:99
 msgid "On the Transcription page press Record, speak, then press Stop."
-msgstr ""
-"Nella pagina Trascrizione premere Registra, parlare e poi premere Ferma."
+msgstr "Nella pagina Trascrizione premere Registra, parlare e poi premere Ferma."
 
 #: src/ui/help_page.rs:100
 msgid "Your text appears and is copied to the clipboard automatically."
@@ -573,22 +462,11 @@ msgstr "Il testo appare e viene copiato automaticamente negli appunti."
 
 #: src/ui/help_page.rs:101
 msgid "(Optional) Turn on Improve with AI to clean up grammar & punctuation."
-msgstr ""
-"(Facoltativo) Attivare «Migliora con l'IA» per sistemare grammatica e "
-"punteggiatura."
+msgstr "(Facoltativo) Attivare «Migliora con l'IA» per sistemare grammatica e punteggiatura."
 
 #: src/ui/help_page.rs:107
-msgid ""
-"Press Record, speak, and press Stop to transcribe. Use Pause to hold without "
-"losing the take, or Cancel to discard it. You can also drag an audio file "
-"(WAV, MP3, FLAC, OGG, M4A) onto the transcript to transcribe it. The "
-"confidence bar at the bottom shows how sure the model is."
-msgstr ""
-"Premere Registra, parlare e premere Ferma per trascrivere. Usare Pausa per "
-"sospendere senza perdere la ripresa, oppure Annulla per scartarla. È anche "
-"possibile trascinare un file audio (WAV, MP3, FLAC, OGG, M4A) sulla "
-"trascrizione per trascriverlo. La barra dell'affidabilità in basso indica "
-"quanto il modello è sicuro."
+msgid "Press Record, speak, and press Stop to transcribe. Use Pause to hold without losing the take, or Cancel to discard it. You can also drag an audio file (WAV, MP3, FLAC, OGG, M4A) onto the transcript to transcribe it. The confidence bar at the bottom shows how sure the model is."
+msgstr "Premere Registra, parlare e premere Ferma per trascrivere. Usare Pausa per sospendere senza perdere la ripresa, oppure Annulla per scartarla. È anche possibile trascinare un file audio (WAV, MP3, FLAC, OGG, M4A) sulla trascrizione per trascriverlo. La barra dell'affidabilità in basso indica quanto il modello è sicuro."
 
 #: src/ui/help_page.rs:113
 msgid "⏺ Record"
@@ -615,36 +493,22 @@ msgid "Engines & models — which to choose"
 msgstr "Motori e modelli — quale scegliere"
 
 #: src/ui/help_page.rs:123
-msgid ""
-"Three local engines, all offline after download. Whisper is the default and "
-"most flexible."
-msgstr ""
-"Tre motori locali, tutti offline dopo lo scaricamento. Whisper è quello "
-"predefinito e il più flessibile."
+msgid "Three local engines, all offline after download. Whisper is the default and most flexible."
+msgstr "Tre motori locali, tutti offline dopo lo scaricamento. Whisper è quello predefinito e il più flessibile."
 
 #: src/ui/help_page.rs:133
-msgid ""
-"OpenAI's model via whisper.cpp. 99 languages, auto-detect, translate-to-"
-"English, timestamps, GPU support. Best all-round choice."
-msgstr ""
-"Il modello di OpenAI tramite whisper.cpp. 99 lingue, rilevamento automatico, "
-"traduzione in inglese, marcatori temporali, supporto GPU. La scelta migliore "
-"a tutto tondo."
+msgid "OpenAI's model via whisper.cpp. 99 languages, auto-detect, translate-to-English, timestamps, GPU support. Best all-round choice."
+msgstr "Il modello di OpenAI tramite whisper.cpp. 99 lingue, rilevamento automatico, traduzione in inglese, marcatori temporali, supporto GPU. La scelta migliore a tutto tondo."
 
 #: src/ui/help_page.rs:133
 msgid "Whisper"
 msgstr "Whisper"
 
 #: src/ui/help_page.rs:134
-msgid ""
-"Alibaba's model. 30+ languages including Greek, auto-detect. Two sizes "
-"(0.6B / 1.7B). Good accuracy, CPU-only, no timestamps."
-msgstr ""
-"Il modello di Alibaba. Oltre 30 lingue, greco compreso, con rilevamento "
-"automatico. Due dimensioni (0.6B / 1.7B). Buona precisione, solo CPU, senza "
-"marcatori temporali."
+msgid "Alibaba's model. 30+ languages including Greek, auto-detect. Two sizes (0.6B / 1.7B). Good accuracy, CPU-only, no timestamps."
+msgstr "Il modello di Alibaba. Oltre 30 lingue, greco compreso, con rilevamento automatico. Due dimensioni (0.6B / 1.7B). Buona precisione, solo CPU, senza marcatori temporali."
 
-#: src/ui/help_page.rs:134 src/ui/main_window.rs:1427
+#: src/ui/help_page.rs:134 src/ui/main_window.rs:1411
 #: src/ui/settings/model.rs:966
 msgid "Qwen3-ASR"
 msgstr "Qwen3-ASR"
@@ -654,21 +518,12 @@ msgid "Cohere"
 msgstr "Cohere"
 
 #: src/ui/help_page.rs:135
-msgid ""
-"Local Cohere runtime. Solid quality, but the language must be set (no auto-"
-"detect) and there are no per-segment timestamps."
-msgstr ""
-"Runtime Cohere locale. Qualità solida, ma la lingua va impostata (nessun "
-"rilevamento automatico) e non ci sono marcatori temporali per segmento."
+msgid "Local Cohere runtime. Solid quality, but the language must be set (no auto-detect) and there are no per-segment timestamps."
+msgstr "Runtime Cohere locale. Qualità solida, ma la lingua va impostata (nessun rilevamento automatico) e non ci sono marcatori temporali per segmento."
 
 #: src/ui/help_page.rs:136
-msgid ""
-"Every Whisper size has a Q5 variant — about 60% smaller with near-identical "
-"accuracy. Pick these if disk or RAM is tight."
-msgstr ""
-"Ogni dimensione di Whisper ha una variante Q5 — circa il 60% più piccola con "
-"una precisione quasi identica. Da preferire se lo spazio su disco o la RAM "
-"sono limitati."
+msgid "Every Whisper size has a Q5 variant — about 60% smaller with near-identical accuracy. Pick these if disk or RAM is tight."
+msgstr "Ogni dimensione di Whisper ha una variante Q5 — circa il 60% più piccola con una precisione quasi identica. Da preferire se lo spazio su disco o la RAM sono limitati."
 
 #: src/ui/help_page.rs:136
 msgid "Quantized (Q5)"
@@ -679,12 +534,8 @@ msgid "Whisper model sizes"
 msgstr "Dimensioni dei modelli Whisper"
 
 #: src/ui/help_page.rs:146
-msgid ""
-"Bigger = more accurate but slower and heavier. Large v3 Turbo is the sweet "
-"spot: near Large-v3 accuracy, several times faster."
-msgstr ""
-"Più grande = più preciso ma più lento e pesante. Large v3 Turbo è il miglior "
-"compromesso: precisione vicina a Large-v3, diverse volte più veloce."
+msgid "Bigger = more accurate but slower and heavier. Large v3 Turbo is the sweet spot: near Large-v3 accuracy, several times faster."
+msgstr "Più grande = più preciso ma più lento e pesante. Large v3 Turbo è il miglior compromesso: precisione vicina a Large-v3, diverse volte più veloce."
 
 #: src/ui/help_page.rs:150
 msgid "If you want…"
@@ -731,54 +582,28 @@ msgid "Languages & translation"
 msgstr "Lingue e traduzione"
 
 #: src/ui/help_page.rs:175
-msgid ""
-"Whisper auto-detects the language by default. If you always speak one "
-"language, set it explicitly in Language settings — it's faster and avoids "
-"mis-detection on short clips. Translate converts speech to English (Whisper "
-"only; English is the only target)."
-msgstr ""
-"Whisper rileva automaticamente la lingua in modo predefinito. Se si parla "
-"sempre la stessa lingua, conviene impostarla esplicitamente nelle "
-"impostazioni della lingua — è più veloce ed evita rilevamenti errati sulle "
-"clip brevi. La traduzione converte il parlato in inglese (solo Whisper; "
-"l'inglese è l'unica lingua di destinazione)."
+msgid "Whisper auto-detects the language by default. If you always speak one language, set it explicitly in Language settings — it's faster and avoids mis-detection on short clips. Translate converts speech to English (Whisper only; English is the only target)."
+msgstr "Whisper rileva automaticamente la lingua in modo predefinito. Se si parla sempre la stessa lingua, conviene impostarla esplicitamente nelle impostazioni della lingua — è più veloce ed evita rilevamenti errati sulle clip brevi. La traduzione converte il parlato in inglese (solo Whisper; l'inglese è l'unica lingua di destinazione)."
 
 #: src/ui/help_page.rs:181
 msgid "Improve with AI"
 msgstr "Migliora con l'IA"
 
 #: src/ui/help_page.rs:183
-msgid ""
-"Optionally send the transcript to an LLM to clean it up, summarize, "
-"translate, or reshape it. Works with any OpenAI-compatible server (LM "
-"Studio, Ollama, vLLM, OpenAI) — set it up in LLM settings."
-msgstr ""
-"Facoltativamente è possibile inviare la trascrizione a un LLM per ripulirla, "
-"riassumerla, tradurla o riformularla. Funziona con qualsiasi server "
-"compatibile con OpenAI (LM Studio, Ollama, vLLM, OpenAI) — si configura "
-"nelle impostazioni LLM."
+msgid "Optionally send the transcript to an LLM to clean it up, summarize, translate, or reshape it. Works with any OpenAI-compatible server (LM Studio, Ollama, vLLM, OpenAI) — set it up in LLM settings."
+msgstr "Facoltativamente è possibile inviare la trascrizione a un LLM per ripulirla, riassumerla, tradurla o riformularla. Funziona con qualsiasi server compatibile con OpenAI (LM Studio, Ollama, vLLM, OpenAI) — si configura nelle impostazioni LLM."
 
 #: src/ui/help_page.rs:188
-msgid ""
-"Chips under the transcript run a preset in one tap — Clean up, Key points, "
-"Formal, Short, Long, Translate…"
-msgstr ""
-"I pulsanti rapidi sotto la trascrizione eseguono una preimpostazione con un "
-"tocco — Ripulisci, Punti chiave, Formale, Breve, Lungo, Traduci…"
+msgid "Chips under the transcript run a preset in one tap — Clean up, Key points, Formal, Short, Long, Translate…"
+msgstr "I pulsanti rapidi sotto la trascrizione eseguono una preimpostazione con un tocco — Ripulisci, Punti chiave, Formale, Breve, Lungo, Traduci…"
 
 #: src/ui/help_page.rs:189
-msgid ""
-"The Raw ⇄ Improved switch keeps the original — AI versions are added, never "
-"destroyed."
-msgstr ""
-"L'interruttore Grezzo ⇄ Migliorato conserva l'originale — le versioni IA "
-"vengono aggiunte, mai distrutte."
+msgid "The Raw ⇄ Improved switch keeps the original — AI versions are added, never destroyed."
+msgstr "L'interruttore Grezzo ⇄ Migliorato conserva l'originale — le versioni IA vengono aggiunte, mai distrutte."
 
 #: src/ui/help_page.rs:190
 msgid "Auto-improve runs your active preset on every dictation automatically."
-msgstr ""
-"Il miglioramento automatico esegue la preimpostazione attiva su ogni "
-"dettatura."
+msgstr "Il miglioramento automatico esegue la preimpostazione attiva su ogni dettatura."
 
 #: src/ui/help_page.rs:194 src/ui/help_page.rs:244
 #: src/ui/settings/dictation.rs:217
@@ -786,130 +611,70 @@ msgid "Privacy"
 msgstr "Privacy"
 
 #: src/ui/help_page.rs:195
-msgid ""
-"With the LLM on, transcript text leaves your device for the endpoint you "
-"configured (a local server stays on your machine; a cloud one does not). "
-"You're asked to consent the first time."
-msgstr ""
-"Con l'LLM attivo, il testo della trascrizione lascia il dispositivo per "
-"raggiungere l'endpoint configurato (un server locale resta sulla propria "
-"macchina, uno cloud no). La prima volta viene chiesto il consenso."
+msgid "With the LLM on, transcript text leaves your device for the endpoint you configured (a local server stays on your machine; a cloud one does not). You're asked to consent the first time."
+msgstr "Con l'LLM attivo, il testo della trascrizione lascia il dispositivo per raggiungere l'endpoint configurato (un server locale resta sulla propria macchina, uno cloud no). La prima volta viene chiesto il consenso."
 
 #: src/ui/help_page.rs:199
 msgid "Personal dictionary"
 msgstr "Dizionario personale"
 
 #: src/ui/help_page.rs:201
-msgid ""
-"Teach the app your names, jargon and acronyms (Dictionary settings). Terms "
-"bias Whisper toward those words; replacements fix consistent spellings (e.g. "
-"heard \"cube\" → \"Kube\"). Everything stays on your device."
-msgstr ""
-"È possibile insegnare all'applicazione nomi, gergo e acronimi (impostazioni "
-"del dizionario). I termini orientano Whisper verso quelle parole; le "
-"sostituzioni correggono le grafie ricorrenti (ad es. sentito «cube» → "
-"«Kube»). Tutto resta sul dispositivo."
+msgid "Teach the app your names, jargon and acronyms (Dictionary settings). Terms bias Whisper toward those words; replacements fix consistent spellings (e.g. heard \"cube\" → \"Kube\"). Everything stays on your device."
+msgstr "È possibile insegnare all'applicazione nomi, gergo e acronimi (impostazioni del dizionario). I termini orientano Whisper verso quelle parole; le sostituzioni correggono le grafie ricorrenti (ad es. sentito «cube» → «Kube»). Tutto resta sul dispositivo."
 
-#: src/ui/help_page.rs:207 src/ui/main_window.rs:1099 src/ui/mini_panel.rs:503
+#: src/ui/help_page.rs:207 src/ui/main_window.rs:1083 src/ui/mini_panel.rs:503
 #: src/ui/transcript_view.rs:389 src/ui/transcript_view.rs:712
 #: src/ui/transcript_view.rs:1317
 msgid "Voice edit"
 msgstr "Modifica vocale"
 
 #: src/ui/help_page.rs:209
-msgid ""
-"On a result, press the voice-edit button and just say what to change — "
-"\"make it shorter\", \"turn into bullets\", \"reply politely\". The app "
-"transcribes your instruction and applies it to the text."
-msgstr ""
-"Su un risultato, premere il pulsante di modifica vocale e dire semplicemente "
-"cosa cambiare — «accorcialo», «trasformalo in elenco puntato», «rispondi in "
-"modo cortese». L'applicazione trascrive l'istruzione e la applica al testo."
+msgid "On a result, press the voice-edit button and just say what to change — \"make it shorter\", \"turn into bullets\", \"reply politely\". The app transcribes your instruction and applies it to the text."
+msgstr "Su un risultato, premere il pulsante di modifica vocale e dire semplicemente cosa cambiare — «accorcialo», «trasformalo in elenco puntato», «rispondi in modo cortese». L'applicazione trascrive l'istruzione e la applica al testo."
 
 #: src/ui/help_page.rs:215
 msgid "Live text & progress"
 msgstr "Testo dal vivo e avanzamento"
 
 #: src/ui/help_page.rs:217
-msgid ""
-"Turn on Live transcription (Dictation settings, Whisper only) to watch the "
-"text appear while you speak, with a real progress bar instead of a spinner. "
-"The final text is always the full-accuracy result produced when you press "
-"Stop."
-msgstr ""
-"Attivare la trascrizione dal vivo (impostazioni della dettatura, solo "
-"Whisper) per vedere il testo apparire mentre si parla, con una vera barra di "
-"avanzamento al posto di un indicatore rotante. Il testo finale è sempre il "
-"risultato a piena precisione prodotto alla pressione di Ferma."
+msgid "Turn on Live transcription (Dictation settings, Whisper only) to watch the text appear while you speak, with a real progress bar instead of a spinner. The final text is always the full-accuracy result produced when you press Stop."
+msgstr "Attivare la trascrizione dal vivo (impostazioni della dettatura, solo Whisper) per vedere il testo apparire mentre si parla, con una vera barra di avanzamento al posto di un indicatore rotante. Il testo finale è sempre il risultato a piena precisione prodotto alla pressione di Ferma."
 
 #: src/ui/help_page.rs:223
 msgid "Mini panel & global dictation"
 msgstr "Mini pannello e dettatura globale"
 
 #: src/ui/help_page.rs:225
-msgid ""
-"A global shortcut opens a compact floating panel so you can dictate into any "
-"app: it records, transcribes, optionally polishes, and pastes the finished "
-"text where your cursor is. Enable it and set the shortcut in Dictation "
-"settings."
-msgstr ""
-"Una scorciatoia globale apre un pannello flottante compatto per dettare in "
-"qualsiasi applicazione: registra, trascrive, se richiesto rifinisce e "
-"incolla il testo finito nel punto in cui si trova il cursore. Si attiva e se "
-"ne imposta la scorciatoia nelle impostazioni della dettatura."
+msgid "A global shortcut opens a compact floating panel so you can dictate into any app: it records, transcribes, optionally polishes, and pastes the finished text where your cursor is. Enable it and set the shortcut in Dictation settings."
+msgstr "Una scorciatoia globale apre un pannello flottante compatto per dettare in qualsiasi applicazione: registra, trascrive, se richiesto rifinisce e incolla il testo finito nel punto in cui si trova il cursore. Si attiva e se ne imposta la scorciatoia nelle impostazioni della dettatura."
 
 #: src/ui/help_page.rs:231 src/ui/main_window.rs:83
 msgid "Performance"
 msgstr "Prestazioni"
 
 #: src/ui/help_page.rs:233
-msgid ""
-"GPU acceleration (NVIDIA/AMD) speeds up Whisper a lot — enable it if you "
-"have a supported card."
-msgstr ""
-"L'accelerazione GPU (NVIDIA/AMD) velocizza molto Whisper — conviene "
-"attivarla se si dispone di una scheda supportata."
+msgid "GPU acceleration (NVIDIA/AMD) speeds up Whisper a lot — enable it if you have a supported card."
+msgstr "L'accelerazione GPU (NVIDIA/AMD) velocizza molto Whisper — conviene attivarla se si dispone di una scheda supportata."
 
 #: src/ui/help_page.rs:234
-msgid ""
-"Threads: more CPU threads = faster, higher load. The default adapts to your "
-"CPU."
-msgstr ""
-"Thread: più thread CPU = più velocità, maggiore carico. Il valore "
-"predefinito si adatta alla CPU in uso."
+msgid "Threads: more CPU threads = faster, higher load. The default adapts to your CPU."
+msgstr "Thread: più thread CPU = più velocità, maggiore carico. Il valore predefinito si adatta alla CPU in uso."
 
 #: src/ui/help_page.rs:235
-msgid ""
-"Beam size: higher = a little more accurate but slower; 1 = fastest (greedy)."
-msgstr ""
-"Dimensione beam: più alta = un po' più precisa ma più lenta; 1 = la più "
-"veloce (greedy)."
+msgid "Beam size: higher = a little more accurate but slower; 1 = fastest (greedy)."
+msgstr "Dimensione beam: più alta = un po' più precisa ma più lenta; 1 = la più veloce (greedy)."
 
 #: src/ui/help_page.rs:239
 msgid "Tip"
 msgstr "Suggerimento"
 
 #: src/ui/help_page.rs:240
-msgid ""
-"The GPU card in the sidebar shows your card and live VRAM use — handy to "
-"check there's room before a large model loads."
-msgstr ""
-"La scheda GPU nella barra laterale mostra la scheda in uso e l'utilizzo di "
-"VRAM in tempo reale — utile per verificare che ci sia spazio prima di "
-"caricare un modello grande."
+msgid "The GPU card in the sidebar shows your card and live VRAM use — handy to check there's room before a large model loads."
+msgstr "La scheda GPU nella barra laterale mostra la scheda in uso e l'utilizzo di VRAM in tempo reale — utile per verificare che ci sia spazio prima di caricare un modello grande."
 
 #: src/ui/help_page.rs:246
-msgid ""
-"Transcription is 100% local. Audio never leaves your device. The only "
-"network use is opt-in: the LLM features (your configured endpoint) and an "
-"optional startup update check (GitHub). API keys are stored in the system "
-"keyring, never in plain text."
-msgstr ""
-"La trascrizione è al 100% locale. L'audio non lascia mai il dispositivo. "
-"L'unico uso della rete è facoltativo: le funzioni LLM (l'endpoint "
-"configurato) e un eventuale controllo degli aggiornamenti all'avvio "
-"(GitHub). Le chiavi API sono conservate nel portachiavi di sistema, mai in "
-"chiaro."
+msgid "Transcription is 100% local. Audio never leaves your device. The only network use is opt-in: the LLM features (your configured endpoint) and an optional startup update check (GitHub). API keys are stored in the system keyring, never in plain text."
+msgstr "La trascrizione è al 100% locale. L'audio non lascia mai il dispositivo. L'unico uso della rete è facoltativo: le funzioni LLM (l'endpoint configurato) e un eventuale controllo degli aggiornamenti all'avvio (GitHub). Le chiavi API sono conservate nel portachiavi di sistema, mai in chiaro."
 
 #: src/ui/help_page.rs:252
 msgid "Troubleshooting"
@@ -928,33 +693,20 @@ msgid "\"No clear speech detected\""
 msgstr "«Nessun parlato chiaro rilevato»"
 
 #: src/ui/help_page.rs:257
-msgid ""
-"Speak closer to the mic; pick the right input in Microphone settings; record "
-"in a quieter environment."
-msgstr ""
-"Parlare più vicino al microfono; scegliere l'ingresso giusto nelle "
-"impostazioni del microfono; registrare in un ambiente più silenzioso."
+msgid "Speak closer to the mic; pick the right input in Microphone settings; record in a quieter environment."
+msgstr "Parlare più vicino al microfono; scegliere l'ingresso giusto nelle impostazioni del microfono; registrare in un ambiente più silenzioso."
 
 #: src/ui/help_page.rs:258
-msgid ""
-"Check a model is downloaded (Model settings) and the engine is set up. Watch "
-"the notification at the top of the window for the exact error."
-msgstr ""
-"Verificare che un modello sia stato scaricato (impostazioni del modello) e "
-"che il motore sia configurato. Controllare la notifica in cima alla finestra "
-"per l'errore esatto."
+msgid "Check a model is downloaded (Model settings) and the engine is set up. Watch the notification at the top of the window for the exact error."
+msgstr "Verificare che un modello sia stato scaricato (impostazioni del modello) e che il motore sia configurato. Controllare la notifica in cima alla finestra per l'errore esatto."
 
 #: src/ui/help_page.rs:258
 msgid "Nothing happens on Stop"
 msgstr "Non succede nulla premendo Ferma"
 
 #: src/ui/help_page.rs:259
-msgid ""
-"Set the language explicitly, or switch engine. For Cohere the language must "
-"be set (no auto-detect)."
-msgstr ""
-"Impostare la lingua esplicitamente oppure cambiare motore. Per Cohere la "
-"lingua va impostata (nessun rilevamento automatico)."
+msgid "Set the language explicitly, or switch engine. For Cohere the language must be set (no auto-detect)."
+msgstr "Impostare la lingua esplicitamente oppure cambiare motore. Per Cohere la lingua va impostata (nessun rilevamento automatico)."
 
 #: src/ui/help_page.rs:259
 msgid "Wrong language / gibberish"
@@ -965,11 +717,8 @@ msgid "Slow transcription"
 msgstr "Trascrizione lenta"
 
 #: src/ui/help_page.rs:260
-msgid ""
-"Use a smaller / Turbo / Q5 model, enable GPU, or raise the thread count."
-msgstr ""
-"Usare un modello più piccolo / Turbo / Q5, attivare la GPU oppure aumentare "
-"il numero di thread."
+msgid "Use a smaller / Turbo / Q5 model, enable GPU, or raise the thread count."
+msgstr "Usare un modello più piccolo / Turbo / Q5, attivare la GPU oppure aumentare il numero di thread."
 
 #: src/ui/help_page.rs:471
 msgid "Accuracy"
@@ -1008,11 +757,8 @@ msgid "Clear all history?"
 msgstr "Cancellare tutta la cronologia?"
 
 #: src/ui/history_page.rs:230
-msgid ""
-"This permanently deletes every saved transcription. This cannot be undone."
-msgstr ""
-"Questa operazione elimina definitivamente ogni trascrizione salvata e non "
-"può essere annullata."
+msgid "This permanently deletes every saved transcription. This cannot be undone."
+msgstr "Questa operazione elimina definitivamente ogni trascrizione salvata e non può essere annullata."
 
 #: src/ui/history_page.rs:235 src/ui/mini_panel.rs:350 src/ui/mini_panel.rs:421
 #: src/ui/settings/dictation.rs:327 src/ui/settings/llm.rs:588
@@ -1061,174 +807,160 @@ msgstr "LLM"
 msgid "API"
 msgstr "API"
 
-#: src/ui/main_window.rs:320
+#: src/ui/main_window.rs:319
 msgid "Stop or cancel the active recording before hiding the window."
-msgstr ""
-"Fermare o annullare la registrazione attiva prima di nascondere la finestra."
+msgstr "Fermare o annullare la registrazione attiva prima di nascondere la finestra."
 
-#: src/ui/main_window.rs:780 src/ui/transcript_view.rs:335
+#: src/ui/main_window.rs:764 src/ui/transcript_view.rs:335
 #: src/ui/transcript_view.rs:1277 src/ui/transcript_view.rs:1395
 msgid "Raw"
 msgstr "Grezzo"
 
-#: src/ui/main_window.rs:853
+#: src/ui/main_window.rs:837
 msgid "Improving with AI…"
 msgstr "Miglioramento con l'IA…"
 
-#: src/ui/main_window.rs:874 src/ui/main_window.rs:1112
+#: src/ui/main_window.rs:858 src/ui/main_window.rs:1096
 msgid "AI returned an empty result"
 msgstr "L'IA ha restituito un risultato vuoto"
 
-#: src/ui/main_window.rs:899 src/ui/main_window.rs:1113
+#: src/ui/main_window.rs:883 src/ui/main_window.rs:1097
 msgid "AI error"
 msgstr "Errore IA"
 
-#: src/ui/main_window.rs:936
+#: src/ui/main_window.rs:920
 msgid "Select a message first."
 msgstr "Selezionare prima un messaggio."
 
-#: src/ui/main_window.rs:947
+#: src/ui/main_window.rs:931
 msgid "No text to edit."
 msgstr "Nessun testo da modificare."
 
-#: src/ui/main_window.rs:953
+#: src/ui/main_window.rs:937
 msgid "Enable the LLM in Settings → LLM to use Voice edit."
 msgstr "Attivare l'LLM in Impostazioni → LLM per usare la modifica vocale."
 
-#: src/ui/main_window.rs:961
+#: src/ui/main_window.rs:945
 msgid "Busy — finish the current recording first."
 msgstr "Occupato — completare prima la registrazione in corso."
 
-#: src/ui/main_window.rs:973
+#: src/ui/main_window.rs:957
 msgid "Listening for your edit… click \"Stop edit\" when done"
 msgstr "In ascolto della modifica… fare clic su «Ferma modifica» al termine"
 
-#: src/ui/main_window.rs:999
+#: src/ui/main_window.rs:983
 msgid "Microphone stopped — finishing the edit."
 msgstr "Microfono fermato — completamento della modifica."
 
-#: src/ui/main_window.rs:1037 src/ui/main_window.rs:1072
+#: src/ui/main_window.rs:1021 src/ui/main_window.rs:1056
 msgid "Didn't catch an instruction."
 msgstr "Nessuna istruzione rilevata."
 
-#: src/ui/main_window.rs:1057
+#: src/ui/main_window.rs:1041
 msgid "Applying your edit…"
 msgstr "Applicazione della modifica…"
 
-#: src/ui/main_window.rs:1123
+#: src/ui/main_window.rs:1107
 msgid "Improved with AI"
 msgstr "Migliorato con l'IA"
 
-#: src/ui/main_window.rs:1134
+#: src/ui/main_window.rs:1118
 msgid "Undo"
 msgstr "Annulla"
 
-#: src/ui/main_window.rs:1420 src/ui/settings/model.rs:534
+#: src/ui/main_window.rs:1404 src/ui/settings/model.rs:534
 msgid "Cohere Transcribe"
 msgstr "Cohere Transcribe"
 
-#: src/ui/main_window.rs:1435 src/ui/main_window.rs:2902
+#: src/ui/main_window.rs:1419 src/ui/main_window.rs:2886
 msgid "Loading model…"
 msgstr "Caricamento modello…"
 
-#: src/ui/main_window.rs:1437 src/ui/main_window.rs:2836
+#: src/ui/main_window.rs:1421 src/ui/main_window.rs:2820
 msgid "No model selected"
 msgstr "Nessun modello selezionato"
 
-#: src/ui/main_window.rs:1617
+#: src/ui/main_window.rs:1601
 msgid "Decoding file…"
 msgstr "Decodifica del file…"
 
-#: src/ui/main_window.rs:1625 src/ui/main_window.rs:2251
-msgid ""
-"Cohere is not set up. Go to Settings → Model to download the runtime and "
-"model."
-msgstr ""
-"Cohere non è configurato. Aprire Impostazioni → Modello per scaricare il "
-"runtime e il modello."
+#: src/ui/main_window.rs:1609 src/ui/main_window.rs:2235
+msgid "Cohere is not set up. Go to Settings → Model to download the runtime and model."
+msgstr "Cohere non è configurato. Aprire Impostazioni → Modello per scaricare il runtime e il modello."
 
-#: src/ui/main_window.rs:1630 src/ui/main_window.rs:2259
-msgid ""
-"Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and "
-"model."
-msgstr ""
-"Qwen3-ASR non è configurato. Aprire Impostazioni → Modello per scaricare il "
-"runtime e il modello."
+#: src/ui/main_window.rs:1614 src/ui/main_window.rs:2243
+msgid "Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and model."
+msgstr "Qwen3-ASR non è configurato. Aprire Impostazioni → Modello per scaricare il runtime e il modello."
 
-#: src/ui/main_window.rs:1638 src/ui/main_window.rs:2460
+#: src/ui/main_window.rs:1622 src/ui/main_window.rs:2444
 msgid "Stop the current recording first"
 msgstr "Fermare prima la registrazione in corso"
 
-#: src/ui/main_window.rs:1695
+#: src/ui/main_window.rs:1679
 msgid "No clear speech detected in the audio"
 msgstr "Nessun parlato chiaro rilevato nell'audio"
 
-#: src/ui/main_window.rs:1743
+#: src/ui/main_window.rs:1727
 msgid "File transcription complete"
 msgstr "Trascrizione del file completata"
 
-#: src/ui/main_window.rs:1750 src/ui/main_window.rs:2393
+#: src/ui/main_window.rs:1734 src/ui/main_window.rs:2377
 msgid "Error"
 msgstr "Errore"
 
-#: src/ui/main_window.rs:2011
-msgid ""
-"The selected transcription model is not ready. Open Model settings and "
-"finish setup first."
-msgstr ""
-"Il modello di trascrizione selezionato non è pronto. Aprire le impostazioni "
-"del modello e completare prima la configurazione."
+#: src/ui/main_window.rs:1995
+msgid "The selected transcription model is not ready. Open Model settings and finish setup first."
+msgstr "Il modello di trascrizione selezionato non è pronto. Aprire le impostazioni del modello e completare prima la configurazione."
 
-#: src/ui/main_window.rs:2043 src/ui/main_window.rs:2201
+#: src/ui/main_window.rs:2027 src/ui/main_window.rs:2185
 msgid "Recording…"
 msgstr "Registrazione…"
 
-#: src/ui/main_window.rs:2188
+#: src/ui/main_window.rs:2172
 msgid "Paused"
 msgstr "In pausa"
 
-#: src/ui/main_window.rs:2254 src/ui/main_window.rs:2261
+#: src/ui/main_window.rs:2238 src/ui/main_window.rs:2245
 msgid "Setup Required"
 msgstr "Configurazione necessaria"
 
-#: src/ui/main_window.rs:2315
+#: src/ui/main_window.rs:2299
 msgid "No clear speech detected — try again in a quieter environment"
-msgstr ""
-"Nessun parlato chiaro rilevato — riprovare in un ambiente più silenzioso"
+msgstr "Nessun parlato chiaro rilevato — riprovare in un ambiente più silenzioso"
 
-#: src/ui/main_window.rs:2431
+#: src/ui/main_window.rs:2415
 msgid "Recording cancelled"
 msgstr "Registrazione annullata"
 
-#: src/ui/main_window.rs:2442
+#: src/ui/main_window.rs:2426
 msgid "Copied to clipboard"
 msgstr "Copiato negli appunti"
 
-#: src/ui/main_window.rs:2466
+#: src/ui/main_window.rs:2450
 msgid "Audio files"
 msgstr "File audio"
 
-#: src/ui/main_window.rs:2473
+#: src/ui/main_window.rs:2457
 msgid "All files"
 msgstr "Tutti i file"
 
-#: src/ui/main_window.rs:2481
+#: src/ui/main_window.rs:2465
 msgid "Open Audio File"
 msgstr "Apri file audio"
 
-#: src/ui/main_window.rs:2508
+#: src/ui/main_window.rs:2492
 msgid "Nothing to save"
 msgstr "Niente da salvare"
 
-#: src/ui/main_window.rs:2551
+#: src/ui/main_window.rs:2535
 msgid "Transcript saved"
 msgstr "Trascrizione salvata"
 
-#: src/ui/main_window.rs:2585
+#: src/ui/main_window.rs:2569
 msgid "Microphone stopped — finishing the recording."
 msgstr "Microfono fermato — completamento della registrazione."
 
-#: src/ui/main_window.rs:2960
+#: src/ui/main_window.rs:2944
 msgid "GPU unavailable — loaded model on CPU"
 msgstr "GPU non disponibile — modello caricato su CPU"
 
@@ -1319,13 +1051,8 @@ msgid "Local API Server"
 msgstr "Server API locale"
 
 #: src/ui/settings/api.rs:88
-msgid ""
-"Let other apps on this computer send audio for transcription and "
-"translation. The server listens on 127.0.0.1 only (never the network)."
-msgstr ""
-"Consente ad altre applicazioni su questo computer di inviare audio per la "
-"trascrizione e la traduzione. Il server è in ascolto solo su 127.0.0.1 (mai "
-"sulla rete)."
+msgid "Let other apps on this computer send audio for transcription and translation. The server listens on 127.0.0.1 only (never the network)."
+msgstr "Consente ad altre applicazioni su questo computer di inviare audio per la trascrizione e la traduzione. Il server è in ascolto solo su 127.0.0.1 (mai sulla rete)."
 
 #: src/ui/settings/api.rs:92
 msgid "Enable API server"
@@ -1333,9 +1060,7 @@ msgstr "Attiva server API"
 
 #: src/ui/settings/api.rs:93
 msgid "Off by default. Starts/stops immediately when toggled."
-msgstr ""
-"Disattivato in modo predefinito. Si avvia e si ferma immediatamente quando "
-"lo si commuta."
+msgstr "Disattivato in modo predefinito. Si avvia e si ferma immediatamente quando lo si commuta."
 
 #: src/ui/settings/api.rs:107
 msgid "Port"
@@ -1350,24 +1075,16 @@ msgid "Authentication"
 msgstr "Autenticazione"
 
 #: src/ui/settings/api.rs:123
-msgid ""
-"Requests must send an Authorization: Bearer header with this token. It is "
-"stored in your system keyring."
-msgstr ""
-"Le richieste devono inviare un'intestazione Authorization: Bearer con questo "
-"token. È conservato nel portachiavi di sistema."
+msgid "Requests must send an Authorization: Bearer header with this token. It is stored in your system keyring."
+msgstr "Le richieste devono inviare un'intestazione Authorization: Bearer con questo token. È conservato nel portachiavi di sistema."
 
 #: src/ui/settings/api.rs:127
 msgid "Require token"
 msgstr "Richiedi token"
 
 #: src/ui/settings/api.rs:130
-msgid ""
-"Strongly recommended. Turning this OFF lets ANY local process transcribe "
-"audio and use your configured AI endpoint without asking."
-msgstr ""
-"Fortemente consigliato. Disattivandolo, QUALSIASI processo locale può "
-"trascrivere audio e usare l'endpoint IA configurato senza chiedere."
+msgid "Strongly recommended. Turning this OFF lets ANY local process transcribe audio and use your configured AI endpoint without asking."
+msgstr "Fortemente consigliato. Disattivandolo, QUALSIASI processo locale può trascrivere audio e usare l'endpoint IA configurato senza chiedere."
 
 #: src/ui/settings/api.rs:140
 msgid "Token"
@@ -1422,12 +1139,8 @@ msgid "Mini Panel and Global Dictation"
 msgstr "Mini pannello e dettatura globale"
 
 #: src/ui/settings/dictation.rs:100
-msgid ""
-"Dictate into any app from a compact floating panel, opened by a global "
-"shortcut."
-msgstr ""
-"Permette di dettare in qualsiasi applicazione da un pannello flottante "
-"compatto, aperto con una scorciatoia globale."
+msgid "Dictate into any app from a compact floating panel, opened by a global shortcut."
+msgstr "Permette di dettare in qualsiasi applicazione da un pannello flottante compatto, aperto con una scorciatoia globale."
 
 #: src/ui/settings/dictation.rs:104
 msgid "Enable Mini Panel"
@@ -1435,33 +1148,23 @@ msgstr "Attiva mini pannello"
 
 #: src/ui/settings/dictation.rs:106
 msgid "Register the global dictation shortcut (restart to apply changes)"
-msgstr ""
-"Registra la scorciatoia globale di dettatura (riavviare per applicare le "
-"modifiche)"
+msgstr "Registra la scorciatoia globale di dettatura (riavviare per applicare le modifiche)"
 
 #: src/ui/settings/dictation.rs:114
 msgid "Keep Mini Panel on Top"
 msgstr "Mantieni il mini pannello in primo piano"
 
 #: src/ui/settings/dictation.rs:115
-msgid ""
-"Best-effort: re-raises the panel when it loses focus. On GNOME/Wayland use "
-"the panel's titlebar menu → \"Always on Top\" for a reliable result."
-msgstr ""
-"Funziona al meglio possibile: riporta in primo piano il pannello quando "
-"perde il focus. Su GNOME/Wayland usare il menu della barra del titolo del "
-"pannello → «Sempre in primo piano» per un risultato affidabile."
+msgid "Best-effort: re-raises the panel when it loses focus. On GNOME/Wayland use the panel's titlebar menu → \"Always on Top\" for a reliable result."
+msgstr "Funziona al meglio possibile: riporta in primo piano il pannello quando perde il focus. Su GNOME/Wayland usare il menu della barra del titolo del pannello → «Sempre in primo piano» per un risultato affidabile."
 
 #: src/ui/settings/dictation.rs:121
 msgid "Start Hidden in Tray"
 msgstr "Avvia nascosto nell'area di notifica"
 
 #: src/ui/settings/dictation.rs:124
-msgid ""
-"Launch with no window — only the tray icon and shortcut (ideal for autostart)"
-msgstr ""
-"Si avvia senza finestra — solo l'icona nell'area di notifica e la "
-"scorciatoia (ideale per l'avvio automatico)"
+msgid "Launch with no window — only the tray icon and shortcut (ideal for autostart)"
+msgstr "Si avvia senza finestra — solo l'icona nell'area di notifica e la scorciatoia (ideale per l'avvio automatico)"
 
 #: src/ui/settings/dictation.rs:133
 msgid "Preferred Shortcut"
@@ -1484,24 +1187,16 @@ msgid "Auto-paste"
 msgstr "Incolla automatico"
 
 #: src/ui/settings/dictation.rs:164
-msgid ""
-"After dictation the text is always copied to the clipboard. Auto-paste "
-"additionally types it into the focused app when possible."
-msgstr ""
-"Dopo la dettatura il testo viene sempre copiato negli appunti. L'incolla "
-"automatico lo digita inoltre nell'applicazione attiva, quando è possibile."
+msgid "After dictation the text is always copied to the clipboard. Auto-paste additionally types it into the focused app when possible."
+msgstr "Dopo la dettatura il testo viene sempre copiato negli appunti. L'incolla automatico lo digita inoltre nell'applicazione attiva, quando è possibile."
 
 #: src/ui/settings/dictation.rs:168
 msgid "Type into the focused app"
 msgstr "Digita nell'applicazione attiva"
 
 #: src/ui/settings/dictation.rs:169
-msgid ""
-"Auto-types the transcript via Remote Desktop (asks permission). Off = "
-"clipboard only, press Ctrl+V yourself."
-msgstr ""
-"Digita automaticamente la trascrizione tramite Desktop remoto (richiede il "
-"permesso). Disattivato = solo appunti, premere Ctrl+V manualmente."
+msgid "Auto-types the transcript via Remote Desktop (asks permission). Off = clipboard only, press Ctrl+V yourself."
+msgstr "Digita automaticamente la trascrizione tramite Desktop remoto (richiede il permesso). Disattivato = solo appunti, premere Ctrl+V manualmente."
 
 #: src/ui/settings/dictation.rs:175
 msgid "Paste Method"
@@ -1512,12 +1207,8 @@ msgid "Revoke Paste Permission"
 msgstr "Revoca il permesso di incollare"
 
 #: src/ui/settings/dictation.rs:185
-msgid ""
-"Forget the granted Remote Desktop permission. Toggle auto-paste to grant it "
-"again."
-msgstr ""
-"Dimentica il permesso di Desktop remoto concesso. Riattivare l'incolla "
-"automatico per concederlo di nuovo."
+msgid "Forget the granted Remote Desktop permission. Toggle auto-paste to grant it again."
+msgstr "Dimentica il permesso di Desktop remoto concesso. Riattivare l'incolla automatico per concederlo di nuovo."
 
 #: src/ui/settings/dictation.rs:189
 msgid "Revoke"
@@ -1525,21 +1216,15 @@ msgstr "Revoca"
 
 #: src/ui/settings/dictation.rs:200
 msgid "Permission revoked — toggle auto-paste to grant it again."
-msgstr ""
-"Permesso revocato — riattivare l'incolla automatico per concederlo di nuovo."
+msgstr "Permesso revocato — riattivare l'incolla automatico per concederlo di nuovo."
 
 #: src/ui/settings/dictation.rs:202
 msgid "Could not revoke the permission; see the logs for details."
-msgstr ""
-"Impossibile revocare il permesso; consultare i registri per i dettagli."
+msgstr "Impossibile revocare il permesso; consultare i registri per i dettagli."
 
 #: src/ui/settings/dictation.rs:219
-msgid ""
-"Transcription runs locally. The only automatic network request is an "
-"optional check for a newer release at startup."
-msgstr ""
-"La trascrizione avviene in locale. L'unica richiesta di rete automatica è un "
-"controllo facoltativo all'avvio della presenza di una versione più recente."
+msgid "Transcription runs locally. The only automatic network request is an optional check for a newer release at startup."
+msgstr "La trascrizione avviene in locale. L'unica richiesta di rete automatica è un controllo facoltativo all'avvio della presenza di una versione più recente."
 
 #: src/ui/settings/dictation.rs:223
 msgid "Check for updates on startup"
@@ -1547,42 +1232,27 @@ msgstr "Controlla gli aggiornamenti all'avvio"
 
 #: src/ui/settings/dictation.rs:224
 msgid "Contacts GitHub to see if a newer version is available."
-msgstr ""
-"Contatta GitHub per verificare se è disponibile una versione più recente."
+msgstr "Contatta GitHub per verificare se è disponibile una versione più recente."
 
 #: src/ui/settings/dictation.rs:233
 msgid "Live Transcription"
 msgstr "Trascrizione dal vivo"
 
 #: src/ui/settings/dictation.rs:235
-msgid ""
-"Show tentative text in the main window while you are still speaking (Whisper "
-"only). Does not apply to the mini panel — that always uses a clean batch "
-"decode. The final result is always the full-accuracy decode."
-msgstr ""
-"Mostra il testo provvisorio nella finestra principale mentre si sta ancora "
-"parlando (solo Whisper). Non si applica al mini pannello — quello usa sempre "
-"una decodifica batch pulita. Il risultato finale è sempre la decodifica a "
-"piena precisione."
+msgid "Show tentative text in the main window while you are still speaking (Whisper only). Does not apply to the mini panel — that always uses a clean batch decode. The final result is always the full-accuracy decode."
+msgstr "Mostra il testo provvisorio nella finestra principale mentre si sta ancora parlando (solo Whisper). Non si applica al mini pannello — quello usa sempre una decodifica batch pulita. Il risultato finale è sempre la decodifica a piena precisione."
 
 #: src/ui/settings/dictation.rs:238
 msgid "Show text live while transcribing (main window only)"
-msgstr ""
-"Mostra il testo dal vivo durante la trascrizione (solo finestra principale)"
+msgstr "Mostra il testo dal vivo durante la trascrizione (solo finestra principale)"
 
 #: src/ui/settings/dictation.rs:246
 msgid "Dictation Mode"
 msgstr "Modalità di dettatura"
 
 #: src/ui/settings/dictation.rs:248
-msgid ""
-"How the transcript is formatted: Plain (clean text), Message (one line), "
-"Email (greeting + sign-off), Note (bullets), or Code Prompt (filler-free "
-"instruction)."
-msgstr ""
-"Come viene formattata la trascrizione: Semplice (testo pulito), Messaggio "
-"(una riga), Email (saluto + firma), Nota (elenco puntato) o Istruzione di "
-"codice (istruzione senza riempitivi)."
+msgid "How the transcript is formatted: Plain (clean text), Message (one line), Email (greeting + sign-off), Note (bullets), or Code Prompt (filler-free instruction)."
+msgstr "Come viene formattata la trascrizione: Semplice (testo pulito), Messaggio (una riga), Email (saluto + firma), Nota (elenco puntato) o Istruzione di codice (istruzione senza riempitivi)."
 
 #: src/ui/settings/dictation.rs:252
 msgid "Plain"
@@ -1613,16 +1283,8 @@ msgid "Enable auto-paste?"
 msgstr "Attivare l'incolla automatico?"
 
 #: src/ui/settings/dictation.rs:322
-msgid ""
-"After dictation, the app will type the transcript into whichever window is "
-"focused, using the Remote Desktop portal — your desktop will ask for "
-"permission the first time. The transcript is always copied to the clipboard "
-"regardless of this setting."
-msgstr ""
-"Dopo la dettatura l'applicazione digiterà la trascrizione nella finestra che "
-"ha il focus, usando il portale Desktop remoto — il sistema chiederà il "
-"permesso la prima volta. La trascrizione viene sempre copiata negli appunti, "
-"indipendentemente da questa impostazione."
+msgid "After dictation, the app will type the transcript into whichever window is focused, using the Remote Desktop portal — your desktop will ask for permission the first time. The transcript is always copied to the clipboard regardless of this setting."
+msgstr "Dopo la dettatura l'applicazione digiterà la trascrizione nella finestra che ha il focus, usando il portale Desktop remoto — il sistema chiederà il permesso la prima volta. La trascrizione viene sempre copiata negli appunti, indipendentemente da questa impostazione."
 
 #: src/ui/settings/dictation.rs:328 src/ui/settings/llm.rs:589
 msgid "Enable"
@@ -1633,14 +1295,8 @@ msgid "Permission not granted"
 msgstr "Permesso non concesso"
 
 #: src/ui/settings/dictation.rs:377
-msgid ""
-"Without the Remote Desktop permission the transcript is only copied to the "
-"clipboard — press Ctrl+V yourself to paste it. Toggle auto-paste again to re-"
-"request the permission."
-msgstr ""
-"Senza il permesso di Desktop remoto la trascrizione viene solo copiata negli "
-"appunti — premere Ctrl+V per incollarla. Riattivare l'incolla automatico per "
-"richiedere di nuovo il permesso."
+msgid "Without the Remote Desktop permission the transcript is only copied to the clipboard — press Ctrl+V yourself to paste it. Toggle auto-paste again to re-request the permission."
+msgstr "Senza il permesso di Desktop remoto la trascrizione viene solo copiata negli appunti — premere Ctrl+V per incollarla. Riattivare l'incolla automatico per richiedere di nuovo il permesso."
 
 #: src/ui/settings/dictation.rs:384 src/ui/settings/llm.rs:527
 #: src/ui/settings/model.rs:588
@@ -1652,11 +1308,8 @@ msgid "Desktop portal (permission granted)"
 msgstr "Portale desktop (permesso concesso)"
 
 #: src/ui/settings/dictation.rs:488
-msgid ""
-"Desktop portal (permission not granted yet — enable auto-paste to grant it)"
-msgstr ""
-"Portale desktop (permesso non ancora concesso — attivare l'incolla "
-"automatico per concederlo)"
+msgid "Desktop portal (permission not granted yet — enable auto-paste to grant it)"
+msgstr "Portale desktop (permesso non ancora concesso — attivare l'incolla automatico per concederlo)"
 
 #: src/ui/settings/dictation.rs:492
 msgid "ydotool"
@@ -1671,12 +1324,8 @@ msgid "Personal Dictionary"
 msgstr "Dizionario personale"
 
 #: src/ui/settings/dictionary.rs:76
-msgid ""
-"Improve recognition of names, jargon and acronyms, and fix consistent "
-"spellings. Everything here stays on your device."
-msgstr ""
-"Migliora il riconoscimento di nomi, gergo e acronimi e corregge le grafie "
-"ricorrenti. Tutto ciò che si trova qui resta sul dispositivo."
+msgid "Improve recognition of names, jargon and acronyms, and fix consistent spellings. Everything here stays on your device."
+msgstr "Migliora il riconoscimento di nomi, gergo e acronimi e corregge le grafie ricorrenti. Tutto ciò che si trova qui resta sul dispositivo."
 
 #: src/ui/settings/dictionary.rs:79
 msgid "Enable personal dictionary"
@@ -1691,24 +1340,16 @@ msgid "Vocabulary"
 msgstr "Vocabolario"
 
 #: src/ui/settings/dictionary.rs:90
-msgid ""
-"Words to bias recognition toward — names, product names, technical terms. "
-"One term per line."
-msgstr ""
-"Parole verso cui orientare il riconoscimento — nomi, nomi di prodotto, "
-"termini tecnici. Un termine per riga."
+msgid "Words to bias recognition toward — names, product names, technical terms. One term per line."
+msgstr "Parole verso cui orientare il riconoscimento — nomi, nomi di prodotto, termini tecnici. Un termine per riga."
 
 #: src/ui/settings/dictionary.rs:112
 msgid "Replacements"
 msgstr "Sostituzioni"
 
 #: src/ui/settings/dictionary.rs:114
-msgid ""
-"Replace what was heard with the correct text (e.g. a name spelled "
-"consistently)."
-msgstr ""
-"Sostituisce ciò che è stato sentito con il testo corretto (ad es. un nome "
-"scritto sempre allo stesso modo)."
+msgid "Replace what was heard with the correct text (e.g. a name spelled consistently)."
+msgstr "Sostituisce ciò che è stato sentito con il testo corretto (ad es. un nome scritto sempre allo stesso modo)."
 
 #: src/ui/settings/dictionary.rs:117
 msgid "Add replacement"
@@ -1799,14 +1440,8 @@ msgid "LLM Connection"
 msgstr "Connessione LLM"
 
 #: src/ui/settings/llm.rs:132
-msgid ""
-"Send transcripts to a local or cloud LLM to clean up, rewrite, summarize or "
-"translate them. Works with any OpenAI-compatible server (LM Studio, Ollama, "
-"vLLM, OpenAI)."
-msgstr ""
-"Invia le trascrizioni a un LLM locale o cloud per ripulirle, riscriverle, "
-"riassumerle o tradurle. Funziona con qualsiasi server compatibile con OpenAI "
-"(LM Studio, Ollama, vLLM, OpenAI)."
+msgid "Send transcripts to a local or cloud LLM to clean up, rewrite, summarize or translate them. Works with any OpenAI-compatible server (LM Studio, Ollama, vLLM, OpenAI)."
+msgstr "Invia le trascrizioni a un LLM locale o cloud per ripulirle, riscriverle, riassumerle o tradurle. Funziona con qualsiasi server compatibile con OpenAI (LM Studio, Ollama, vLLM, OpenAI)."
 
 #: src/ui/settings/llm.rs:136
 msgid "Enable LLM"
@@ -1814,8 +1449,7 @@ msgstr "Attiva LLM"
 
 #: src/ui/settings/llm.rs:138
 msgid "Show the \"Improve with AI\" action and the auto-improve option"
-msgstr ""
-"Mostra l'azione «Migliora con l'IA» e l'opzione di miglioramento automatico"
+msgstr "Mostra l'azione «Migliora con l'IA» e l'opzione di miglioramento automatico"
 
 #: src/ui/settings/llm.rs:145
 msgid "Provider preset"
@@ -1870,13 +1504,8 @@ msgid "Prompt Presets"
 msgstr "Preimpostazioni delle istruzioni"
 
 #: src/ui/settings/llm.rs:218
-msgid ""
-"Reusable instructions for the LLM. The active preset is used by \"Improve "
-"with AI\", the mini panel and the transform-selection shortcut."
-msgstr ""
-"Istruzioni riutilizzabili per l'LLM. La preimpostazione attiva viene usata "
-"da «Migliora con l'IA», dal mini pannello e dalla scorciatoia di "
-"trasformazione della selezione."
+msgid "Reusable instructions for the LLM. The active preset is used by \"Improve with AI\", the mini panel and the transform-selection shortcut."
+msgstr "Istruzioni riutilizzabili per l'LLM. La preimpostazione attiva viene usata da «Migliora con l'IA», dal mini pannello e dalla scorciatoia di trasformazione della selezione."
 
 #: src/ui/settings/llm.rs:222
 msgid "Active preset"
@@ -1900,13 +1529,8 @@ msgstr "Istruzione"
 
 #: src/ui/settings/llm.rs:253
 #, rust-format
-msgid ""
-"The system instruction sent with the transcript. For translate presets, the "
-"{lang} placeholder is filled from the \"Translate to\" picker."
-msgstr ""
-"L'istruzione di sistema inviata insieme alla trascrizione. Per le "
-"preimpostazioni di traduzione, il segnaposto {lang} viene riempito dal "
-"selettore «Traduci in»."
+msgid "The system instruction sent with the transcript. For translate presets, the {lang} placeholder is filled from the \"Translate to\" picker."
+msgstr "L'istruzione di sistema inviata insieme alla trascrizione. Per le preimpostazioni di traduzione, il segnaposto {lang} viene riempito dal selettore «Traduci in»."
 
 #: src/ui/settings/llm.rs:275
 msgid "Preset Options"
@@ -1950,36 +1574,24 @@ msgid "Auto-improve after dictation"
 msgstr "Miglioramento automatico dopo la dettatura"
 
 #: src/ui/settings/llm.rs:308
-msgid ""
-"Runs the active preset automatically on every dictation (off by default)"
-msgstr ""
-"Esegue automaticamente la preimpostazione attiva su ogni dettatura "
-"(disattivato in modo predefinito)"
+msgid "Runs the active preset automatically on every dictation (off by default)"
+msgstr "Esegue automaticamente la preimpostazione attiva su ogni dettatura (disattivato in modo predefinito)"
 
 #: src/ui/settings/llm.rs:315
 msgid "Automatically summarize long transcripts"
 msgstr "Riassumi automaticamente le trascrizioni lunghe"
 
 #: src/ui/settings/llm.rs:316
-msgid ""
-"Sends long transcripts to the configured endpoint after transcription (off "
-"by default)"
-msgstr ""
-"Invia le trascrizioni lunghe all'endpoint configurato dopo la trascrizione "
-"(disattivato in modo predefinito)"
+msgid "Sends long transcripts to the configured endpoint after transcription (off by default)"
+msgstr "Invia le trascrizioni lunghe all'endpoint configurato dopo la trascrizione (disattivato in modo predefinito)"
 
 #: src/ui/settings/llm.rs:324
 msgid "System-wide Transform"
 msgstr "Trasformazione a livello di sistema"
 
 #: src/ui/settings/llm.rs:326
-msgid ""
-"Transform highlighted or copied text in any app with the active preset, via "
-"a global shortcut and the tray menu. The result is pasted back."
-msgstr ""
-"Trasforma il testo evidenziato o copiato in qualsiasi applicazione con la "
-"preimpostazione attiva, tramite una scorciatoia globale e il menu dell'area "
-"di notifica. Il risultato viene incollato al posto dell'originale."
+msgid "Transform highlighted or copied text in any app with the active preset, via a global shortcut and the tray menu. The result is pasted back."
+msgstr "Trasforma il testo evidenziato o copiato in qualsiasi applicazione con la preimpostazione attiva, tramite una scorciatoia globale e il menu dell'area di notifica. Il risultato viene incollato al posto dell'originale."
 
 #: src/ui/settings/llm.rs:330
 msgid "Enable transform-selection shortcut"
@@ -2002,12 +1614,8 @@ msgid "LLM consent required"
 msgstr "Consenso LLM necessario"
 
 #: src/ui/settings/llm.rs:556
-msgid ""
-"The LLM destination changed. Review the new endpoint and enable the LLM "
-"again to consent."
-msgstr ""
-"La destinazione dell'LLM è cambiata. Controllare il nuovo endpoint e "
-"riattivare l'LLM per dare il consenso."
+msgid "The LLM destination changed. Review the new endpoint and enable the LLM again to consent."
+msgstr "La destinazione dell'LLM è cambiata. Controllare il nuovo endpoint e riattivare l'LLM per dare il consenso."
 
 #: src/ui/settings/llm.rs:570 src/ui/settings/llm.rs:672
 msgid "Endpoint not allowed"
@@ -2015,9 +1623,7 @@ msgstr "Endpoint non consentito"
 
 #: src/ui/settings/llm.rs:571
 msgid "Enter a valid, allowed LLM endpoint before enabling the integration."
-msgstr ""
-"Inserire un endpoint LLM valido e consentito prima di attivare "
-"l'integrazione."
+msgstr "Inserire un endpoint LLM valido e consentito prima di attivare l'integrazione."
 
 #: src/ui/settings/llm.rs:577
 msgid "the configured endpoint"
@@ -2025,27 +1631,16 @@ msgstr "l'endpoint configurato"
 
 #: src/ui/settings/llm.rs:579
 #, rust-format
-msgid ""
-"\"Improve with AI\" will send your transcript text to {host}. If that is a "
-"remote or cloud service, your text leaves your device. Only enable this for "
-"an endpoint you trust."
-msgstr ""
-"«Migliora con l'IA» invierà il testo della trascrizione a {host}. Se si "
-"tratta di un servizio remoto o cloud, il testo lascia il dispositivo. "
-"Attivare questa funzione solo per un endpoint di cui ci si fida."
+msgid "\"Improve with AI\" will send your transcript text to {host}. If that is a remote or cloud service, your text leaves your device. Only enable this for an endpoint you trust."
+msgstr "«Migliora con l'IA» invierà il testo della trascrizione a {host}. Se si tratta di un servizio remoto o cloud, il testo lascia il dispositivo. Attivare questa funzione solo per un endpoint di cui ci si fida."
 
 #: src/ui/settings/llm.rs:585
 msgid "Send transcripts to an LLM?"
 msgstr "Inviare le trascrizioni a un LLM?"
 
 #: src/ui/settings/llm.rs:701
-msgid ""
-"Couldn't save the API key to the system keyring, so it was not stored. Check "
-"that a keyring service (GNOME Keyring / KWallet) is running and unlocked."
-msgstr ""
-"Impossibile salvare la chiave API nel portachiavi di sistema, quindi non è "
-"stata memorizzata. Verificare che un servizio portachiavi (GNOME Keyring / "
-"KWallet) sia in esecuzione e sbloccato."
+msgid "Couldn't save the API key to the system keyring, so it was not stored. Check that a keyring service (GNOME Keyring / KWallet) is running and unlocked."
+msgstr "Impossibile salvare la chiave API nel portachiavi di sistema, quindi non è stata memorizzata. Verificare che un servizio portachiavi (GNOME Keyring / KWallet) sia in esecuzione e sbloccato."
 
 #: src/ui/settings/llm.rs:704 src/ui/settings/model.rs:581
 msgid "Keyring Error"
@@ -2144,12 +1739,8 @@ msgid "Engine"
 msgstr "Motore"
 
 #: src/ui/settings/model.rs:111
-msgid ""
-"Which transcription engine to use. Applies everywhere, including the mini "
-"panel."
-msgstr ""
-"Quale motore di trascrizione usare. Si applica ovunque, mini pannello "
-"compreso."
+msgid "Which transcription engine to use. Applies everywhere, including the mini panel."
+msgstr "Quale motore di trascrizione usare. Si applica ovunque, mini pannello compreso."
 
 #: src/ui/settings/model.rs:117
 msgid "Default Engine"
@@ -2173,9 +1764,7 @@ msgstr "Modelli quantizzati"
 
 #: src/ui/settings/model.rs:137
 msgid "5-bit quantized (Q5). Much smaller with near-identical accuracy."
-msgstr ""
-"Quantizzati a 5 bit (Q5). Molto più piccoli con una precisione quasi "
-"identica."
+msgstr "Quantizzati a 5 bit (Q5). Molto più piccoli con una precisione quasi identica."
 
 #: src/ui/settings/model.rs:168 src/ui/settings/model.rs:264
 #: src/ui/settings/model.rs:646 src/ui/settings/model.rs:709
@@ -2245,15 +1834,12 @@ msgid ""
 "Model files will be stored in and loaded from:\n"
 "{path}\n"
 "\n"
-"Choose a private location you control — models read from a shared or world-"
-"writable directory could be replaced by another user."
+"Choose a private location you control — models read from a shared or world-writable directory could be replaced by another user."
 msgstr ""
 "I file dei modelli verranno archiviati e caricati da:\n"
 "{path}\n"
 "\n"
-"Scegliere una posizione privata sotto il proprio controllo — i modelli letti "
-"da una directory condivisa o scrivibile da tutti potrebbero essere "
-"sostituiti da un altro utente."
+"Scegliere una posizione privata sotto il proprio controllo — i modelli letti da una directory condivisa o scrivibile da tutti potrebbero essere sostituiti da un altro utente."
 
 #: src/ui/settings/model.rs:491
 msgid "Use Folder"
@@ -2268,14 +1854,8 @@ msgid "HuggingFace Token"
 msgstr "Token HuggingFace"
 
 #: src/ui/settings/model.rs:584
-msgid ""
-"Couldn't save the HuggingFace token to the system keyring, so it was not "
-"stored. Check that a keyring service (GNOME Keyring / KWallet) is running "
-"and unlocked."
-msgstr ""
-"Impossibile salvare il token HuggingFace nel portachiavi di sistema, quindi "
-"non è stato memorizzato. Verificare che un servizio portachiavi (GNOME "
-"Keyring / KWallet) sia in esecuzione e sbloccato."
+msgid "Couldn't save the HuggingFace token to the system keyring, so it was not stored. Check that a keyring service (GNOME Keyring / KWallet) is running and unlocked."
+msgstr "Impossibile salvare il token HuggingFace nel portachiavi di sistema, quindi non è stato memorizzato. Verificare che un servizio portachiavi (GNOME Keyring / KWallet) sia in esecuzione e sbloccato."
 
 #: src/ui/settings/model.rs:601
 msgid "Get a Token"
@@ -2407,9 +1987,13 @@ msgstr "Rilevamento auto"
 msgid "CPU"
 msgstr "CPU"
 
-#: src/ui/status_bar.rs:128
+#: src/ui/status_bar.rs:129
 msgid "Update available"
 msgstr "Aggiornamento disponibile"
+
+#: src/ui/status_bar.rs:139
+msgid "Open the latest release on GitHub"
+msgstr "Apri l'ultima versione su GitHub"
 
 #: src/ui/transcript_view.rs:155
 msgid "Current session"
@@ -2598,6 +2182,9 @@ msgstr "Informazioni su Speech to Text"
 #~ msgid "Record"
 #~ msgstr "Registra"
 
+#~ msgid "Reliable paste, instant delivery, and heavy lifting while you speak."
+#~ msgstr "Incolla affidabile, consegna istantanea e lavoro pesante mentre si parla."
+
 #~ msgid "Save Transcript"
 #~ msgstr "Salva trascrizione"
 
@@ -2608,8 +2195,7 @@ msgstr "Informazioni su Speech to Text"
 #~ msgstr "Seleziona modello Whisper"
 
 #~ msgid "Select a model. Larger models are more accurate but slower."
-#~ msgstr ""
-#~ "Seleziona un modello. I modelli più grandi sono più precisi ma più lenti."
+#~ msgstr "Seleziona un modello. I modelli più grandi sono più precisi ma più lenti."
 
 #~ msgid "Selected"
 #~ msgstr "Selezionato"
@@ -2620,19 +2206,23 @@ msgstr "Informazioni su Speech to Text"
 #~ msgid "Speech to Text"
 #~ msgstr "Voce in Testo"
 
+#~ msgid "Speech to Text 1.6"
+#~ msgstr "Speech to Text 1.6"
+
 #~ msgid "Supports 99 languages with auto-detection"
 #~ msgstr "Supporta 99 lingue con rilevamento automatico"
 
 #~ msgid "Transcribing…"
 #~ msgstr "Trascrizione…"
 
-#~ msgid ""
-#~ "Use GPU for faster transcription when available. Requires CUDA or OpenCL "
-#~ "support."
+#~ msgid "Use GPU for faster transcription when available. Requires CUDA or OpenCL support."
 #~ msgstr "Usa la GPU per una trascrizione più veloce. Richiede CUDA o OpenCL."
 
 #~ msgid "VRAM"
 #~ msgstr "VRAM"
+
+#~ msgid "Version 1.6.0"
+#~ msgstr "Versione 1.6.0"
 
 #~ msgid "Whisper Models"
 #~ msgstr "Modelli Whisper"

@@ -23,7 +23,7 @@ mod imp {
         pub language_label: RefCell<Option<gtk::Label>>,
         pub compute_label: RefCell<Option<gtk::Label>>,
         pub version_label: RefCell<Option<gtk::Label>>,
-        pub update_box: RefCell<Option<gtk::Box>>,
+        pub update_box: RefCell<Option<gtk::Button>>,
         pub update_label: RefCell<Option<gtk::Label>>,
     }
 
@@ -117,18 +117,40 @@ impl StatusBar {
         self.append(&spacer);
 
         // === Update indicator (hidden by default) ===
-        let update_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        update_box.set_visible(false);
+        // A flat button: clicking it opens the latest GitHub release so the
+        // user can download the new version.
+        let update_inner = gtk::Box::new(gtk::Orientation::Horizontal, 4);
 
         let update_icon = gtk::Image::from_icon_name("software-update-available-symbolic");
         update_icon.set_pixel_size(10);
         update_icon.add_css_class("error");
-        update_box.append(&update_icon);
+        update_inner.append(&update_icon);
 
         let update_label = gtk::Label::new(Some(gettext("Update available").as_str()));
         update_label.add_css_class("caption");
         update_label.add_css_class("error");
-        update_box.append(&update_label);
+        update_inner.append(&update_label);
+
+        let update_box = gtk::Button::new();
+        update_box.set_child(Some(&update_inner));
+        update_box.add_css_class("flat");
+        update_box.add_css_class("update-indicator");
+        update_box.set_visible(false);
+        update_box.set_tooltip_text(Some(gettext("Open the latest release on GitHub").as_str()));
+        update_box.connect_clicked(|button| {
+            gtk::UriLauncher::new(
+                "https://github.com/christosdaggas/speech-to-text/releases/latest",
+            )
+            .launch(
+                button.root().and_downcast::<gtk::Window>().as_ref(),
+                gtk::gio::Cancellable::NONE,
+                |result| {
+                    if let Err(e) = result {
+                        tracing::warn!("Failed to open the release page: {e}");
+                    }
+                },
+            );
+        });
 
         self.append(&update_box);
 

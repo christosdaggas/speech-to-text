@@ -144,7 +144,6 @@ mod imp {
         pub sidebar_section_rows: RefCell<Vec<gtk::ListBoxRow>>,
         pub info_box: RefCell<Option<gtk::Box>>,
         pub gpu_panel: RefCell<Option<GpuStatusPanel>>,
-        pub update_banner: RefCell<Option<gtk::Box>>,
         pub syncing_backend: Cell<bool>,
         pub syncing_dropdown: Cell<bool>,
         pub syncing_translate: Cell<bool>,
@@ -435,28 +434,14 @@ impl MainWindow {
         let gpu_panel = GpuStatusPanel::new();
         sidebar_box.append(&gpu_panel);
 
-        // Version and author info at the bottom of sidebar
+        // Bottom-of-sidebar spacer. The update notice lives only in the
+        // status bar (bottom right); this box keeps the GPU panel's resting
+        // position exactly where it was when it also hosted a banner.
         let info_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
         info_box.set_margin_start(12);
         info_box.set_margin_end(12);
         info_box.set_margin_top(8);
         info_box.set_margin_bottom(8);
-
-        // Update banner — hidden until version check completes
-        let update_banner = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        update_banner.add_css_class("update-banner");
-        update_banner.set_visible(false);
-        update_banner.set_halign(gtk::Align::Start);
-
-        let update_icon = gtk::Image::from_icon_name("software-update-available-symbolic");
-        update_icon.set_pixel_size(14);
-        update_banner.append(&update_icon);
-
-        let update_label = gtk::Label::new(Some("New version available"));
-        update_label.add_css_class("update-banner-label");
-        update_banner.append(&update_label);
-
-        info_box.append(&update_banner);
 
         sidebar_box.append(&info_box);
 
@@ -610,7 +595,6 @@ impl MainWindow {
         *imp.settings_header_label.borrow_mut() = settings_header_label_opt;
         *imp.sidebar_section_rows.borrow_mut() = section_rows;
         *imp.info_box.borrow_mut() = Some(info_box);
-        *imp.update_banner.borrow_mut() = Some(update_banner);
         imp.sidebar_collapsed.set(false);
 
         // Connect navigation. With the section-header rows removed, each list
@@ -3080,20 +3064,9 @@ impl MainWindow {
         });
     }
 
-    /// Make the update banner visible with the new version info.
+    /// Surface the new version in the status bar (bottom right, clickable).
     fn show_update_available(&self, info: &crate::version_check::UpdateInfo) {
-        let imp = self.imp();
-        if let Some(banner) = imp.update_banner.borrow().as_ref() {
-            // Update the label text
-            if let Some(child) = banner.last_child() {
-                if let Ok(label) = child.downcast::<gtk::Label>() {
-                    label.set_label(&format!("v{} available", info.latest_version));
-                }
-            }
-            banner.set_visible(true);
-        }
-        // Also update the status bar
-        if let Some(sb) = imp.status_bar.borrow().as_ref() {
+        if let Some(sb) = self.imp().status_bar.borrow().as_ref() {
             sb.show_update_available(&info.latest_version);
         }
     }

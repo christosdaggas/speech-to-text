@@ -235,16 +235,28 @@ mod imp {
                 } else {
                     None
                 };
-                crate::application::tokio_runtime().spawn(
-                    crate::portal::shortcuts::run_global_shortcuts(trigger, transform_trigger, tx),
-                );
+                let auto_paste = config.auto_paste;
+                crate::application::tokio_runtime().spawn(async move {
+                    // The portal Registry must see this connection BEFORE any
+                    // other portal call: once another proxy (the RemoteDesktop
+                    // warm-up) speaks first, the shared connection is tagged
+                    // app-id-less for good — every later Register is refused
+                    // as "already associated" and GlobalShortcuts keeps
+                    // rejecting with "An app id is required". Registering
+                    // first, then starting the warm-up and the shortcut
+                    // listener, removes that startup race.
+                    crate::portal::ensure_host_app_registered().await;
 
-                // Pre-warm the persistent RemoteDesktop session (grant already
-                // held → never prompts) so the first auto-paste of the run
-                // doesn't pay the portal handshake.
-                if config.auto_paste {
-                    crate::portal::paste::warm_up();
-                }
+                    // Pre-warm the persistent RemoteDesktop session (grant
+                    // already held → never prompts) so the first auto-paste
+                    // of the run doesn't pay the portal handshake.
+                    if auto_paste {
+                        crate::portal::paste::warm_up();
+                    }
+
+                    crate::portal::shortcuts::run_global_shortcuts(trigger, transform_trigger, tx)
+                        .await;
+                });
 
                 let app_weak = self.obj().downgrade();
                 glib::spawn_future_local(async move {
@@ -2093,7 +2105,7 @@ impl Application {
         let header = adw::HeaderBar::new();
         let title = adw::WindowTitle::builder()
             .title(gettext("What's New"))
-            .subtitle(gettext("Version 1.6.0"))
+            .subtitle(format!("{} {}", gettext("Version"), VERSION))
             .build();
         header.set_title_widget(Some(&title));
         toolbar.add_top_bar(&header);
@@ -2108,14 +2120,14 @@ impl Application {
         hero_icon.set_pixel_size(80);
         content.append(&hero_icon);
 
-        let heading = gtk::Label::new(Some(&gettext("Speech to Text 1.6")));
+        let heading = gtk::Label::new(Some(&gettext("Speech to Text 1.7")));
         heading.add_css_class("title-1");
         heading.set_wrap(true);
         heading.set_justify(gtk::Justification::Center);
         content.append(&heading);
 
         let intro = gtk::Label::new(Some(&gettext(
-            "Reliable paste, instant delivery, and heavy lifting while you speak.",
+            "Much faster transcription, silence-aware decoding, and four complete translations.",
         )));
         intro.add_css_class("dim-label");
         intro.set_wrap(true);
@@ -2129,6 +2141,31 @@ impl Application {
         Self::append_whats_new_group(
             &content,
             "",
+            &[
+                gettext("Transcription is up to 4× faster on Vulkan GPUs: the upgraded whisper.cpp engine uses the GPU's matrix cores, with flash attention on top."),
+                gettext("A Silero voice-activity pre-pass skips silent recordings outright — no more invented text out of dead air — and trims leading and trailing silence before decoding."),
+                gettext("Complete Greek, Italian, Spanish and German translations, covering the whole app, the menu entry and the software-centre listing."),
+                gettext("Greek all-caps headings now drop the tonos, as Greek orthography requires."),
+                gettext("The global dictation shortcut no longer fails to register when another portal request wins the startup race — the hotkey works on every launch."),
+                gettext("The mini panel returns right after a dictation instead of waiting out a portal timeout."),
+                gettext("The update notice is a single indicator in the status bar; clicking it opens the latest release on GitHub."),
+                gettext("Assorted fixes and refinements across the interface."),
+            ],
+        );
+
+        let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
+        separator.set_margin_top(8);
+        separator.set_margin_bottom(8);
+        content.append(&separator);
+
+        let history_heading = gtk::Label::new(Some(&gettext("Previous releases")));
+        history_heading.add_css_class("title-2");
+        history_heading.set_halign(gtk::Align::Start);
+        content.append(&history_heading);
+
+        Self::append_whats_new_group(
+            &content,
+            "Version 1.6.0",
             &[
                 gettext("Auto-paste now works when the main window is open in the background — keyboard focus returns to your editor, not to the app."),
                 gettext("A persistent desktop portal session removes about a second of overhead from every paste."),
@@ -2148,17 +2185,6 @@ impl Application {
                 gettext("History and settings are written off the UI thread with safe ordering."),
             ],
         );
-
-        let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
-        separator.set_margin_top(8);
-        separator.set_margin_bottom(8);
-        content.append(&separator);
-
-        let history_heading = gtk::Label::new(Some(&gettext("Previous releases")));
-        history_heading.add_css_class("title-2");
-        history_heading.set_halign(gtk::Align::Start);
-        content.append(&history_heading);
-
         Self::append_whats_new_group(
             &content,
             "Version 1.5.0",

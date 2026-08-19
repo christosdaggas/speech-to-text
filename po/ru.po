@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: speech-to-text 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/christosdaggas/speech-to-text/"
 "issues\n"
-"POT-Creation-Date: 2026-08-19 22:35+0300\n"
+"POT-Creation-Date: 2026-08-20 01:13+0300\n"
 "PO-Revision-Date: 2026-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
@@ -18,304 +18,352 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-#: src/application.rs:2082 src/application.rs:2095
+#: src/application.rs:2094 src/application.rs:2107
 #: src/ui/widgets/theme_popover.rs:206
 msgid "What's New"
 msgstr "Что нового"
 
-#: src/application.rs:2096
-msgid "Version 1.6.0"
+#: src/application.rs:2108
+msgid "Version"
 msgstr ""
 
-#: src/application.rs:2111
-msgid "Speech to Text 1.6"
+#: src/application.rs:2123
+msgid "Speech to Text 1.7"
 msgstr ""
 
-#: src/application.rs:2118
-msgid "Reliable paste, instant delivery, and heavy lifting while you speak."
+#: src/application.rs:2130
+msgid ""
+"Much faster transcription, silence-aware decoding, and four complete "
+"translations."
 msgstr ""
 
-#: src/application.rs:2133
+#: src/application.rs:2145
+msgid ""
+"Transcription is up to 4× faster on Vulkan GPUs: the upgraded whisper.cpp "
+"engine uses the GPU's matrix cores, with flash attention on top."
+msgstr ""
+
+#: src/application.rs:2146
+msgid ""
+"A Silero voice-activity pre-pass skips silent recordings outright — no more "
+"invented text out of dead air — and trims leading and trailing silence "
+"before decoding."
+msgstr ""
+
+#: src/application.rs:2147
+msgid ""
+"Complete Greek, Italian, Spanish and German translations, covering the whole "
+"app, the menu entry and the software-centre listing."
+msgstr ""
+
+#: src/application.rs:2148
+msgid ""
+"Greek all-caps headings now drop the tonos, as Greek orthography requires."
+msgstr ""
+
+#: src/application.rs:2149
+msgid ""
+"The global dictation shortcut no longer fails to register when another "
+"portal request wins the startup race — the hotkey works on every launch."
+msgstr ""
+
+#: src/application.rs:2150
+msgid ""
+"The mini panel returns right after a dictation instead of waiting out a "
+"portal timeout."
+msgstr ""
+
+#: src/application.rs:2151
+msgid ""
+"The update notice is a single indicator in the status bar; clicking it opens "
+"the latest release on GitHub."
+msgstr ""
+
+#: src/application.rs:2152
+msgid "Assorted fixes and refinements across the interface."
+msgstr ""
+
+#: src/application.rs:2161
+msgid "Previous releases"
+msgstr ""
+
+#: src/application.rs:2170
 msgid ""
 "Auto-paste now works when the main window is open in the background — "
 "keyboard focus returns to your editor, not to the app."
 msgstr ""
 
-#: src/application.rs:2134
+#: src/application.rs:2171
 msgid ""
 "A persistent desktop portal session removes about a second of overhead from "
 "every paste."
 msgstr ""
 
-#: src/application.rs:2135
+#: src/application.rs:2172
 msgid ""
 "The paste permission is requested once, from Settings — never in the middle "
 "of a dictation."
 msgstr ""
 
-#: src/application.rs:2136
+#: src/application.rs:2173
 msgid "The Copied badge appears only when the text really is on the clipboard."
 msgstr ""
 
-#: src/application.rs:2137
+#: src/application.rs:2174
 msgid ""
 "Long dictations are transcribed in the background while you speak, so the "
 "wait after Stop stays short."
 msgstr ""
 
-#: src/application.rs:2138
+#: src/application.rs:2175
 msgid ""
 "Qwen3-ASR and Cohere keep their models loaded between dictations instead of "
 "reloading gigabytes every time."
 msgstr ""
 
-#: src/application.rs:2139
+#: src/application.rs:2176
 msgid ""
 "Recording starts instantly — the microphone device is cached between takes."
 msgstr ""
 
-#: src/application.rs:2140
+#: src/application.rs:2177
 msgid ""
 "AI improvement no longer delays delivery: the raw transcript arrives first "
 "and the polished variant follows."
 msgstr ""
 
-#: src/application.rs:2141
+#: src/application.rs:2178
 msgid ""
 "A finished transcription is always saved to History, even if you have "
 "already started the next one."
 msgstr ""
 
-#: src/application.rs:2142
+#: src/application.rs:2179
 msgid "The global shortcut re-registers itself if the desktop portal restarts."
 msgstr ""
 
-#: src/application.rs:2143
+#: src/application.rs:2180
 msgid ""
 "A disconnected microphone stops the recording and transcribes what was "
 "captured."
 msgstr ""
 
-#: src/application.rs:2144
+#: src/application.rs:2181
 msgid ""
 "Transcription errors are shown instead of leaving the panel stuck on "
 "Transcribing."
 msgstr ""
 
-#: src/application.rs:2145
+#: src/application.rs:2182
 msgid ""
 "Provider metadata downloads are size-capped, and redirects can no longer "
 "downgrade to plaintext."
 msgstr ""
 
-#: src/application.rs:2146
+#: src/application.rs:2183
 msgid "Secret redaction now catches unprefixed tokens, across line breaks."
 msgstr ""
 
-#: src/application.rs:2147
+#: src/application.rs:2184
 msgid ""
 "The health endpoint exposes less, and language parameters are strictly "
 "validated."
 msgstr ""
 
-#: src/application.rs:2148
+#: src/application.rs:2185
 msgid "History and settings are written off the UI thread with safe ordering."
 msgstr ""
 
-#: src/application.rs:2157
-msgid "Previous releases"
-msgstr ""
-
-#: src/application.rs:2166
+#: src/application.rs:2192
 msgid ""
 "Faster hidden startup, bounded inference work, and non-blocking audio "
 "capture."
 msgstr ""
 
-#: src/application.rs:2167
+#: src/application.rs:2193
 msgid ""
 "Verified, resumable runtime and model downloads; keyring-only credentials."
 msgstr ""
 
-#: src/application.rs:2168
+#: src/application.rs:2194
 msgid ""
 "Endpoint-specific AI consent, request limits, and safer access controls for "
 "the local API."
 msgstr ""
 
-#: src/application.rs:2169
+#: src/application.rs:2195
 msgid "Expanded History with full-text search and file-transcription recovery."
 msgstr ""
 
-#: src/application.rs:2170
+#: src/application.rs:2196
 msgid ""
 "A refined workspace: Settings, History, Help, and the model selector share a "
 "clearer visual language."
 msgstr ""
 
-#: src/application.rs:2177
+#: src/application.rs:2203
 msgid ""
 "Added an Open File button for transcribing WAV, MP3, FLAC, OGG, Opus, and "
 "M4A files with the same results and tools as live recordings."
 msgstr ""
 
-#: src/application.rs:2178
+#: src/application.rs:2204
 msgid ""
 "Fixed mini-panel failures on Vulkan GPUs by always using a clean batch "
 "decode."
 msgstr ""
 
-#: src/application.rs:2179
+#: src/application.rs:2205
 msgid ""
 "Re-enabled Whisper temperature retry so difficult audio degrades gracefully "
 "instead of failing the entire transcription."
 msgstr ""
 
-#: src/application.rs:2180
+#: src/application.rs:2206
 msgid ""
 "Limited live transcription previews to the main window so the mini panel "
 "remains a clean batch decode."
 msgstr ""
 
-#: src/application.rs:2181
+#: src/application.rs:2207
 msgid "Applied the configured beam size consistently to live previews."
 msgstr ""
 
-#: src/application.rs:2182
+#: src/application.rs:2208
 msgid "Consolidated the mini panel's AI tools into an Actions menu."
 msgstr ""
 
-#: src/application.rs:2183
+#: src/application.rs:2209
 msgid "Allowed Settings pages to use the full available content width."
 msgstr ""
 
-#: src/application.rs:2190
+#: src/application.rs:2216
 msgid ""
 "Hardened downloads, secret storage, configuration, History, AI connections, "
 "resource limits, and log redaction."
 msgstr ""
 
-#: src/application.rs:2191
+#: src/application.rs:2217
 msgid ""
 "Disabled auto-paste by default for new installs, made update checks "
 "configurable, and added confirmation before clearing History."
 msgstr ""
 
-#: src/application.rs:2192
+#: src/application.rs:2218
 msgid ""
 "Fixed the mini panel pasting the previous transcript when focus changed "
 "during recording."
 msgstr ""
 
-#: src/application.rs:2193
+#: src/application.rs:2219
 msgid ""
 "Made the mini-panel AI indicator appear only when automatic improvement will "
 "run."
 msgstr ""
 
-#: src/application.rs:2200
+#: src/application.rs:2226
 msgid ""
 "Added the Mini Panel for dictating into any application with a global "
 "shortcut."
 msgstr ""
 
-#: src/application.rs:2201
+#: src/application.rs:2227
 msgid "Added a system tray icon and background mode."
 msgstr ""
 
-#: src/application.rs:2202
+#: src/application.rs:2228
 msgid "Added Plain, Message, Email, Note, and Code Prompt dictation modes."
 msgstr ""
 
-#: src/application.rs:2203
+#: src/application.rs:2229
 msgid "Added full and quantized Whisper Large v3 Turbo models."
 msgstr ""
 
-#: src/application.rs:2204
+#: src/application.rs:2230
 msgid "Moved the transcription engine selector to Model settings."
 msgstr ""
 
-#: src/application.rs:2205
+#: src/application.rs:2231
 msgid "Applied Translate to English to mini-panel transcriptions."
 msgstr ""
 
-#: src/application.rs:2206
+#: src/application.rs:2232
 msgid "Fixed empty transcriptions when automatically detecting the language."
 msgstr ""
 
-#: src/application.rs:2207
+#: src/application.rs:2233
 msgid "Fixed Cohere Transcribe ignoring the selected language."
 msgstr ""
 
-#: src/application.rs:2208
+#: src/application.rs:2234
 msgid "Fixed recording sessions repeating old text."
 msgstr ""
 
-#: src/application.rs:2215
+#: src/application.rs:2241
 msgid "Added multiple transcription backend support."
 msgstr ""
 
-#: src/application.rs:2216
+#: src/application.rs:2242
 msgid "Fixed icon display in the welcome wizard."
 msgstr ""
 
-#: src/application.rs:2217
+#: src/application.rs:2243
 msgid "Improved stability and reliability."
 msgstr ""
 
-#: src/application.rs:2224
+#: src/application.rs:2250
 msgid "Enabled GPU acceleration by default."
 msgstr ""
 
-#: src/application.rs:2225
+#: src/application.rs:2251
 msgid "Added GNOME accent-color support for waveform animation."
 msgstr ""
 
-#: src/application.rs:2226
+#: src/application.rs:2252
 msgid "Improved visual consistency with the sidebar theme."
 msgstr ""
 
-#: src/application.rs:2227
+#: src/application.rs:2253
 msgid "Added offline transcription using Whisper."
 msgstr ""
 
-#: src/application.rs:2228
+#: src/application.rs:2254
 msgid "Added Whisper model sizes from Tiny through Large v3."
 msgstr ""
 
-#: src/application.rs:2229
+#: src/application.rs:2255
 msgid "Added real-time confidence scoring."
 msgstr ""
 
-#: src/application.rs:2230
+#: src/application.rs:2256
 msgid "Added searchable transcription History."
 msgstr ""
 
-#: src/application.rs:2231
+#: src/application.rs:2257
 msgid "Added audio-device selection."
 msgstr ""
 
-#: src/application.rs:2232
+#: src/application.rs:2258
 msgid "Added pause and resume recording."
 msgstr ""
 
-#: src/application.rs:2233
+#: src/application.rs:2259
 msgid "Added transcript file export."
 msgstr ""
 
-#: src/application.rs:2234
+#: src/application.rs:2260
 msgid "Added automatic language detection."
 msgstr ""
 
-#: src/application.rs:2235
+#: src/application.rs:2261
 msgid "Added System, Light, and Dark themes."
 msgstr ""
 
-#: src/application.rs:2236
+#: src/application.rs:2262
 msgid "Added a configurable model storage location."
 msgstr ""
 
-#: src/application.rs:2237
+#: src/application.rs:2263
 msgid "Added automatic update checks from GitHub."
 msgstr ""
 
@@ -339,12 +387,12 @@ msgstr "Выход"
 msgid "Start recording (Ctrl+R)"
 msgstr "Начать запись (Ctrl+R)"
 
-#: src/ui/controls.rs:164 src/ui/controls.rs:438 src/ui/main_window.rs:868
-#: src/ui/main_window.rs:1039 src/ui/main_window.rs:1070
-#: src/ui/main_window.rs:1090 src/ui/main_window.rs:1693
-#: src/ui/main_window.rs:1699 src/ui/main_window.rs:2312
-#: src/ui/main_window.rs:2320 src/ui/main_window.rs:2428
-#: src/ui/main_window.rs:3019
+#: src/ui/controls.rs:164 src/ui/controls.rs:438 src/ui/main_window.rs:852
+#: src/ui/main_window.rs:1023 src/ui/main_window.rs:1054
+#: src/ui/main_window.rs:1074 src/ui/main_window.rs:1677
+#: src/ui/main_window.rs:1683 src/ui/main_window.rs:2296
+#: src/ui/main_window.rs:2304 src/ui/main_window.rs:2412
+#: src/ui/main_window.rs:3003
 msgid "Ready"
 msgstr "Готово"
 
@@ -432,8 +480,8 @@ msgstr "Главное меню"
 msgid "Select model"
 msgstr ""
 
-#: src/ui/header.rs:122 src/ui/header.rs:190 src/ui/main_window.rs:1438
-#: src/ui/main_window.rs:2837
+#: src/ui/header.rs:122 src/ui/header.rs:190 src/ui/main_window.rs:1422
+#: src/ui/main_window.rs:2821
 msgid "No Model"
 msgstr "Нет модели"
 
@@ -541,7 +589,7 @@ msgid ""
 "(0.6B / 1.7B). Good accuracy, CPU-only, no timestamps."
 msgstr ""
 
-#: src/ui/help_page.rs:134 src/ui/main_window.rs:1427
+#: src/ui/help_page.rs:134 src/ui/main_window.rs:1411
 #: src/ui/settings/model.rs:966
 msgid "Qwen3-ASR"
 msgstr ""
@@ -678,7 +726,7 @@ msgid ""
 "heard \"cube\" → \"Kube\"). Everything stays on your device."
 msgstr ""
 
-#: src/ui/help_page.rs:207 src/ui/main_window.rs:1099 src/ui/mini_panel.rs:503
+#: src/ui/help_page.rs:207 src/ui/main_window.rs:1083 src/ui/mini_panel.rs:503
 #: src/ui/transcript_view.rs:389 src/ui/transcript_view.rs:712
 #: src/ui/transcript_view.rs:1317
 msgid "Voice edit"
@@ -893,166 +941,166 @@ msgstr ""
 msgid "API"
 msgstr ""
 
-#: src/ui/main_window.rs:320
+#: src/ui/main_window.rs:319
 msgid "Stop or cancel the active recording before hiding the window."
 msgstr ""
 
-#: src/ui/main_window.rs:780 src/ui/transcript_view.rs:335
+#: src/ui/main_window.rs:764 src/ui/transcript_view.rs:335
 #: src/ui/transcript_view.rs:1277 src/ui/transcript_view.rs:1395
 msgid "Raw"
 msgstr ""
 
-#: src/ui/main_window.rs:853
+#: src/ui/main_window.rs:837
 msgid "Improving with AI…"
 msgstr ""
 
-#: src/ui/main_window.rs:874 src/ui/main_window.rs:1112
+#: src/ui/main_window.rs:858 src/ui/main_window.rs:1096
 msgid "AI returned an empty result"
 msgstr ""
 
-#: src/ui/main_window.rs:899 src/ui/main_window.rs:1113
+#: src/ui/main_window.rs:883 src/ui/main_window.rs:1097
 msgid "AI error"
 msgstr ""
 
-#: src/ui/main_window.rs:936
+#: src/ui/main_window.rs:920
 msgid "Select a message first."
 msgstr ""
 
-#: src/ui/main_window.rs:947
+#: src/ui/main_window.rs:931
 msgid "No text to edit."
 msgstr ""
 
-#: src/ui/main_window.rs:953
+#: src/ui/main_window.rs:937
 msgid "Enable the LLM in Settings → LLM to use Voice edit."
 msgstr ""
 
-#: src/ui/main_window.rs:961
+#: src/ui/main_window.rs:945
 msgid "Busy — finish the current recording first."
 msgstr ""
 
-#: src/ui/main_window.rs:973
+#: src/ui/main_window.rs:957
 msgid "Listening for your edit… click \"Stop edit\" when done"
 msgstr ""
 
-#: src/ui/main_window.rs:999
+#: src/ui/main_window.rs:983
 msgid "Microphone stopped — finishing the edit."
 msgstr ""
 
-#: src/ui/main_window.rs:1037 src/ui/main_window.rs:1072
+#: src/ui/main_window.rs:1021 src/ui/main_window.rs:1056
 msgid "Didn't catch an instruction."
 msgstr ""
 
-#: src/ui/main_window.rs:1057
+#: src/ui/main_window.rs:1041
 msgid "Applying your edit…"
 msgstr ""
 
-#: src/ui/main_window.rs:1123
+#: src/ui/main_window.rs:1107
 msgid "Improved with AI"
 msgstr ""
 
-#: src/ui/main_window.rs:1134
+#: src/ui/main_window.rs:1118
 msgid "Undo"
 msgstr ""
 
-#: src/ui/main_window.rs:1420 src/ui/settings/model.rs:534
+#: src/ui/main_window.rs:1404 src/ui/settings/model.rs:534
 msgid "Cohere Transcribe"
 msgstr ""
 
-#: src/ui/main_window.rs:1435 src/ui/main_window.rs:2902
+#: src/ui/main_window.rs:1419 src/ui/main_window.rs:2886
 msgid "Loading model…"
 msgstr "Загрузка модели…"
 
-#: src/ui/main_window.rs:1437 src/ui/main_window.rs:2836
+#: src/ui/main_window.rs:1421 src/ui/main_window.rs:2820
 msgid "No model selected"
 msgstr ""
 
-#: src/ui/main_window.rs:1617
+#: src/ui/main_window.rs:1601
 msgid "Decoding file…"
 msgstr ""
 
-#: src/ui/main_window.rs:1625 src/ui/main_window.rs:2251
+#: src/ui/main_window.rs:1609 src/ui/main_window.rs:2235
 msgid ""
 "Cohere is not set up. Go to Settings → Model to download the runtime and "
 "model."
 msgstr ""
 
-#: src/ui/main_window.rs:1630 src/ui/main_window.rs:2259
+#: src/ui/main_window.rs:1614 src/ui/main_window.rs:2243
 msgid ""
 "Qwen3-ASR is not set up. Go to Settings → Model to download the runtime and "
 "model."
 msgstr ""
 
-#: src/ui/main_window.rs:1638 src/ui/main_window.rs:2460
+#: src/ui/main_window.rs:1622 src/ui/main_window.rs:2444
 msgid "Stop the current recording first"
 msgstr ""
 
-#: src/ui/main_window.rs:1695
+#: src/ui/main_window.rs:1679
 msgid "No clear speech detected in the audio"
 msgstr ""
 
-#: src/ui/main_window.rs:1743
+#: src/ui/main_window.rs:1727
 msgid "File transcription complete"
 msgstr ""
 
-#: src/ui/main_window.rs:1750 src/ui/main_window.rs:2393
+#: src/ui/main_window.rs:1734 src/ui/main_window.rs:2377
 msgid "Error"
 msgstr "Ошибка"
 
-#: src/ui/main_window.rs:2011
+#: src/ui/main_window.rs:1995
 msgid ""
 "The selected transcription model is not ready. Open Model settings and "
 "finish setup first."
 msgstr ""
 
-#: src/ui/main_window.rs:2043 src/ui/main_window.rs:2201
+#: src/ui/main_window.rs:2027 src/ui/main_window.rs:2185
 msgid "Recording…"
 msgstr "Запись…"
 
-#: src/ui/main_window.rs:2188
+#: src/ui/main_window.rs:2172
 msgid "Paused"
 msgstr "Пауза"
 
-#: src/ui/main_window.rs:2254 src/ui/main_window.rs:2261
+#: src/ui/main_window.rs:2238 src/ui/main_window.rs:2245
 msgid "Setup Required"
 msgstr ""
 
-#: src/ui/main_window.rs:2315
+#: src/ui/main_window.rs:2299
 msgid "No clear speech detected — try again in a quieter environment"
 msgstr ""
 
-#: src/ui/main_window.rs:2431
+#: src/ui/main_window.rs:2415
 msgid "Recording cancelled"
 msgstr ""
 
-#: src/ui/main_window.rs:2442
+#: src/ui/main_window.rs:2426
 msgid "Copied to clipboard"
 msgstr "Скопировано в буфер обмена"
 
-#: src/ui/main_window.rs:2466
+#: src/ui/main_window.rs:2450
 msgid "Audio files"
 msgstr ""
 
-#: src/ui/main_window.rs:2473
+#: src/ui/main_window.rs:2457
 msgid "All files"
 msgstr ""
 
-#: src/ui/main_window.rs:2481
+#: src/ui/main_window.rs:2465
 msgid "Open Audio File"
 msgstr ""
 
-#: src/ui/main_window.rs:2508
+#: src/ui/main_window.rs:2492
 msgid "Nothing to save"
 msgstr "Нечего сохранять"
 
-#: src/ui/main_window.rs:2551
+#: src/ui/main_window.rs:2535
 msgid "Transcript saved"
 msgstr "Транскрипция сохранена"
 
-#: src/ui/main_window.rs:2585
+#: src/ui/main_window.rs:2569
 msgid "Microphone stopped — finishing the recording."
 msgstr ""
 
-#: src/ui/main_window.rs:2960
+#: src/ui/main_window.rs:2944
 msgid "GPU unavailable — loaded model on CPU"
 msgstr ""
 
@@ -2139,8 +2187,12 @@ msgstr "Автоопределение"
 msgid "CPU"
 msgstr "ЦП"
 
-#: src/ui/status_bar.rs:128
+#: src/ui/status_bar.rs:129
 msgid "Update available"
+msgstr ""
+
+#: src/ui/status_bar.rs:139
+msgid "Open the latest release on GitHub"
 msgstr ""
 
 #: src/ui/transcript_view.rs:155

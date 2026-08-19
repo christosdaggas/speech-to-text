@@ -1,6 +1,6 @@
 Name:           speech-to-text
-Version:        1.6.0
-Release:        2%{?dist}
+Version:        1.7.0
+Release:        1%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/christosdaggas/speech-to-text
@@ -14,6 +14,8 @@ Source4:        style.css
 Source5:        com.chrisdaggas.speech-to-text-ai.svg
 Source6:        com.chrisdaggas.speech-to-text.metainfo.xml
 Source7:        LICENSE
+# Silero VAD model (speech pre-pass; sha256 29940d98d42b…c04ea2cf)
+Source8:        ggml-silero-v5.1.2.bin
 
 # Locale .mo files
 Source10:       de.mo
@@ -58,6 +60,9 @@ install -Dm644 "%{SOURCE5}" "%{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 install -Dm644 "%{SOURCE6}" "%{buildroot}%{_metainfodir}/com.chrisdaggas.speech-to-text.metainfo.xml"
 install -Dm644 "%{SOURCE7}" "%{buildroot}%{_licensedir}/%{name}/LICENSE"
 
+# Silero VAD model (skips/trims silence before Whisper decoding)
+install -Dm644 "%{SOURCE8}" "%{buildroot}%{_datadir}/speech-to-text/ggml-silero-v5.1.2.bin"
+
 # Locale files
 for lang in de el es fr it pt ru zh; do
     install -Dm644 "%{_sourcedir}/${lang}.mo" "%{buildroot}%{_datadir}/locale/${lang}/LC_MESSAGES/speech-to-text.mo"
@@ -71,6 +76,8 @@ done
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text.svg
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-ai.svg
 %{_datadir}/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg
+%dir %{_datadir}/speech-to-text
+%{_datadir}/speech-to-text/ggml-silero-v5.1.2.bin
 %{_datadir}/locale/de/LC_MESSAGES/speech-to-text.mo
 %{_datadir}/locale/el/LC_MESSAGES/speech-to-text.mo
 %{_datadir}/locale/es/LC_MESSAGES/speech-to-text.mo
@@ -89,6 +96,24 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Wed Aug 20 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.7.0-1
+- Performance: transcription is up to 4x faster on Vulkan GPUs — upgraded
+  whisper.cpp engine (1.8.3) uses the GPU's cooperative-matrix cores, plus
+  flash attention on GPU contexts
+- Added: a Silero voice-activity pre-pass skips silent recordings outright (no
+  more hallucinated text from dead air) and trims leading/trailing silence;
+  the model ships with the package
+- Added: complete Greek, Italian, Spanish and German translations, including
+  the desktop entry and AppStream metadata
+- Fixed: the global dictation shortcut could fail to register when another
+  portal request won the startup race, leaving the hotkey dead until restart
+- Fixed: Greek all-caps headings kept the tonos (a spelling error in Greek)
+- Fixed: the Model page could show raw catalogue metadata in a status label
+  on translated builds
+- Changed: the update notice is a single clickable indicator in the status
+  bar that opens the latest GitHub release
+- Changed: assorted UI refinements
+
 * Sat Aug 01 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.6.0-2
 - Fixed: the Cohere Transcribe runtime failed to install — its bundled libtorch
   archive has ~9000 files, over the 8192 entry cap in the hardened zip

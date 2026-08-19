@@ -474,30 +474,16 @@ comborow popover listview row:selected {
     outline-offset: -2px;
 }
 
-.update-banner {
-    background-color: alpha(@error_color, 0.14);
-    border: 1px solid alpha(@error_color, 0.30);
-    border-radius: 10px;
-    padding: 7px 11px;
-    margin-bottom: 4px;
-}
-
-.update-banner .update-icon {
-    color: @error_color;
-}
-
-.update-banner .update-link {
-    font-size: 0.9em;
-    font-weight: 700;
-    color: @error_color;
-    padding: 0;
+/* The clickable "vX.Y.Z available" button in the status bar. Kept compact so
+   it reads as a status chip, with a hover to make the click affordance clear. */
+.update-indicator {
     min-height: 0;
+    padding: 1px 7px;
+    border-radius: 7px;
 }
 
-.update-banner-label {
-    font-size: 0.85em;
-    font-weight: 700;
-    color: @error_color;
+.update-indicator:hover {
+    background-color: alpha(@error_color, 0.12);
 }
 
 .mini-panel-chip {

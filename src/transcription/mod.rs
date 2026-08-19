@@ -13,6 +13,7 @@ pub mod qwen;
 pub mod safe_path;
 pub mod sidecar_server;
 pub mod summary;
+pub mod vad;
 pub mod verify;
 
 pub use engine::TranscriptionEngine;

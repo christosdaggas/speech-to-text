@@ -93,4 +93,14 @@ fn main() {
             );
         }
     }
+
+    // Same source-tree convenience for the bundled Silero VAD model: debug
+    // builds find it in data/vad, release builds use the packaged path.
+    if env::var("PROFILE").as_deref() == Ok("debug") {
+        println!(
+            "cargo:rustc-env=VAD_DIR={}",
+            manifest_dir.join("data").join("vad").display()
+        );
+    }
+    println!("cargo:rerun-if-changed=data/vad/ggml-silero-v5.1.2.bin");
 }

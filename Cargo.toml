@@ -1,6 +1,6 @@
 [package]
 name = "speech-to-text"
-version = "1.6.0"
+version = "1.7.0"
 edition = "2021"
 authors = ["Christos A. Daggas"]
 description = "Native Linux desktop application for offline speech-to-text transcription using Whisper"
@@ -33,8 +33,11 @@ reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json", "multi
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Whisper speech-to-text engine (whisper.cpp bindings)
-whisper-rs = "0.13"
+# Whisper speech-to-text engine (whisper.cpp bindings). The sys crate is a
+# direct dependency only so the `vulkan` feature below can reach it —
+# whisper-rs dropped its own `vulkan` passthrough feature in 0.16.
+whisper-rs = { version = "0.16", default-features = false }
+whisper-rs-sys = "0.15"
 
 # Audio capture
 cpal = "0.15"
@@ -117,7 +120,8 @@ metal = ["whisper-rs/metal"]
 # Vulkan GPU backend for whisper.cpp. Opt-in (like cuda/metal) so CPU-only
 # builds don't require the Vulkan toolchain. Building this needs the Vulkan
 # loader + headers and a GLSL compiler (glslc) to compile the compute shaders.
-vulkan = ["whisper-rs/vulkan"]
+# Wired straight to the sys crate: whisper-rs 0.16 no longer forwards it.
+vulkan = ["whisper-rs-sys/vulkan"]
 
 [profile.release]
 opt-level = 3

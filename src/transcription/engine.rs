@@ -80,6 +80,11 @@ impl TranscriptionEngine {
 
         let mut params = WhisperContextParameters::default();
         params.use_gpu(use_gpu);
+        // Flash attention: measured 20–25% faster decoding on the Vulkan
+        // backend (ggml with KHR_coopmat), identical output. GPU-only — on
+        // CPU the fused kernel brings nothing. DTW token timestamps (which it
+        // would disable) are not used anywhere in this app.
+        params.flash_attn(use_gpu);
 
         let ctx = WhisperContext::new_with_params(
             model_path
@@ -148,6 +153,25 @@ impl TranscriptionEngine {
             n_threads
         );
 
+        // VAD pre-pass: skip silent clips outright and trim leading/trailing
+        // silence, so the decoder never manufactures text out of dead air.
+        // Interior pauses stay (cutting them would corrupt the timestamps).
+        let (audio, offset_ms) = match super::vad::speech_span(audio) {
+            super::vad::SpeechSpan::NoSpeech => {
+                info!("VAD found no speech — skipping decode");
+                return Ok(TranscriptionResult {
+                    segments: Vec::new(),
+                    text: String::new(),
+                    average_confidence: None,
+                    detected_language: None,
+                });
+            }
+            super::vad::SpeechSpan::Speech { start, end } => {
+                (&audio[start..end], (start as i64 * 1000) / 16_000)
+            }
+            super::vad::SpeechSpan::Unavailable => (audio, 0),
+        };
+
         let beam_size = beam_size.min(8); // whisper.cpp supports max 8 decoders
         let mut params = if beam_size > 1 {
             FullParams::new(SamplingStrategy::BeamSearch {
@@ -171,7 +195,7 @@ impl TranscriptionEngine {
         // per-token timestamp pass — pure decode-time savings.
         params.set_token_timestamps(false);
         params.set_suppress_blank(true);
-        params.set_suppress_non_speech_tokens(true);
+        params.set_suppress_nst(true);
         params.set_temperature(temperature);
         // whisper.cpp default; enables internal temperature retry when a segment
         // trips entropy/logprob thresholds. With 0.0 (no retry), borderline audio
@@ -207,41 +231,40 @@ impl TranscriptionEngine {
 
         // When auto-detecting, surface the language Whisper picked (ISO 639-1 code).
         let detected_language = if language.is_none() {
-            state
-                .full_lang_id_from_state()
-                .ok()
-                .and_then(whisper_rs::get_lang_str)
-                .map(|s| s.to_string())
+            whisper_rs::get_lang_str(state.full_lang_id_from_state()).map(|s| s.to_string())
         } else {
             None
         };
 
-        // Collect segments
-        let num_segments = state
-            .full_n_segments()
-            .map_err(|e| AppError::Transcription(format!("Failed to get segments: {}", e)))?;
+        // Collect segments. Timestamps are shifted back by the VAD trim
+        // offset so they stay relative to the original, untrimmed audio.
+        let num_segments = state.full_n_segments();
 
         let mut segments = Vec::with_capacity(num_segments as usize);
         let mut full_text = String::new();
         let mut total_confidence = 0.0f32;
 
         for i in 0..num_segments {
-            let start_ms = state.full_get_segment_t0(i).map_err(|e| {
-                AppError::Transcription(format!("Failed to get segment start: {}", e))
-            })? * 10; // whisper timestamps are in centiseconds
-            let end_ms = state.full_get_segment_t1(i).map_err(|e| {
-                AppError::Transcription(format!("Failed to get segment end: {}", e))
-            })? * 10;
-            let text = state.full_get_segment_text(i).map_err(|e| {
-                AppError::Transcription(format!("Failed to get segment text: {}", e))
-            })?;
+            let segment = state
+                .get_segment(i)
+                .ok_or_else(|| AppError::Transcription(format!("Failed to get segment {}", i)))?;
+            // whisper timestamps are in centiseconds
+            let start_ms = segment.start_timestamp() * 10 + offset_ms;
+            let end_ms = segment.end_timestamp() * 10 + offset_ms;
+            let text = segment
+                .to_str()
+                .map_err(|e| AppError::Transcription(format!("Failed to get segment text: {}", e)))?
+                .to_string();
 
             // Calculate average token probability for this segment
-            let n_tokens = state.full_n_tokens(i).unwrap_or(0);
+            let n_tokens = segment.n_tokens();
             let confidence = if n_tokens > 0 {
                 let mut sum = 0.0f32;
                 for t in 0..n_tokens {
-                    sum += state.full_get_token_prob(i, t).unwrap_or(0.0);
+                    sum += segment
+                        .get_token(t)
+                        .map(|tok| tok.token_probability())
+                        .unwrap_or(0.0);
                 }
                 sum / n_tokens as f32
             } else {

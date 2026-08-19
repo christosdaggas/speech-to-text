@@ -3,7 +3,29 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.7.0] — 2026-08-20
+
+### Performance
+
+- Whisper decoding is about 4× faster on Vulkan GPUs. whisper-rs was upgraded
+  0.13 → 0.16 (whisper.cpp 1.8.3), whose ggml Vulkan backend uses the GPU's
+  cooperative-matrix cores; measured on a Radeon 8060S with Large v3 Turbo Q5,
+  60 s of speech dropped from ~6.1 s to ~2.0 s. Flash attention is now enabled
+  on GPU contexts for another ~25% (~1.4 s) — on the old backend it was 5×
+  slower, so it had been left off. whisper-rs 0.16 dropped its `vulkan`
+  passthrough feature; the app now wires the feature straight to
+  whisper-rs-sys so GPU acceleration survives the upgrade (verified against
+  the running app's ggml logs).
+- A Silero VAD pre-pass (bundled ~865 KB model, runs in ~5 ms per second of
+  audio on the CPU) now gates every Whisper decode: recordings with no speech
+  are skipped outright instead of hallucinating text out of dead air, and
+  leading/trailing silence is trimmed before decoding, with segment timestamps
+  shifted back so they stay true to the original audio. Interior pauses are
+  left untouched — cutting them would corrupt timestamps, and the new backend
+  crosses them cheaply. whisper.cpp's own `full_params.vad` flag turned out to
+  be consumed only by the `whisper_full()` wrapper and ignored on the
+  `whisper_full_with_state()` path this app uses (verified experimentally),
+  so the standalone VAD API is used instead.
 
 ### Added
 
@@ -19,6 +41,17 @@ All notable changes to this project are documented here. This project adheres to
 
 ### Fixed
 
+- The global dictation shortcut could fail to register and stay dead for the
+  whole run: the app-id registration raced the RemoteDesktop warm-up for the
+  shared portal connection, and whichever spoke first won. If the warm-up won,
+  the connection was tagged app-id-less forever ("already associated") and the
+  GlobalShortcuts portal kept refusing with "An app id is required".
+  Registration now runs strictly first.
+- After a dictation, the mini panel could vanish for eight seconds before
+  showing the result: paste delivery was waiting out a portal consent prompt
+  that opened behind other windows. With the connection now properly
+  identified (above), the stored grant matches and delivery completes in
+  ~0.3 s.
 - The Model settings page built its download-status label with `gettext("")`,
   which returns the catalogue's header metadata rather than an empty string: any
   translated build showed a block of PO header text under the progress bar.
@@ -67,6 +100,8 @@ All notable changes to this project are documented here. This project adheres to
   menu entry), describes what the app does, shows the full MIT licence text, and
   moves the website link to the developer row under Credits. What's New itself
   presents the current release as one continuous list.
+- The update notice lost its sidebar banner and lives only in the status bar,
+  as a clickable indicator that opens the latest GitHub release.
 
 ## [1.6.0] — 2026-08-01
 

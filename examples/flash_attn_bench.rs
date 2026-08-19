@@ -70,7 +70,7 @@ fn main() {
     params.set_print_timestamps(false);
     params.set_token_timestamps(false);
     params.set_suppress_blank(true);
-    params.set_suppress_non_speech_tokens(true);
+    params.set_suppress_nst(true);
     params.set_temperature(0.0);
     params.set_temperature_inc(0.2);
     params.set_entropy_thold(2.2);
@@ -82,10 +82,10 @@ fn main() {
     state.full(params, &audio).expect("decode");
     let decode_s = t1.elapsed().as_secs_f32();
 
-    let n = state.full_n_segments().unwrap_or(0);
+    let n = state.full_n_segments();
     let mut chars = 0usize;
     for i in 0..n {
-        if let Ok(s) = state.full_get_segment_text(i) {
+        if let Some(s) = state.get_segment(i).and_then(|seg| seg.to_str().ok()) {
             chars += s.len();
         }
     }
