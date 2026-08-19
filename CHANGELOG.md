@@ -39,6 +39,17 @@ All notable changes to this project are documented here. This project adheres to
   source tree, so `cargo run` shows the translations currently in `po/` instead
   of whatever an installed package left in `/usr/share/locale`. Release builds
   keep the system path unchanged.
+- The stylesheet was consolidated from six overlapping override layers into one
+  rule per selector: 3002 → 1594 lines, 424 → 234 rule blocks, and 615 dead
+  declarations removed, with the cascade result proven equivalent by a
+  specificity/order analysis and confirmed on every page in both themes. In
+  light theme, the multi-line input fields (Dictionary vocabulary, LLM prompt)
+  now share the flat grey card fill instead of standing out as white wells.
+- `examples/flash_attn_bench.rs` measures whisper.cpp decode time with and
+  without flash attention using the app's exact decode parameters. On the
+  current whisper-rs 0.13.2 Vulkan backend it showed flash attention is 5×
+  slower (no Vulkan FA kernel; the op falls back to CPU), so the flag stays
+  off until the whisper.cpp upgrade.
 - One flat surface across the window: every page, the content header bar and the
   status bar now share the transcription page's background — white in light,
   elevated grey in dark — with the separators between them removed, and the

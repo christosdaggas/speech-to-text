@@ -1,7 +1,6 @@
 /* Speech to Text - Application Stylesheet */
 /* Copyright (C) 2026 Christos A. Daggas */
 /* SPDX-License-Identifier: MIT */
-
 /*
  * Design system (UI proposal):
  *   A refined libadwaita aesthetic — elevated cards, vivid semantic badges,
@@ -28,7 +27,6 @@
  *   privacy / offline (green) ...... @success_bg_color
  *   recording (red) ............... @error_bg_color
  */
-
 /* ========================================
    Sidebar — Modern Design
    ======================================== */
@@ -39,8 +37,6 @@
     padding-bottom: 4px;
 }
 
-/* The default GtkScrolledWindow undershoot draws a horizontal shadow over the
- * first visible navigation row after scrolling, making its icon look clipped. */
 .sidebar-scroll,
 .sidebar-scroll > viewport {
     background-color: transparent;
@@ -63,16 +59,11 @@
     transition: background-color 200ms ease-out;
 }
 
-/* Brand mark in the sidebar header gets a vivid green tile (matches app icon). */
 .sidebar-box .brand-mark {
     background-color: @success_bg_color;
     border-radius: 8px;
     padding: 3px;
 }
-
-/* ========================================
-   Scoped Popover: Theme Popover
-   ======================================== */
 
 popover.stt-theme-menu {
     background: none;
@@ -94,10 +85,6 @@ popover.stt-theme-menu > contents {
     padding: 0;
 }
 
-/* ========================================
-   Cards — elevated, lift on hover
-   ======================================== */
-
 .card {
     transition: box-shadow 200ms ease, border-color 200ms ease;
 }
@@ -107,35 +94,11 @@ popover.stt-theme-menu > contents {
     border-color: alpha(@accent_color, 0.25);
 }
 
-/* ========================================
-   Privacy / Offline badge (header)
-   Always-truthful: transcription is local.
-   ======================================== */
-
-.offline-badge {
-    background-color: alpha(@success_bg_color, 0.16);
-    color: @success_color;
-    border: 1px solid alpha(@success_bg_color, 0.35);
-    border-radius: 999px;
-    padding: 3px 11px;
-    font-size: 0.85em;
-    font-weight: 700;
-}
-
 .offline-badge image {
     color: @success_color;
     -gtk-icon-size: 13px;
 }
 
-/* ========================================
-   Transcript View
-   ======================================== */
-
-.transcript-view {
-    background-color: transparent;
-}
-
-/* Transcript surface: framed as a soft card */
 .transcript-frame {
     background-color: alpha(@view_bg_color, 0.65);
     border: 1px solid alpha(@shade_color, 0.30);
@@ -149,10 +112,6 @@ popover.stt-theme-menu > contents {
     color: @view_fg_color;
     background-color: transparent;
 }
-
-/* ========================================
-   Message Bubbles
-   ======================================== */
 
 .message-bubble {
     background-color: alpha(@card_bg_color, 0.72);
@@ -174,13 +133,11 @@ popover.stt-theme-menu > contents {
     outline-offset: -2px;
 }
 
-/* The selected message (chips / Improve / Voice edit act on this one). */
 .message-bubble.selected {
     border-color: @accent_bg_color;
     background-color: alpha(@accent_bg_color, 0.12);
 }
 
-/* Transient live-preview bubble shown while recording. */
 .message-bubble.live-preview {
     border-style: dashed;
     opacity: 0.78;
@@ -202,28 +159,14 @@ popover.stt-theme-menu > contents {
     opacity: 1.0;
 }
 
-/* ========================================
-   Transform-action buttons (Actions dropdown + Voice edit)
-   Rounded rectangle like the HTML mockup, NOT a full pill.
-   ======================================== */
-
 .transform-action,
 .transform-action > button {
     border-radius: 12px;
 }
 
-/* ========================================
-   Waveform / bottom panel
-   ======================================== */
-
 .bottom-panel,
 .status-bar {
     background-color: @sidebar_bg_color;
-}
-
-.controls-area,
-.controls-panel {
-    background-color: transparent;
 }
 
 .waveform-frame {
@@ -232,15 +175,6 @@ popover.stt-theme-menu > contents {
     border-radius: 10px;
     padding: 0;
 }
-
-.waveform {
-    background-color: transparent;
-    color: @accent_bg_color;
-}
-
-/* ========================================
-   Confidence Indicator
-   ======================================== */
 
 .confidence-bar {
     border-radius: 4px;
@@ -254,10 +188,6 @@ popover.stt-theme-menu > contents {
 .confidence-bar block.low {
     background-color: @error_color;
 }
-
-/* ========================================
-   Recording Indicator + pulse rings
-   ======================================== */
 
 .recording-indicator {
     color: @success_color;
@@ -273,44 +203,15 @@ popover.stt-theme-menu > contents {
     animation: recording-pulse 1.2s ease-in-out infinite;
 }
 
-/* Concentric expanding rings drawn around the record button while live. */
 @keyframes record-ring {
     0%   { opacity: 0.55; }
     100% { opacity: 0.0; }
-}
-
-/* ========================================
-   Controls — hero record zone
-   ======================================== */
-
-.controls-panel {
-    background-color: transparent;
-    padding: 0 12px 10px;
 }
 
 .controls-panel button {
     border-radius: 8px;
 }
 
-/* Hero zone: title + big circular record button + hint. */
-.hero-zone {
-    padding: 18px 16px 6px;
-}
-
-.hero-title {
-    font-size: 1.15em;
-    font-weight: 700;
-    color: @window_fg_color;
-    margin-bottom: 14px;
-}
-
-.hero-hint {
-    font-size: 0.85em;
-    color: alpha(@window_fg_color, 0.55);
-    margin-top: 10px;
-}
-
-/* The big circular record button. */
 .hero-record {
     min-width: 78px;
     min-height: 78px;
@@ -318,14 +219,15 @@ popover.stt-theme-menu > contents {
     box-shadow: 0 6px 18px alpha(@accent_color, 0.40);
     transition: box-shadow 180ms ease;
 }
+
 .hero-record:hover {
     box-shadow: 0 9px 24px alpha(@accent_color, 0.52);
 }
+
 .hero-record image {
     -gtk-icon-size: 30px;
 }
 
-/* Live state: red stop square with a soft pulsing glow. */
 .hero-recording {
     background-color: @error_bg_color;
     color: @error_fg_color;
@@ -342,29 +244,13 @@ popover.stt-theme-menu > contents {
     }
 }
 
-/* Mode toggles get a vivid, colourful background when ACTIVE so it's obvious
-   they're on (Translate = accent blue, Improve with AI = violet). */
-.translate-toggle:checked {
-    background-color: @accent_bg_color;
-    color: @accent_fg_color;
-    box-shadow: 0 3px 10px alpha(@accent_color, 0.30);
-}
 .translate-toggle:checked:hover {
     background-image: image(alpha(white, 0.08));
 }
 
-.ai-toggle:checked {
-    background-color: #9141ac;
-    color: #ffffff;
-    box-shadow: 0 3px 10px alpha(#9141ac, 0.35);
-}
 .ai-toggle:checked:hover {
     background-image: image(alpha(white, 0.08));
 }
-
-/* ========================================
-   Custom Action: Stop Button
-   ======================================== */
 
 .stop-action {
     background-color: @success_bg_color;
@@ -388,29 +274,6 @@ popover.stt-theme-menu > contents {
     filter: opacity(0.5);
 }
 
-/* ========================================
-   Status Bar
-   ======================================== */
-
-.status-bar {
-    background-color: @sidebar_bg_color;
-    border-top: 1px solid alpha(@shade_color, 0.30);
-    padding: 4px 12px;
-    min-height: 26px;
-}
-
-/* ========================================
-   GPU Status Panel (Sidebar)
-   ======================================== */
-
-.gpu-status-panel .card {
-    background-color: alpha(@sidebar_fg_color, 0.05);
-    border: 1px solid alpha(@shade_color, 0.30);
-    border-radius: 12px;
-    padding: 10px 12px;
-    box-shadow: 0 1px 2px alpha(black, 0.05);
-}
-
 .gpu-status-panel levelbar block.filled {
     background-color: @accent_bg_color;
     border-radius: 3px;
@@ -423,10 +286,6 @@ popover.stt-theme-menu > contents {
 .gpu-status-panel levelbar block.filled.critical {
     background-color: @error_color;
 }
-
-/* ========================================
-   Model Status Badges
-   ======================================== */
 
 .model-loaded {
     background-color: @success_bg_color;
@@ -452,10 +311,6 @@ popover.stt-theme-menu > contents {
     font-weight: 700;
 }
 
-/* ========================================
-   Header Status Indicator dot
-   ======================================== */
-
 .status-dot {
     min-width: 14px;
     min-height: 14px;
@@ -464,14 +319,6 @@ popover.stt-theme-menu > contents {
 .status-dot.error {
     color: @error_color;
 }
-
-.status-dot.success {
-    color: @success_color;
-}
-
-/* ========================================
-   History Page
-   ======================================== */
 
 .history-row {
     background-color: alpha(@view_bg_color, 0.5);
@@ -492,17 +339,9 @@ popover.stt-theme-menu > contents {
     border-color: @accent_bg_color;
 }
 
-/* ========================================
-   Welcome Wizard
-   ======================================== */
-
 .wizard-feature-row {
     padding: 4px 0;
 }
-
-/* ========================================
-   Monospace & Caption Heading
-   ======================================== */
 
 .monospace {
     font-family: monospace;
@@ -516,10 +355,6 @@ popover.stt-theme-menu > contents {
     color: alpha(@window_fg_color, 0.55);
 }
 
-/* ========================================
-   Navigation — Modern Design
-   ======================================== */
-
 .nav-row-box {
     min-height: 32px;
     border-radius: 10px;
@@ -530,18 +365,6 @@ popover.stt-theme-menu > contents {
     font-size: 0.92em;
     font-weight: 500;
     transition: opacity 150ms ease-out, color 120ms ease;
-}
-
-.navigation-sidebar row {
-    padding: 2px 6px;
-    margin: 1px 8px;
-    border-radius: 10px;
-    min-height: 36px;
-    transition: background-color 120ms ease;
-}
-
-.navigation-sidebar row:selected {
-    background-color: alpha(@accent_bg_color, 0.14);
 }
 
 .navigation-sidebar row:selected .nav-label {
@@ -561,12 +384,10 @@ popover.stt-theme-menu > contents {
     color: @window_fg_color;
 }
 
-/* Remove dark background from selected language in combo dropdowns */
 comborow popover listview row:selected {
     background-color: transparent;
 }
 
-/* ---- Collapsed sidebar overrides ---- */
 .sidebar-collapsed .navigation-sidebar row {
     padding: 0;
     margin: 2px 4px;
@@ -581,10 +402,6 @@ comborow popover listview row:selected {
 .sidebar-collapsed .navigation-sidebar image {
     margin: 0;
 }
-
-/* ========================================
-   Theme Selector
-   ======================================== */
 
 .theme-selector {
     border-radius: 50%;
@@ -638,10 +455,6 @@ comborow popover listview row:selected {
     -gtk-icon-size: 16px;
 }
 
-/* ========================================
-   Menu Items (inside theme popover)
-   ======================================== */
-
 .menu-item {
     border-radius: 8px;
     margin: 1px 0;
@@ -660,10 +473,6 @@ comborow popover listview row:selected {
     outline: 2px solid @accent_color;
     outline-offset: -2px;
 }
-
-/* ========================================
-   Update Banner
-   ======================================== */
 
 .update-banner {
     background-color: alpha(@error_color, 0.14);
@@ -691,10 +500,6 @@ comborow popover listview row:selected {
     color: @error_color;
 }
 
-/* ========================================
-   Mini Panel (floating dictation window)
-   ======================================== */
-
 .mini-panel-chip {
     font-weight: 600;
     color: @accent_color;
@@ -711,17 +516,24 @@ comborow popover listview row:selected {
     padding: 10px 12px;
 }
 
-/* ── Mini Panel "instrument" redesign ────────────────── */
-
 .mp-dot {
     min-width: 10px;
     min-height: 10px;
     border-radius: 999px;
     background-color: @error_color;
 }
-.mp-dot.rec { background-color: @error_color; }
-.mp-dot.ok  { background-color: @success_color; }
-.mp-state { font-weight: 700; }
+
+.mp-dot.rec {
+    background-color: @error_color;
+}
+
+.mp-dot.ok {
+    background-color: @success_color;
+}
+
+.mp-state {
+    font-weight: 700;
+}
 
 .mp-meta {
     font-size: 12px;
@@ -732,16 +544,21 @@ comborow popover listview row:selected {
     font-size: 40px;
     font-weight: 700;
 }
+
 .mp-cs {
     font-size: 16px;
     font-weight: 700;
     color: alpha(@window_fg_color, 0.45);
 }
+
 .mp-title {
     font-size: 22px;
     font-weight: 700;
 }
-.mp-wave { background-color: transparent; }
+
+.mp-wave {
+    background-color: transparent;
+}
 
 .mp-led {
     min-width: 9px;
@@ -749,9 +566,14 @@ comborow popover listview row:selected {
     border-radius: 2px;
     background-color: alpha(@window_fg_color, 0.14);
 }
-.mp-led.on.g { background-color: @success_color; }
-.mp-led.on.y { background-color: @warning_color; }
-.mp-led.on.r { background-color: @error_color; }
+
+.mp-led.on.y {
+    background-color: @warning_color;
+}
+
+.mp-led.on.r {
+    background-color: @error_color;
+}
 
 .mp-seg {
     min-width: 4px;
@@ -760,9 +582,15 @@ comborow popover listview row:selected {
     background-color: alpha(@window_fg_color, 0.12);
     transition: background-color 120ms ease-out;
 }
-.mp-seg.on { background-color: @accent_bg_color; }
 
-.mp-transcript { font-size: 15px; }
+.mp-seg.on {
+    background-color: @accent_bg_color;
+}
+
+.mp-transcript {
+    font-size: 15px;
+}
+
 .mp-transcript-box {
     background-color: alpha(@window_fg_color, 0.04);
     border: 1px solid alpha(@window_fg_color, 0.16);
@@ -787,16 +615,12 @@ comborow popover listview row:selected {
     font-weight: 600;
     padding: 7px 12px;
 }
+
 .mp-btn.mp-copy {
     background-color: @success_bg_color;
     color: @success_fg_color;
 }
 
-/* One seamless surface matching the main window's content area: white in
-   light, elevated grey in dark. Dark @card_bg_color is translucent, so paint
-   it over an opaque @window_bg_color base (image() layer) to reproduce the
-   exact composite the pages get — a toplevel window has nothing behind it to
-   composite against. No separator line splits the bar from the body. */
 .mini-panel {
     background-color: @window_bg_color;
     background-image: image(@card_bg_color);
@@ -808,10 +632,6 @@ comborow popover listview row:selected {
     box-shadow: none;
     border-bottom: none;
 }
-
-/* ========================================
-   Mockup-accurate main window composition
-   ======================================== */
 
 .brand-mark {
     min-width: 26px;
@@ -842,8 +662,6 @@ comborow popover listview row:selected {
     border: none;
 }
 
-/* The dropdown arrow is a separate symbolic image and did not inherit the
- * label foreground reliably after switching from dark to light. */
 .light-theme .header-model,
 .light-theme .header-model-dropdown,
 .light-theme .header-model-dropdown button,
@@ -852,8 +670,6 @@ comborow popover listview row:selected {
     color: @window_fg_color;
 }
 
-/* Light settings use flat, outlined groups. Libadwaita's boxed-list elevation
- * is useful in dark mode but looks like a heavy floating panel on white. */
 .light-theme .settings-page preferencesgroup > box > box,
 .light-theme .settings-page list.boxed-list,
 .light-theme .settings-page list.content,
@@ -864,7 +680,13 @@ comborow popover listview row:selected {
 }
 
 .offline-badge {
+    background-color: alpha(@success_bg_color, 0.16);
+    color: @success_color;
+    border: 1px solid alpha(@success_bg_color, 0.35);
+    border-radius: 999px;
     padding: 5px 13px;
+    font-size: 0.85em;
+    font-weight: 700;
     margin-right: 4px;
 }
 
@@ -892,6 +714,8 @@ comborow popover listview row:selected {
     padding: 2px 6px;
     margin: 1px 8px;
     border-radius: 10px;
+    min-height: 36px;
+    transition: background-color 120ms ease;
 }
 
 .navigation-sidebar row:selected {
@@ -903,62 +727,9 @@ comborow popover listview row:selected {
     background-color: transparent;
 }
 
-.controls-panel {
-    padding: 0;
-}
-
-.hero-zone {
-    padding: 30px 20px 8px;
-}
-
-.hero-state {
-    border-radius: 999px;
-    padding: 4px 12px;
-    margin-bottom: 16px;
-    font-size: 0.78em;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-}
-
-.hero-state.ready {
-    color: @success_color;
-    background-color: alpha(@success_bg_color, 0.14);
-}
-
-.hero-state.recording {
-    color: @error_color;
-    background-color: alpha(@error_bg_color, 0.13);
-}
-
-.hero-state-dot {
-    min-width: 8px;
-    min-height: 8px;
-    border-radius: 999px;
-}
-
-.hero-state.ready .hero-state-dot {
-    background-color: @success_color;
-}
-
-.hero-state.recording .hero-state-dot {
-    background-color: @error_color;
-}
-
-.hero-title {
-    font-size: 1.65em;
-    font-weight: 700;
-    margin-bottom: 5px;
-}
-
 .hero-subtitle,
 .hero-hint {
     color: alpha(@window_fg_color, 0.56);
-}
-
-.hero-subtitle {
-    font-size: 0.96em;
-    margin-bottom: 18px;
 }
 
 button.hero-record {
@@ -973,72 +744,6 @@ button.hero-record:hover {
     box-shadow: 0 11px 28px alpha(@accent_color, 0.48);
 }
 
-button.hero-record.hero-recording {
-    background-color: @error_bg_color;
-    color: @error_fg_color;
-    box-shadow: 0 9px 24px alpha(@error_color, 0.38);
-}
-
-.hero-hint {
-    font-size: 0.88em;
-    margin-top: 13px;
-}
-
-.hero-mode-row {
-    margin-top: 12px;
-    margin-bottom: 2px;
-}
-
-.mode-switcher {
-    background-color: alpha(@card_bg_color, 0.86);
-    border: 1px solid alpha(@shade_color, 0.28);
-    border-radius: 999px;
-    padding: 3px;
-}
-
-.mode-switcher .mode-chip {
-    background: transparent;
-    background-image: none;
-    border: none;
-    box-shadow: none;
-    border-radius: 999px;
-    padding: 6px 14px;
-    color: alpha(@window_fg_color, 0.62);
-    font-weight: 600;
-}
-
-.mode-switcher .mode-chip:checked {
-    background-color: @accent_bg_color;
-    color: @accent_fg_color;
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-weight: 600;
-}
-
-.transcript-view {
-    background-color: transparent;
-}
-
-.transcript-card {
-    background-color: @card_bg_color;
-    border: 1px solid alpha(@shade_color, 0.30);
-    border-radius: 14px;
-    box-shadow: 0 3px 12px alpha(black, 0.09);
-}
-
-.transcript-card.recording {
-    border-color: alpha(@accent_color, 0.34);
-}
-
-.transcript-card-header {
-    padding: 11px 16px;
-    border-bottom: 1px solid alpha(@shade_color, 0.24);
-}
-
 .transcript-timer {
     font-weight: 700;
 }
@@ -1048,28 +753,9 @@ button.hero-record.hero-recording {
     font-size: 0.88em;
 }
 
-.transcript-card-body {
-    background-color: transparent;
-    border-top: 1px solid alpha(@shade_color, 0.18);
-}
-
 .transcript-placeholder {
     color: alpha(@window_fg_color, 0.48);
     font-size: 1.02em;
-}
-
-.transcript-card .message-bubble {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-    padding: 0;
-    margin-bottom: 12px;
-}
-
-.transcript-card .message-bubble.selected {
-    background-color: transparent;
-    border: none;
 }
 
 .transcript-card .bubble-text {
@@ -1077,25 +763,11 @@ button.hero-record.hero-recording {
     line-height: 1.62;
 }
 
-.transcript-card-footer {
-    padding: 10px 14px;
-    background-color: alpha(@sidebar_bg_color, 0.78);
-    border-top: 1px solid alpha(@shade_color, 0.25);
-    border-radius: 0 0 14px 14px;
-}
-
 .variant-dropdown,
 .variant-dropdown button,
 .footer-action,
 .ai-action {
     border-radius: 10px;
-}
-
-.ai-action {
-    color: #9141ac;
-    background-color: alpha(#9141ac, 0.14);
-    border: none;
-    font-weight: 700;
 }
 
 .copied-badge {
@@ -1113,19 +785,8 @@ button.hero-record.hero-recording {
 }
 
 .waveform {
-    color: @accent_bg_color;
     background-color: transparent;
-}
-
-/* ========================================
-   Status Bar — Modern Design
-   ======================================== */
-
-.status-bar {
-    min-height: 28px;
-    background-color: @sidebar_bg_color;
-    border-top: 1px solid alpha(@shade_color, 0.18);
-    padding: 2px 16px;
+    color: @accent_bg_color;
 }
 
 .status-bar caption,
@@ -1136,19 +797,10 @@ button.hero-record.hero-recording {
 
 .gpu-status-panel .card {
     background-color: @card_bg_color;
+    border: 1px solid alpha(@shade_color, 0.30);
     border-radius: 12px;
+    padding: 10px 12px;
     box-shadow: 0 2px 7px alpha(black, 0.10);
-}
-
-/* ========================================
-   Final Apple + Adwaita transcription page
-   ======================================== */
-
-.transcription-page {
-    background-color: @window_bg_color;
-    background-image: linear-gradient(135deg,
-        alpha(@accent_bg_color, 0.035),
-        alpha(#9141ac, 0.025));
 }
 
 .transcription-content,
@@ -1156,18 +808,6 @@ button.hero-record.hero-recording {
 .controls-panel,
 .transcript-view {
     background-color: transparent;
-}
-
-.controls-panel {
-    margin-left: 28px;
-    margin-right: 28px;
-    padding: 0;
-}
-
-.hero-zone {
-    min-height: 225px;
-    padding: 24px 18px 20px;
-    border-bottom: 1px solid alpha(@shade_color, 0.26);
 }
 
 .hero-copy {
@@ -1183,221 +823,6 @@ button.hero-record.hero-recording {
     letter-spacing: 0.08em;
 }
 
-.hero-state {
-    padding: 0;
-    margin-bottom: 10px;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    font-size: 0.88em;
-    font-weight: 700;
-    text-transform: none;
-    letter-spacing: 0;
-}
-
-.hero-state.ready {
-    color: @success_color;
-    background: transparent;
-}
-
-.hero-state.recording {
-    color: @error_color;
-    background: transparent;
-}
-
-.hero-state-dot {
-    min-width: 8px;
-    min-height: 8px;
-    border-radius: 999px;
-}
-
-.hero-title {
-    margin-bottom: 7px;
-    color: @window_fg_color;
-    font-size: 1.85em;
-    font-weight: 700;
-}
-
-.hero-subtitle {
-    color: alpha(@window_fg_color, 0.62);
-    font-size: 1.0em;
-    line-height: 1.5;
-}
-
-.hero-hint {
-    margin-top: 20px;
-    color: alpha(@window_fg_color, 0.55);
-    font-size: 0.88em;
-}
-
-.hero-action {
-    min-width: 174px;
-}
-
-button.hero-record,
-button.hero-record.suggested-action,
-button.hero-record.hero-recording {
-    min-width: 104px;
-    min-height: 104px;
-    padding: 0;
-    color: white;
-    background-color: #ff453a;
-    background-image: linear-gradient(#ff6259, #ff3b30);
-    border: 6px solid alpha(white, 0.88);
-    border-radius: 999px;
-    box-shadow: 0 12px 26px alpha(#ff3b30, 0.26), 0 0 0 1px alpha(black, 0.08);
-}
-
-button.hero-record:hover,
-button.hero-record.suggested-action:hover {
-    background-image: linear-gradient(#ff7068, #ff453a);
-    box-shadow: 0 15px 32px alpha(#ff3b30, 0.32), 0 0 0 1px alpha(black, 0.08);
-}
-
-button.hero-record.hero-recording {
-    animation: hero-pulse 1.3s ease-in-out infinite;
-}
-
-.hero-record-label {
-    margin-top: 8px;
-    color: alpha(@window_fg_color, 0.62);
-    font-size: 0.85em;
-    font-weight: 600;
-}
-
-.hero-mode-row {
-    min-height: 58px;
-    padding: 10px 18px;
-    margin: 0;
-    border-bottom: 1px solid alpha(@shade_color, 0.26);
-    background-color: transparent;
-}
-
-.mode-label {
-    color: alpha(@window_fg_color, 0.58);
-    font-size: 0.85em;
-    font-weight: 700;
-}
-
-.mode-switcher {
-    padding: 2px;
-    border: none;
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.08);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 30px;
-    padding: 4px 13px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    box-shadow: none;
-    color: alpha(@window_fg_color, 0.62);
-    font-weight: 600;
-}
-
-.mode-switcher .mode-chip:checked {
-    color: @card_fg_color;
-    background-color: @card_bg_color;
-    box-shadow: 0 2px 5px alpha(black, 0.12);
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 32px;
-    padding: 4px 12px;
-    border-radius: 10px;
-    font-weight: 600;
-}
-
-.transcript-card {
-    margin-top: 0;
-    margin-bottom: 0;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-}
-
-.transcript-card.recording {
-    border: none;
-}
-
-.transcript-card-header {
-    min-height: 50px;
-    padding: 10px 18px;
-    background: transparent;
-    border-bottom: none;
-}
-
-.transcript-section-title {
-    margin-right: 8px;
-    color: @window_fg_color;
-    font-size: 0.95em;
-    font-weight: 700;
-}
-
-.transcript-card .waveform {
-    margin-left: 18px;
-    margin-right: 18px;
-    color: @accent_bg_color;
-    opacity: 0.35;
-    border-top: 1px solid alpha(@shade_color, 0.22);
-    border-bottom: 1px solid alpha(@shade_color, 0.22);
-    transition: opacity 180ms ease;
-}
-
-.transcript-card.recording .waveform {
-    opacity: 1.0;
-}
-
-.transcript-card-body {
-    background: transparent;
-    border: none;
-}
-
-.transcript-empty-state {
-    color: alpha(@window_fg_color, 0.55);
-}
-
-.transcript-empty-glyph {
-    min-width: 46px;
-    min-height: 46px;
-    margin-bottom: 4px;
-    color: @accent_color;
-    background-color: alpha(@accent_bg_color, 0.14);
-    border-radius: 14px;
-}
-
-.transcript-empty-title {
-    color: @window_fg_color;
-    font-size: 1.0em;
-    font-weight: 700;
-}
-
-.transcript-empty-subtitle {
-    color: alpha(@window_fg_color, 0.55);
-    font-size: 0.88em;
-}
-
-.transcript-card .message-bubble,
-.transcript-card .message-bubble.selected {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0;
-}
-
-.transcript-card-footer {
-    min-height: 52px;
-    padding: 9px 18px;
-    background: transparent;
-    border-top: 1px solid alpha(@shade_color, 0.22);
-    border-radius: 0;
-}
-
 .variant-dropdown,
 .variant-dropdown button,
 .footer-action,
@@ -1405,76 +830,6 @@ button.hero-record.hero-recording {
 .transform-action,
 .transform-action > button {
     border-radius: 10px;
-}
-
-/* ========================================
-   Native polish pass
-   ======================================== */
-
-.transcription-page {
-    background-color: @window_bg_color;
-    background-image: none;
-}
-
-.hero-zone {
-    min-height: 205px;
-    padding: 20px 12px 17px;
-}
-
-.hero-title {
-    font-size: 1.7em;
-}
-
-.hero-action {
-    min-width: 150px;
-}
-
-button.hero-record,
-button.hero-record.suggested-action,
-button.hero-record.hero-recording {
-    min-width: 96px;
-    min-height: 96px;
-    background-color: #ff453a;
-    background-image: none;
-    border: 3px solid alpha(white, 0.62);
-    box-shadow: none;
-}
-
-button.hero-record:hover,
-button.hero-record.suggested-action:hover,
-button.hero-record.hero-recording:hover {
-    background-color: #ff5148;
-    background-image: none;
-    box-shadow: none;
-}
-
-.hero-mode-row {
-    min-height: 52px;
-    padding: 8px 12px;
-}
-
-.mode-switcher {
-    padding: 2px;
-    background-color: alpha(@window_fg_color, 0.055);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 28px;
-    padding: 2px 12px;
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 30px;
-    padding: 3px 10px;
-    border: 1px solid alpha(@shade_color, 0.30);
-    background-color: alpha(@card_bg_color, 0.56);
-    box-shadow: none;
-}
-
-.translate-toggle:checked,
-.ai-toggle:checked {
-    box-shadow: none;
 }
 
 .transcript-card .mp-seg {
@@ -1486,53 +841,6 @@ button.hero-record.hero-recording:hover {
 .transcript-card .mp-seg.on {
     background-color: @accent_bg_color;
 }
-
-.transcript-card-footer {
-    min-height: 46px;
-    padding-top: 6px;
-    padding-bottom: 6px;
-}
-
-.footer-action,
-.variant-dropdown,
-.variant-dropdown button {
-    min-height: 30px;
-    padding: 3px 9px;
-    background-color: transparent;
-    background-image: none;
-    border: none;
-    box-shadow: none;
-}
-
-.footer-action:hover,
-.variant-dropdown button:hover {
-    background-color: alpha(@window_fg_color, 0.07);
-}
-
-.ai-action {
-    min-height: 30px;
-    padding: 3px 10px;
-    background-color: alpha(#9141ac, 0.11);
-    box-shadow: none;
-}
-
-.gpu-status-panel {
-    margin-top: 6px;
-}
-
-.gpu-status-panel .card,
-.gpu-status-panel .card:hover {
-    background-color: transparent;
-    border: none;
-    border-top: 1px solid alpha(@shade_color, 0.20);
-    border-radius: 0;
-    box-shadow: none;
-    padding: 10px 12px;
-}
-
-/* ========================================
-   Cohesive interaction and toolbar system
-   ======================================== */
 
 headerbar.sidebar-headerbar,
 headerbar.content-headerbar {
@@ -1548,58 +856,12 @@ headerbar.sidebar-headerbar {
     background-color: @sidebar_bg_color;
 }
 
-.hero-mode-row {
-    min-height: 44px;
-    margin-top: 8px;
-    margin-bottom: 8px;
-    padding: 6px 8px;
-    border: none;
-    border-radius: 14px;
-    background-color: alpha(@card_bg_color, 0.62);
-    box-shadow: 0 1px 3px alpha(black, 0.07);
-}
-
 .mode-label {
     color: alpha(@window_fg_color, 0.48);
     font-size: 0.75em;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-}
-
-.mode-switcher {
-    padding: 2px;
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.07);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 30px;
-    padding: 3px 12px;
-    border-radius: 8px;
-    transition: background-color 140ms ease, color 140ms ease;
-}
-
-.mode-switcher .mode-chip:hover:not(:checked) {
-    color: @window_fg_color;
-    background-color: alpha(@window_fg_color, 0.055);
-}
-
-.mode-switcher .mode-chip:checked {
-    background-color: @card_bg_color;
-    color: @card_fg_color;
-    box-shadow: 0 1px 3px alpha(black, 0.14);
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 32px;
-    padding: 3px 11px;
-    border: none;
-    border-radius: 10px;
-    background-color: transparent;
-    box-shadow: none;
-    transition: background-color 140ms ease, color 140ms ease;
 }
 
 .hero-toggle:hover {
@@ -1611,33 +873,15 @@ headerbar.sidebar-headerbar {
 }
 
 .translate-toggle:checked {
-    color: @accent_fg_color;
     background-color: @accent_bg_color;
+    color: @accent_fg_color;
+    box-shadow: 0 3px 10px alpha(@accent_color, 0.30);
 }
 
 .ai-toggle:checked {
-    color: white;
     background-color: #9141ac;
-}
-
-.transcript-card-body {
-    background-color: alpha(@card_bg_color, 0.42);
-    border: 1px solid alpha(@shade_color, 0.24);
-    border-radius: 14px;
-    box-shadow: 0 2px 8px alpha(black, 0.05);
-}
-
-.transcript-card .message-bubble,
-.transcript-card .message-bubble.selected {
-    margin-bottom: 10px;
-}
-
-.transcript-card-footer {
-    min-height: 44px;
-    padding: 6px 8px;
-    border: none;
-    border-radius: 12px;
-    background-color: alpha(@card_bg_color, 0.38);
+    color: white;
+    box-shadow: 0 3px 10px alpha(#9141ac, 0.35);
 }
 
 .footer-action,
@@ -1645,10 +889,11 @@ headerbar.sidebar-headerbar {
 .variant-dropdown button {
     min-height: 30px;
     padding: 3px 10px;
-    border: 1px solid alpha(@shade_color, 0.22);
-    border-radius: 9px;
     background-color: alpha(@card_bg_color, 0.82);
+    background-image: none;
+    border: 1px solid alpha(@shade_color, 0.22);
     box-shadow: 0 1px 2px alpha(black, 0.06);
+    border-radius: 9px;
     transition: background-color 140ms ease, border-color 140ms ease;
 }
 
@@ -1659,274 +904,26 @@ headerbar.sidebar-headerbar {
 }
 
 .ai-action {
+    color: #9141ac;
+    background-color: alpha(#9141ac, 0.13);
+    border: none;
+    font-weight: 700;
     min-height: 30px;
     padding: 3px 10px;
-    border: none;
+    box-shadow: none;
     border-radius: 9px;
-    background-color: alpha(#9141ac, 0.13);
-    color: #9141ac;
-    box-shadow: none;
-}
-
-/* Restrained recording workspace */
-
-.hero-zone {
-    min-height: 178px;
-    padding: 20px 14px 14px;
-    border-bottom: none;
-}
-
-.hero-state {
-    margin-bottom: 7px;
-}
-
-.hero-title {
-    margin-bottom: 5px;
-    font-size: 1.58em;
-}
-
-.hero-subtitle {
-    font-size: 0.95em;
-    line-height: 1.4;
-}
-
-.hero-hint {
-    margin-top: 14px;
-    font-size: 0.82em;
-}
-
-.hero-action {
-    min-width: 148px;
-}
-
-.hero-mode-row {
-    min-height: 38px;
-    margin: 0;
-    padding: 4px;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-.mode-switcher {
-    padding: 2px;
-    border-radius: 9px;
-    background-color: alpha(@window_fg_color, 0.065);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 28px;
-    padding: 2px 11px;
-    border-radius: 7px;
-    font-size: 0.9em;
-}
-
-.mode-switcher .mode-chip:checked {
-    color: @window_fg_color;
-    background-color: alpha(@card_bg_color, 0.92);
-    box-shadow: 0 1px 3px alpha(black, 0.12);
-}
-
-separator.tool-separator {
-    min-height: 20px;
-    min-width: 1px;
-    background-color: alpha(@shade_color, 0.42);
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 30px;
-    padding: 2px 9px;
-    border: none;
-    border-radius: 8px;
-    color: alpha(@window_fg_color, 0.70);
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.9em;
-}
-
-.hero-toggle:hover,
-.hero-toggle:checked:hover {
-    color: @window_fg_color;
-    background-color: alpha(@window_fg_color, 0.065);
-}
-
-.translate-toggle:checked,
-.ai-toggle:checked {
-    color: @accent_color;
-    background-color: alpha(@accent_bg_color, 0.11);
-}
-
-.transcript-card {
-    margin-top: 8px;
-}
-
-.transcript-card-header {
-    min-height: 44px;
-    padding: 7px 18px;
-}
-
-.transcript-card-body {
-    background-color: alpha(@card_bg_color, 0.38);
-    border: none;
-    border-radius: 16px;
-    box-shadow: none;
-}
-
-.transcript-empty-glyph {
-    min-width: 42px;
-    min-height: 42px;
-    background-color: alpha(@accent_bg_color, 0.10);
-}
-
-.transcript-card-footer {
-    min-height: 40px;
-    padding: 4px 0;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-}
-
-.transcript-action-group {
-    padding: 3px;
-    border-radius: 11px;
-    background-color: alpha(@window_fg_color, 0.055);
-}
-
-.transcript-action-group .footer-action,
-.transcript-action-group .ai-action,
-.transcript-action-group .transform-action,
-.transcript-action-group .transform-action > button {
-    min-height: 28px;
-    padding: 2px 9px;
-    border: none;
-    border-radius: 8px;
-    color: alpha(@window_fg_color, 0.78);
-    background: transparent;
-    box-shadow: none;
-}
-
-.transcript-action-group .footer-action:hover,
-.transcript-action-group .ai-action:hover,
-.transcript-action-group .transform-action:hover,
-.transcript-action-group .transform-action > button:hover {
-    color: @window_fg_color;
-    background-color: alpha(@card_bg_color, 0.82);
-}
-
-.variant-dropdown,
-.variant-dropdown button {
-    min-height: 28px;
-    padding: 2px 8px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    box-shadow: none;
-}
-
-/* ========================================
-   Final recording workspace redesign
-   ======================================== */
-
-.transcription-page {
-    background-color: @window_bg_color;
-    background-image: none;
-}
-
-.workspace-surface {
-    margin-left: 30px;
-    margin-right: 30px;
-    margin-top: 20px;
-    margin-bottom: 24px;
-    padding: 0;
-    background-color: alpha(@card_bg_color, 0.55);
-    border: 1px solid alpha(@window_fg_color, 0.07);
-    border-radius: 24px;
-    box-shadow: 0 24px 60px alpha(black, 0.10), 0 2px 6px alpha(black, 0.05);
 }
 
 .controls-panel {
+    background-color: transparent;
+    padding: 0;
     margin-left: 0;
     margin-right: 0;
-    padding: 0;
     background: transparent;
-}
-
-.hero-zone {
-    min-height: 148px;
-    padding: 22px 24px 12px;
-    border-bottom: none;
-}
-
-.hero-title {
-    margin-bottom: 4px;
-    color: @window_fg_color;
-    font-size: 1.50em;
-    font-weight: 700;
-    letter-spacing: -0.012em;
-}
-
-.hero-subtitle {
-    color: alpha(@window_fg_color, 0.62);
-    font-size: 0.94em;
-    line-height: 1.42;
-}
-
-.hero-hint {
-    margin-top: 9px;
-    color: alpha(@window_fg_color, 0.50);
-    font-size: 0.80em;
 }
 
 .hero-action {
     min-width: 120px;
-}
-
-button.hero-record,
-button.hero-record.suggested-action,
-button.hero-record.hero-recording {
-    min-width: 72px;
-    min-height: 72px;
-    padding: 0;
-    color: white;
-    background-color: #e44339;
-    background-image: none;
-    border: none;
-    border-radius: 999px;
-    box-shadow: 0 10px 24px alpha(#e44339, 0.22);
-}
-
-button.hero-record:hover,
-button.hero-record.suggested-action:hover,
-button.hero-record.hero-recording:hover {
-    background-color: #ee5147;
-    background-image: none;
-    box-shadow: 0 13px 28px alpha(#e44339, 0.27);
-}
-
-button.hero-record.hero-recording {
-    animation: none;
-}
-
-.hero-state {
-    margin: 0;
-    padding: 0;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    font-size: 0.78em;
-    font-weight: 600;
-    text-transform: none;
-    letter-spacing: 0;
-}
-
-.hero-state.ready {
-    color: @success_color;
-}
-
-.hero-state.recording {
-    color: @error_color;
 }
 
 .hero-state-dot {
@@ -1937,256 +934,49 @@ button.hero-record.hero-recording {
 
 .hero-record-label {
     margin-top: 0;
-}
-
-.hero-mode-row {
-    min-height: 42px;
-    margin: 0;
-    padding: 0 26px 14px;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-.mode-switcher {
-    padding: 3px;
-    border-radius: 12px;
-    background-color: alpha(@window_fg_color, 0.06);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 30px;
-    padding: 3px 14px;
-    border-radius: 9px;
     color: alpha(@window_fg_color, 0.62);
-    font-size: 0.88em;
+    font-size: 0.85em;
     font-weight: 600;
-    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
-}
-
-.mode-switcher .mode-chip:hover:not(:checked) {
-    color: @window_fg_color;
-    background-color: alpha(@window_fg_color, 0.06);
-}
-
-.mode-switcher .mode-chip:checked {
-    color: @window_fg_color;
-    background-color: @card_bg_color;
-    box-shadow: 0 1px 4px alpha(black, 0.10);
-}
-
-separator.tool-separator {
-    min-height: 22px;
-    min-width: 1px;
-    background-color: alpha(@shade_color, 0.25);
-    margin: 0 2px;
-}
-
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 30px;
-    padding: 3px 11px;
-    border: none;
-    border-radius: 8px;
-    color: alpha(@window_fg_color, 0.64);
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.86em;
-    font-weight: 600;
-    transition: background-color 120ms ease, color 120ms ease;
-}
-
-.hero-toggle:hover,
-.hero-toggle:checked:hover {
-    color: @window_fg_color;
-    background-color: alpha(@window_fg_color, 0.06);
-}
-
-.translate-toggle:checked,
-.ai-toggle:checked {
-    color: @accent_color;
-    background-color: alpha(@accent_bg_color, 0.10);
 }
 
 .transcript-view {
+    background-color: transparent;
     background: transparent;
 }
 
 .transcript-card {
-    margin-top: 0;
-    background: transparent;
+    background-color: @card_bg_color;
     border: none;
     border-radius: 0;
     box-shadow: none;
+    margin-top: 0;
+    margin-bottom: 0;
+    background: transparent;
 }
 
 .transcript-card.recording {
+    border-color: alpha(@accent_color, 0.34);
     border: none;
-}
-
-.transcript-card-header {
-    min-height: 46px;
-    padding: 10px 0 8px;
-    background: transparent;
-    border-bottom: 1px solid alpha(@shade_color, 0.14);
-}
-
-.transcript-section-title {
-    margin-right: 4px;
-    color: @window_fg_color;
-    font-size: 0.91em;
-    font-weight: 700;
-}
-
-.transcript-card .waveform {
-    color: alpha(@window_fg_color, 0.30);
-    opacity: 0.55;
-    border-top: none;
-    border-bottom: 1px solid alpha(@shade_color, 0.14);
-    transition: opacity 180ms ease;
-}
-
-.transcript-card.recording .waveform {
-    color: @error_color;
-    opacity: 1.0;
-}
-
-.transcript-card-body {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
 }
 
 .transcript-empty-state {
     color: alpha(@window_fg_color, 0.52);
 }
 
-.transcript-empty-glyph {
-    min-width: 44px;
-    min-height: 44px;
-    margin-bottom: 3px;
-    color: @accent_color;
-    background-color: alpha(@accent_bg_color, 0.08);
-    border-radius: 14px;
-}
-
-.transcript-empty-title {
-    color: @window_fg_color;
-    font-size: 0.98em;
-    font-weight: 700;
-}
-
-.transcript-empty-subtitle {
-    color: alpha(@window_fg_color, 0.55);
-    font-size: 0.86em;
-}
-
 .transcript-card .message-bubble,
 .transcript-card .message-bubble.selected {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
     margin-bottom: 10px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-}
-
-.transcript-card-footer {
-    min-height: 40px;
-    padding: 8px 0 0;
-    border: none;
-    border-top: 1px solid alpha(@shade_color, 0.14);
-    border-radius: 0;
-    background: transparent;
-}
-
-.transcript-action-group {
-    padding: 2px;
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.040);
-}
-
-.transcript-action-group .footer-action,
-.transcript-action-group .ai-action,
-.transcript-action-group .transform-action,
-.transcript-action-group .transform-action > button {
-    min-height: 28px;
-    padding: 2px 9px;
-    border: none;
-    border-radius: 7px;
-    color: alpha(@window_fg_color, 0.72);
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.88em;
-    font-weight: 600;
-}
-
-.transcript-action-group .footer-action:hover,
-.transcript-action-group .ai-action:hover,
-.transcript-action-group .transform-action:hover,
-.transcript-action-group .transform-action > button:hover {
-    color: @window_fg_color;
-    background-color: alpha(@card_bg_color, 0.82);
-}
-
-.variant-dropdown,
-.variant-dropdown button {
-    min-height: 28px;
-    padding: 2px 8px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.88em;
-}
-
-.variant-dropdown button:hover {
-    background-color: alpha(@window_fg_color, 0.05);
-}
-
-/* ========================================
-   V4 — centred capture stage + single-surface session card
-   (final layer: overrides the passes above)
-   ======================================== */
-
-/* --- Stage: everything centres on the record orb --- */
-
-.hero-zone {
-    min-height: 0;
-    padding: 22px 0 16px;
-    border: none;
-    background-image: radial-gradient(circle farthest-side at 50% 42%,
-        alpha(#ff453a, 0.06), alpha(#ff453a, 0));
-}
-
-/* Orb sits beside the text column (was stacked on top) — keeps the zone short. */
-.hero-text {
-    margin: 0;
-}
-
-button.hero-record,
-button.hero-record.suggested-action,
-button.hero-record.hero-recording {
-    min-width: 84px;
-    min-height: 84px;
-    padding: 0;
-    color: white;
-    background-color: #e8362b;
-    background-image: linear-gradient(155deg, #ff6f63, #e8362b);
-    border: none;
-    border-radius: 999px;
-    box-shadow: 0 0 0 10px alpha(#ff453a, 0.07),
-                0 0 0 22px alpha(#ff453a, 0.035),
-                0 16px 38px alpha(#e43d33, 0.35),
-                inset 0 1px 0 alpha(white, 0.25);
-    transition: box-shadow 160ms ease;
 }
 
 button.hero-record:hover,
 button.hero-record.suggested-action:hover,
 button.hero-record.hero-recording:hover {
+    background-color: #ee5147;
     background-image: linear-gradient(155deg, #ff7d72, #f04136);
     box-shadow: 0 0 0 12px alpha(#ff453a, 0.10),
                 0 0 0 26px alpha(#ff453a, 0.05),
@@ -2194,7 +984,6 @@ button.hero-record.hero-recording:hover {
                 inset 0 1px 0 alpha(white, 0.28);
 }
 
-/* Expanding-ring pulse while live. */
 @keyframes orb-pulse {
     0% {
         box-shadow: 0 0 0 0 alpha(@error_color, 0.35),
@@ -2208,224 +997,31 @@ button.hero-record.hero-recording:hover {
     }
 }
 
-button.hero-record.hero-recording {
-    animation: orb-pulse 1.5s ease-out infinite;
-}
-
-.hero-state {
-    margin-top: 0;
-    padding: 4px 14px;
-    border-radius: 999px;
-    font-size: 0.74em;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-}
-
-.hero-state.ready {
-    color: @success_color;
-    background-color: alpha(@success_color, 0.10);
-    border: 1px solid alpha(@success_color, 0.22);
-}
-
-.hero-state.recording {
-    color: @error_color;
-    background-color: alpha(@error_color, 0.10);
-    border: 1px solid alpha(@error_color, 0.22);
-}
-
-.hero-state.ready .hero-state-dot {
-    background-color: @success_color;
-    box-shadow: 0 0 8px alpha(@success_color, 0.85);
-}
-
-.hero-state.recording .hero-state-dot {
-    background-color: @error_color;
-    box-shadow: 0 0 8px alpha(@error_color, 0.85);
-    animation: recording-pulse 1.2s ease-in-out infinite;
-}
-
-.hero-title {
-    margin-top: 8px;
-    margin-bottom: 0;
-    font-size: 1.5em;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-}
-
-.hero-subtitle {
-    margin-top: 4px;
-    color: alpha(@window_fg_color, 0.55);
-    font-size: 0.92em;
-    line-height: 1.45;
-}
-
-.hero-hint {
-    margin-top: 12px;
-    padding: 5px 16px;
-    border-radius: 999px;
-    border: 1px solid alpha(@window_fg_color, 0.07);
-    background-color: alpha(@window_fg_color, 0.045);
-    color: alpha(@window_fg_color, 0.52);
-    font-size: 0.78em;
-    font-weight: 600;
-}
-
-/* Pause / Cancel — visible only while recording. */
-.rec-tools {
-    margin-top: 12px;
-}
-
-.rec-tools .rec-tool {
-    min-height: 34px;
-    padding: 4px 16px;
-    border: 1px solid alpha(@shade_color, 0.25);
-    border-radius: 999px;
-    color: alpha(@window_fg_color, 0.78);
-    background-color: alpha(@card_bg_color, 0.65);
-    box-shadow: 0 1px 3px alpha(black, 0.04);
-    font-size: 0.86em;
-    font-weight: 600;
-    transition: background-color 120ms ease, border-color 120ms ease;
-}
-
-.rec-tools .rec-tool:hover {
-    color: @window_fg_color;
-    background-color: @card_bg_color;
-    border-color: alpha(@shade_color, 0.40);
-}
-
-.rec-tools .rec-tool.destructive-action {
-    color: @error_color;
-    border-color: alpha(@error_color, 0.25);
-    background-color: alpha(@error_color, 0.06);
-}
-
-.rec-tools .rec-tool.destructive-action:hover {
-    background-color: alpha(@error_color, 0.12);
-    border-color: alpha(@error_color, 0.35);
-}
-
-.hero-mode-row {
-    min-height: 0;
-    margin: 0;
-    padding: 16px 0 22px;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-}
-
-.mode-switcher {
-    padding: 4px;
-    border: 1px solid alpha(@window_fg_color, 0.06);
-    border-radius: 999px;
-    background-color: alpha(@window_fg_color, 0.05);
-}
-
-.mode-switcher .mode-chip {
-    min-height: 30px;
-    padding: 3px 16px;
-    border-radius: 999px;
-    color: alpha(@window_fg_color, 0.60);
-    font-size: 0.88em;
-    font-weight: 600;
-    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
-}
-
-.mode-switcher .mode-chip:hover:not(:checked) {
-    color: @window_fg_color;
-    background-color: alpha(@window_fg_color, 0.06);
-}
-
-.mode-switcher .mode-chip:checked {
-    color: @accent_fg_color;
-    background-color: @accent_bg_color;
-    background-image: linear-gradient(160deg, shade(@accent_bg_color, 1.14), shade(@accent_bg_color, 0.94));
-    box-shadow: 0 2px 10px alpha(@accent_bg_color, 0.38);
-}
-
 separator.tool-separator {
     min-height: 0;
     min-width: 0;
+    background-color: alpha(@shade_color, 0.25);
     margin: 0 3px;
     background: transparent;
 }
 
-.hero-toggle,
-.hero-toggle > button {
-    min-height: 32px;
-    padding: 3px 14px;
-    border: 1px solid alpha(@window_fg_color, 0.09);
-    border-radius: 999px;
-    color: alpha(@window_fg_color, 0.66);
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.86em;
-    font-weight: 600;
-    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
-}
-
-.hero-toggle:hover,
-.hero-toggle:checked:hover {
-    color: @window_fg_color;
-    border-color: alpha(@window_fg_color, 0.16);
-    background-color: alpha(@window_fg_color, 0.05);
-}
-
-.translate-toggle:checked,
-.ai-toggle:checked {
-    color: @accent_color;
-    border-color: alpha(@accent_bg_color, 0.35);
-    background-color: alpha(@accent_bg_color, 0.12);
-}
-
-.open-file-btn {
-    color: alpha(@window_fg_color, 0.68);
-}
-
-/* --- Session card: one surface, no card-in-card --- */
-
-.transcript-card-header {
-    min-height: 42px;
-    padding: 10px 20px;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.06);
-}
-
-.transcript-section-title {
-    color: alpha(@window_fg_color, 0.55);
-    font-size: 0.76em;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.10em;
-}
-
-.transcript-empty-glyph {
-    min-width: 54px;
-    min-height: 54px;
-    margin-bottom: 6px;
-    color: @accent_color;
-    border-radius: 999px;
-    background-color: alpha(@accent_bg_color, 0.10);
-    background-image: linear-gradient(160deg, alpha(@accent_bg_color, 0.20), alpha(@accent_bg_color, 0.05));
-}
-
 .transcript-card-body {
-    background: none;
     background-color: transparent;
+    border-top: 1px solid alpha(@shade_color, 0.18);
+    background: none;
     border: none;
     border-radius: 0;
     box-shadow: none;
 }
 
-/* Bubbles become quiet rows with a clear hover + selection state. */
 .transcript-card .message-bubble {
-    margin-bottom: 4px;
-    padding: 8px 14px;
-    border: none;
-    border-radius: 10px;
-    background: none;
     background-color: transparent;
+    border: none;
     box-shadow: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    margin-bottom: 4px;
+    background: none;
     transition: background-color 140ms ease;
 }
 
@@ -2434,12 +1030,12 @@ separator.tool-separator {
 }
 
 .transcript-card .message-bubble.selected {
+    background-color: alpha(@accent_bg_color, 0.09);
+    border: none;
     margin-bottom: 4px;
     padding: 8px 14px;
-    border: none;
     border-radius: 10px;
     background: none;
-    background-color: alpha(@accent_bg_color, 0.09);
     box-shadow: none;
 }
 
@@ -2450,35 +1046,30 @@ separator.tool-separator {
     padding: 8px 14px;
 }
 
-/* ========================================
-   V5 — Minimal Apple-style recording area
-   (final layer: overrides every pass above)
-   ======================================== */
-
-/* The right content area is one flat surface: white in light, dark grey in dark
-   (both are @card_bg_color). The recording "card" blends straight into it — no
-   border, no shadow, no separate fill. */
 .transcription-page {
     background-color: @card_bg_color;
     background-image: none;
 }
 
 .workspace-surface {
-    margin: 8px 24px 14px;
+    margin-left: 30px;
+    margin-right: 30px;
+    margin-top: 20px;
+    margin-bottom: 24px;
     padding: 0;
     background-color: transparent;
-    background-image: none;
     border: none;
     border-radius: 0;
     box-shadow: none;
+    margin: 8px 24px 14px;
+    background-image: none;
 }
 
-/* --- Hero: orb beside text, calm and clean (no red glow) --- */
 .hero-zone {
-    min-height: 0;
     padding: 24px 22px 18px;
-    border: none;
+    min-height: 0;
     border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+    border: none;
     background-image: none;
 }
 
@@ -2504,12 +1095,11 @@ button.hero-record.hero-recording {
 
 button.hero-record:hover,
 button.hero-record.suggested-action:hover {
-    background-color: #40d364;
     background-image: none;
     box-shadow: 0 2px 6px alpha(black, 0.24), inset 0 1px 0 alpha(white, 0.20);
+    background-color: #40d364;
 }
 
-/* Live: the orb stays a circle — only its colour flips to red. */
 button.hero-record.hero-recording {
     background-color: #ff3b30;
     animation: none;
@@ -2522,28 +1112,31 @@ button.hero-record.hero-recording:hover {
 }
 
 .hero-state {
-    margin-top: 0;
+    border-radius: 999px;
     padding: 0;
-    border: none;
-    background: none;
-    background-color: transparent;
+    margin-bottom: 7px;
     font-size: 0.72em;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    border: none;
+    background: none;
+    margin: 0;
+    margin-top: 0;
+    background-color: transparent;
 }
 
 .hero-state.ready {
     color: #34c759;
-    background: none;
     background-color: transparent;
+    background: none;
     border: none;
 }
 
 .hero-state.recording {
     color: #ff3b30;
-    background: none;
     background-color: transparent;
+    background: none;
     border: none;
 }
 
@@ -2555,36 +1148,38 @@ button.hero-record.hero-recording:hover {
 .hero-state.recording .hero-state-dot {
     background-color: #ff3b30;
     box-shadow: none;
+    animation: recording-pulse 1.2s ease-in-out infinite;
 }
 
 .hero-title {
-    margin-top: 6px;
-    margin-bottom: 0;
-    color: @window_fg_color;
     font-size: 1.38em;
     font-weight: 700;
+    color: @window_fg_color;
+    margin-bottom: 0;
     letter-spacing: -0.01em;
+    margin-top: 6px;
 }
 
 .hero-subtitle {
-    margin-top: 3px;
-    color: alpha(@window_fg_color, 0.52);
     font-size: 0.9em;
+    margin-bottom: 18px;
+    color: alpha(@window_fg_color, 0.52);
     line-height: 1.4;
+    margin-top: 3px;
 }
 
 .hero-hint {
+    font-size: 0.8em;
+    color: alpha(@window_fg_color, 0.40);
     margin-top: 11px;
     padding: 0;
+    border-radius: 999px;
     border: none;
-    background: none;
     background-color: transparent;
-    color: alpha(@window_fg_color, 0.40);
-    font-size: 0.8em;
     font-weight: 500;
+    background: none;
 }
 
-/* Pause / Cancel — the same quiet pill family, shown only while recording. */
 .rec-tools {
     margin-top: 13px;
 }
@@ -2605,45 +1200,53 @@ button.hero-record.hero-recording:hover {
 .rec-tools .rec-tool:hover {
     color: @window_fg_color;
     background-color: alpha(@window_fg_color, 0.12);
+    border-color: alpha(@shade_color, 0.40);
 }
 
 .rec-tools .rec-tool.destructive-action {
     color: #ff3b30;
+    border-color: alpha(@error_color, 0.25);
     background-color: alpha(#ff3b30, 0.10);
 }
 
 .rec-tools .rec-tool.destructive-action:hover {
     background-color: alpha(#ff3b30, 0.17);
+    border-color: alpha(@error_color, 0.35);
 }
 
-/* --- Mode row: one Apple segmented control + matching action buttons --- */
 .hero-mode-row {
+    margin-top: 8px;
+    margin-bottom: 8px;
     min-height: 0;
-    margin: 0;
     padding: 14px 22px 18px;
+    margin: 0;
+    border-bottom: 1px solid alpha(@shade_color, 0.26);
+    background-color: alpha(@card_bg_color, 0.62);
     border: none;
-    background: transparent;
+    border-radius: 0;
     box-shadow: none;
+    background: transparent;
 }
 
 .mode-switcher {
-    padding: 2px;
+    background-color: alpha(@window_fg_color, 0.07);
     border: none;
     border-radius: 9px;
-    background-color: alpha(@window_fg_color, 0.07);
+    padding: 2px;
 }
 
 .mode-switcher .mode-chip {
-    min-height: 28px;
-    padding: 3px 14px;
-    border-radius: 7px;
-    color: alpha(@window_fg_color, 0.62);
     background: transparent;
     background-image: none;
+    border: none;
     box-shadow: none;
-    font-size: 0.86em;
+    border-radius: 7px;
+    padding: 3px 14px;
+    color: alpha(@window_fg_color, 0.62);
     font-weight: 500;
+    min-height: 28px;
     transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    font-size: 0.86em;
 }
 
 .mode-switcher .mode-chip:hover:not(:checked) {
@@ -2652,42 +1255,45 @@ button.hero-record.hero-recording:hover {
 }
 
 .mode-switcher .mode-chip:checked {
-    color: @window_fg_color;
     background-color: @card_bg_color;
-    background-image: none;
+    color: @window_fg_color;
     box-shadow: 0 1px 2px alpha(black, 0.14);
+    background-image: none;
 }
 
-/* Translate / Enhance / Open file — identical quiet buttons. */
 .hero-actions {
-    /* uniform 8px gaps set on the box in code */
+
 }
 
 .hero-toggle,
 .hero-toggle > button {
-    min-height: 32px;
-    padding: 4px 14px;
-    border: none;
     border-radius: 8px;
-    color: alpha(@window_fg_color, 0.74);
+    padding: 4px 14px;
+    font-weight: 500;
+    min-height: 32px;
+    border: none;
     background-color: alpha(@window_fg_color, 0.07);
     box-shadow: none;
-    font-size: 0.86em;
-    font-weight: 500;
     transition: background-color 120ms ease, color 120ms ease;
+    color: alpha(@window_fg_color, 0.74);
+    background: transparent;
+    font-size: 0.86em;
 }
 
 .hero-toggle:hover,
 .hero-toggle:checked:hover {
     color: @window_fg_color;
     background-color: alpha(@window_fg_color, 0.12);
+    border-color: alpha(@window_fg_color, 0.16);
     border: none;
 }
 
 .translate-toggle:checked,
 .ai-toggle:checked {
+    box-shadow: none;
     color: white;
     background-color: @accent_bg_color;
+    border-color: alpha(@accent_bg_color, 0.35);
     border: none;
 }
 
@@ -2695,14 +1301,15 @@ button.hero-record.hero-recording:hover {
     color: alpha(@window_fg_color, 0.74);
 }
 
-/* --- Session card: quiet header, hairline rules, no cut glyph --- */
 .transcript-card-header {
-    min-height: 0;
     padding: 14px 0 9px;
     border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+    min-height: 0;
+    background: transparent;
 }
 
 .transcript-section-title {
+    margin-right: 4px;
     color: alpha(@window_fg_color, 0.42);
     font-size: 0.72em;
     font-weight: 700;
@@ -2711,26 +1318,29 @@ button.hero-record.hero-recording:hover {
 }
 
 .transcript-card .waveform {
+    margin-left: 18px;
+    margin-right: 18px;
     color: @accent_color;
     opacity: 0.85;
     border-top: none;
     border-bottom: none;
+    transition: opacity 180ms ease;
 }
 
 .transcript-card.recording .waveform {
-    color: #ff3b30;
     opacity: 1.0;
+    color: #ff3b30;
 }
 
 .transcript-empty-glyph {
     min-width: 0;
     min-height: 0;
-    padding: 15px;
     margin-bottom: 6px;
     color: @accent_color;
     background-color: alpha(@accent_bg_color, 0.12);
-    background-image: none;
     border-radius: 999px;
+    background-image: none;
+    padding: 15px;
 }
 
 .transcript-empty-title {
@@ -2745,11 +1355,15 @@ button.hero-record.hero-recording:hover {
 }
 
 .transcript-card-footer {
-    min-height: 0;
     padding: 9px 0 0;
-    border: none;
+    background-color: alpha(@card_bg_color, 0.38);
     border-top: 1px solid alpha(@window_fg_color, 0.06);
+    border-radius: 0;
+    min-height: 0;
     background: transparent;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    border: none;
 }
 
 .transcript-action-group {
@@ -2816,7 +1430,6 @@ button.hero-record.hero-recording:hover {
     background-color: alpha(@window_fg_color, 0.07);
 }
 
-/* Thin, unobtrusive scrollbars (fade-in overlay). */
 .transcript-card-body scrollbar {
     background: transparent;
     border: none;
@@ -2833,13 +1446,6 @@ button.hero-record.hero-recording:hover {
     background-color: alpha(@window_fg_color, 0.36);
 }
 
-/* ========================================
-   Final light-theme card treatment
-   ========================================
-   Keep every settings/history surface consistent: slightly darker than the
-   white page, one real light-grey border, and no elevation shadow. This final
-   layer intentionally overrides both libadwaita's boxed-list shadow and all
-   earlier experimental card passes in this file. Dark mode is unchanged. */
 .light-theme .settings-page list.boxed-list,
 .light-theme .settings-page list.content,
 .light-theme .settings-page list.boxed-list-separate > row,
@@ -2867,7 +1473,6 @@ button.hero-record.hero-recording:hover {
     box-shadow: none;
 }
 
-/* Match the header model selector to the same flat light-theme surfaces. */
 .light-theme .header-model {
     background-color: alpha(@window_fg_color, 0.035);
     border: 1px solid alpha(@window_fg_color, 0.13);
@@ -2880,9 +1485,6 @@ button.hero-record.hero-recording:hover {
     box-shadow: none;
 }
 
-/* Final sidebar row geometry. One authoritative height replaces the older
- * overlapping min-height + padding + child-margin rules that clipped glyphs and
- * label ascenders at fractional display/font scaling. */
 .navigation-sidebar row:not(.sidebar-section-row) {
     min-height: 46px;
     padding: 0 8px;
@@ -2917,16 +1519,6 @@ button.hero-record.hero-recording:hover {
     min-height: 46px;
 }
 
-/* ========================================
-   Unified page + header surfaces
-   ========================================
-   Every page matches the transcription page's single flat surface — white in
-   light, elevated grey (@card_bg_color composited over the window) in dark. In
-   dark the content header bar melts into that same surface, with no tonal step
-   and no separator, and the model pill sits one step darker than the bar.
-   Cards keep their contrast on their own: dark @card_bg_color is translucent
-   white, so boxed lists composite to a lighter grey on the new page surface. */
-
 .history-page,
 .settings-page,
 .help-page {
@@ -2942,27 +1534,18 @@ button.hero-record.hero-recording:hover {
     background-color: alpha(black, 0.2);
 }
 
-/* The bottom status bar joins the same surface as the pages above it: white
-   in light, elevated grey in dark — no dividing line, one seamless surface
-   (overrides the hairline the earlier status-bar passes set). */
 .status-bar {
     background-color: @card_bg_color;
     border-top: none;
+    padding: 2px 16px;
+    min-height: 28px;
 }
 
-/* Dark theme: the selected sidebar row keeps its blue tint, but blue-on-dark
-   text reads poorly — its label and icon go white for contrast. Light keeps
-   the coloured foreground. (The red Cancel/Stop chips keep their original
-   soft-red styling in both themes.) */
 .dark-theme .navigation-sidebar row:selected .nav-label,
 .dark-theme .navigation-sidebar row:selected .nav-row-box image {
     color: #ffffff;
 }
 
-/* One green for every "ready/available" signal — exactly the record button's
-   green (#34c759), in both themes: the header model-status dot, the sidebar
-   GPU "Available" label, and the mini panel's lit level-meter LEDs. (The
-   hero READY chip already uses #34c759.) */
 .status-dot.success {
     color: #34c759;
 }
@@ -2975,28 +1558,34 @@ button.hero-record.hero-recording:hover {
     background-color: #34c759;
 }
 
-/* Sidebar GPU panel: slightly tighter vertical spacing, sitting a touch
-   lower, so the nav list above it (Help included) gets a little more room. */
 .gpu-status-panel {
     margin-top: 0;
 }
 
-/* 8px widget margin + 4px card padding + 12px inner margin = 24px text inset,
-   flush with the nav rows' icons above (8px row margin + 8px row padding +
-   8px box margin). */
 .gpu-status-panel .card,
 .gpu-status-panel .card:hover {
+    background-color: transparent;
+    border: none;
+    border-top: 1px solid alpha(@shade_color, 0.20);
+    border-radius: 0;
+    box-shadow: none;
     padding: 6px 4px;
 }
 
-/* Multi-line input fields (Dictionary vocabulary, LLM prompt): in dark they
-   drew the very dark @view_bg_color; paint their frame like a card instead
-   and let the text view show it through. Light keeps the white field. */
+/* Multi-line input fields (Dictionary vocabulary, LLM prompt) read as cards,
+   not as bare white/black text wells: dark paints the frame with the card
+   colour, light with the same flat grey fill and border the light-theme
+   cards use. The text view is transparent so the frame shows through. */
 .dark-theme .field-frame {
     background-color: @card_bg_color;
 }
 
-.dark-theme .field-frame textview,
-.dark-theme .field-frame textview > text {
+.light-theme .field-frame {
+    background-color: alpha(@window_fg_color, 0.035);
+    border: 1px solid alpha(@window_fg_color, 0.13);
+}
+
+.field-frame textview,
+.field-frame textview > text {
     background-color: transparent;
 }
