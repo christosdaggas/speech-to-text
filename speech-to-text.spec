@@ -96,7 +96,7 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
-* Wed Aug 20 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.7.0-1
+* Thu Aug 20 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.7.0-1
 - Performance: transcription is up to 4x faster on Vulkan GPUs — upgraded
   whisper.cpp engine (1.8.3) uses the GPU's cooperative-matrix cores, plus
   flash attention on GPU contexts
