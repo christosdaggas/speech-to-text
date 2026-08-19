@@ -80,5 +80,17 @@ fn main() {
             }
             println!("cargo:rerun-if-changed=po/{}.po", locale);
         }
+
+        // Debug builds read their catalogues straight from the source tree, so
+        // `cargo run` shows the translations currently in po/ instead of the
+        // ones an installed package left in /usr/share/locale. Release builds
+        // deliberately keep the default system path — a packaged binary must
+        // never point at a developer's checkout.
+        if env::var("PROFILE").as_deref() == Ok("debug") {
+            println!(
+                "cargo:rustc-env=LOCALE_DIR={}",
+                manifest_dir.join("data").join("locale").display()
+            );
+        }
     }
 }

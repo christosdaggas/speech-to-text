@@ -2032,89 +2032,44 @@ impl Application {
     fn show_about(&self) {
         let window = self.active_window();
 
+        // The full MIT license text, shown verbatim in the Legal section
+        // (mirrors the repository's LICENSE file).
+        const MIT_LICENSE: &str = "MIT License\n\n\
+            Copyright (c) 2026 Christos A. Daggas\n\n\
+            Permission is hereby granted, free of charge, to any person obtaining a copy \
+            of this software and associated documentation files (the \"Software\"), to deal \
+            in the Software without restriction, including without limitation the rights \
+            to use, copy, modify, merge, publish, distribute, sublicense, and/or sell \
+            copies of the Software, and to permit persons to whom the Software is \
+            furnished to do so, subject to the following conditions:\n\n\
+            The above copyright notice and this permission notice shall be included in all \
+            copies or substantial portions of the Software.\n\n\
+            THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR \
+            IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, \
+            FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE \
+            AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER \
+            LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, \
+            OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE \
+            SOFTWARE.";
+
+        // No release notes here on purpose — What's New has its own item in
+        // the main menu. The website link lives on the developer row in
+        // Credits rather than in Details.
         let about = adw::AboutDialog::builder()
             .application_name(APP_NAME)
             .application_icon(APP_ID)
             .developer_name("Christos A. Daggas")
             .version(VERSION)
             .copyright("© 2026 Christos A. Daggas")
-            .license_type(gtk::License::MitX11)
-            .website("https://chrisdaggas.com")
+            .license(MIT_LICENSE)
             .issue_url("https://github.com/christosdaggas/speech-to-text/issues")
-            .developers(vec!["Christos A. Daggas"])
-            .comments("Offline speech-to-text transcription using Whisper")
-            .release_notes(
-                "<p>Version 1.6.0</p>\
-                <ul>\
-                    <li>Auto-paste now works reliably — including with the main window open in the background — with honest clipboard feedback and a persistent portal session that makes every paste faster.</li>\
-                    <li>Long dictations are transcribed in pause-aligned chunks while you speak, so the wait after Stop stays short instead of growing with the take.</li>\
-                    <li>Qwen3-ASR and Cohere keep their models loaded between dictations via warm local servers, removing tens of seconds of cold start per dictation.</li>\
-                    <li>AI improvement no longer delays delivery: the raw transcript arrives immediately and the polished variant follows.</li>\
-                    <li>Finished transcriptions always reach History; unplugged microphones and desktop portal restarts recover automatically.</li>\
-                    <li>Faster and smoother throughout: history and settings writes moved off the UI thread, instant recording start, leaner decoding defaults.</li>\
-                    <li>Security hardening: size-capped provider metadata, stricter secret redaction, tighter API validation.</li>\
-                </ul>\
-                <p>Version 1.5.0</p>\
-                <ul>\
-                    <li>Verified runtime and model downloads with resumable transfers.</li>\
-                    <li>Faster inference, bounded background work, and smoother live previews.</li>\
-                    <li>More reliable recording, pause, resume, language selection, and cancellation.</li>\
-                    <li>Privacy-first AI consent, explicit automation controls, and safer credentials.</li>\
-                    <li>Expanded history, file transcription recovery, and full-text search.</li>\
-                    <li>A refined workspace with improved navigation, Help, Settings, and light-theme styling.</li>\
-                </ul>\
-                <p>Version 1.4.0</p>\
-                <ul>\
-                    <li>New: an Open File button in the controls row transcribes an existing audio file from disk (WAV, MP3, FLAC, OGG, Opus, or M4A) — results, stats, segments, SRT export, and the Actions/Voice-edit menu all work as they do for a live recording.</li>\
-                    <li>Fixed: the mini panel no longer fails mid-session with “Generic whisper error, code -6” on GPUs that use Vulkan, especially with larger models or wider beam search. The mini panel now always uses a clean batch decode.</li>\
-                    <li>Fixed: borderline audio (whispered, noisy, or short clips) no longer breaks a whole transcription. Whisper’s built-in temperature retry is re-enabled, so a difficult segment is degraded gracefully instead of throwing an error.</li>\
-                    <li>Changed: “Show text live while transcribing” applies only to the main window now; the mini panel is always a clean batch decode. The Settings label reflects this.</li>\
-                    <li>Changed: the beam_size setting is honoured everywhere — the main window’s live preview no longer hard-codes greedy decoding. It still has a self-protection that pauses the preview if your hardware can’t keep up.</li>\
-                    <li>Changed: the mini panel’s “Improve with AI” chips are consolidated into a single “Actions” dropdown next to Voice edit, matching the main window.</li>\
-                    <li>Changed: Settings pages now fill the full content width instead of being clamped to a narrow centred column.</li>\
-                </ul>\
-                <p>Version 1.3.0</p>\
-                <ul>\
-                    <li>Security and distribution hardening: verified downloads, keyring-only secrets, private/atomic config+history, LLM HTTPS enforcement + consent, resource limits, error/log redaction</li>\
-                    <li>Auto-paste off by default for new installs; update check is now a setting; clear-all history asks for confirmation</li>\
-                    <li>Fixed: the mini panel pasted the previous transcript when you clicked into another window mid-recording — clipboard is now set while the panel holds focus (Wayland requires this)</li>\
-                    <li>Fixed: the mini-panel AI icon now appears only when auto-improve will actually run</li>\
-                </ul>\
-                <p>Version 1.2.0</p>\
-                <ul>\
-                    <li>Mini Panel: dictate into any app with a global shortcut — it transcribes, pastes into the focused app, and stays open so you can dictate again</li>\
-                    <li>System tray icon and background mode: run minimized; start dictation, open, or quit from the tray</li>\
-                    <li>Dictation modes: Plain, Message, Email, Note, and Code Prompt formatting</li>\
-                    <li>Whisper Large v3 Turbo models (full and quantized)</li>\
-                    <li>Engine selector moved to Settings → Model (“Default Engine”): choose Whisper or Cohere Transcribe</li>\
-                    <li>Translate to English now also applies to the mini panel</li>\
-                    <li>Fixed: auto-detect language no longer produces empty transcriptions</li>\
-                    <li>Fixed: Cohere Transcribe now uses your selected language</li>\
-                    <li>Fixed: recording no longer gets stuck repeating old text</li>\
-                </ul>\
-                <p>Version 1.1.0</p>\
-                <ul>\
-                    <li>Multi-backend transcription engine support</li>\
-                    <li>Fixed icon display in welcome wizard</li>\
-                    <li>Stability and reliability improvements</li>\
-                </ul>\
-                <p>Version 1.0.0 - July 2026</p>\
-                <ul>\
-                    <li>GPU acceleration enabled by default</li>\
-                    <li>GNOME accent color support for waveform animation</li>\
-                    <li>Improved UI consistency with sidebar-matching theme</li>\
-                    <li>Offline transcription using Whisper (whisper.cpp)</li>\
-                    <li>Multiple Whisper model sizes (Tiny to Large v3)</li>\
-                    <li>Real-time confidence scoring</li>\
-                    <li>Transcription history with search</li>\
-                    <li>Audio device selection</li>\
-                    <li>Pause/resume recording</li>\
-                    <li>Save transcripts to file</li>\
-                    <li>Auto-detect language</li>\
-                    <li>Theme switching (System, Light, Dark)</li>\
-                    <li>Custom model storage location</li>\
-                    <li>Automatic update checking from GitHub</li>\
-                </ul>"
+            .developers(vec!["Christos A. Daggas https://chrisdaggas.com"])
+            .comments(
+                "Speech to Text turns your voice into text, entirely on your device. \
+                 Dictate into any application with a global shortcut, transcribe audio \
+                 files, and shape the result with dictation modes, translation, and \
+                 optional AI polish. Whisper, Qwen3-ASR, and Cohere Transcribe all run \
+                 locally — nothing you say leaves your computer.",
             )
             .build();
 
@@ -2169,40 +2124,24 @@ impl Application {
         intro.set_halign(gtk::Align::Center);
         content.append(&intro);
 
+        // Current release: one continuous card, no section headings (an empty
+        // group title renders no header), matching the release cards below.
         Self::append_whats_new_group(
             &content,
-            &gettext("Paste you can trust"),
+            "",
             &[
                 gettext("Auto-paste now works when the main window is open in the background — keyboard focus returns to your editor, not to the app."),
                 gettext("A persistent desktop portal session removes about a second of overhead from every paste."),
                 gettext("The paste permission is requested once, from Settings — never in the middle of a dictation."),
                 gettext("The Copied badge appears only when the text really is on the clipboard."),
-            ],
-        );
-        Self::append_whats_new_group(
-            &content,
-            &gettext("Faster from voice to text"),
-            &[
                 gettext("Long dictations are transcribed in the background while you speak, so the wait after Stop stays short."),
                 gettext("Qwen3-ASR and Cohere keep their models loaded between dictations instead of reloading gigabytes every time."),
                 gettext("Recording starts instantly — the microphone device is cached between takes."),
                 gettext("AI improvement no longer delays delivery: the raw transcript arrives first and the polished variant follows."),
-            ],
-        );
-        Self::append_whats_new_group(
-            &content,
-            &gettext("Sturdier under pressure"),
-            &[
                 gettext("A finished transcription is always saved to History, even if you have already started the next one."),
                 gettext("The global shortcut re-registers itself if the desktop portal restarts."),
                 gettext("A disconnected microphone stops the recording and transcribes what was captured."),
                 gettext("Transcription errors are shown instead of leaving the panel stuck on Transcribing."),
-            ],
-        );
-        Self::append_whats_new_group(
-            &content,
-            &gettext("Hardened"),
-            &[
                 gettext("Provider metadata downloads are size-capped, and redirects can no longer downgrade to plaintext."),
                 gettext("Secret redaction now catches unprefixed tokens, across line breaks."),
                 gettext("The health endpoint exposes less, and language parameters are strictly validated."),

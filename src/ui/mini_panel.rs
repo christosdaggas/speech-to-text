@@ -11,7 +11,7 @@
 //!                   waveform, an LED level meter, Stop/Cancel.
 //!   • Transcribing — "Decoding…" + elapsed, an indeterminate accent-coloured
 //!                   segmented sweep, Working…/Cancel.
-//!   • Result      — the transcript (3 lines, ellipsized), a "Copied" badge,
+//!   • Result      — the transcript (4 lines, ellipsized), a "Copied" badge,
 //!                   New/Copy/Paste.
 //!
 //! Colours follow the GNOME theme: the segments/spinner use `@accent_bg_color`,
@@ -165,8 +165,8 @@ impl MiniPanel {
 
         // ── Header bar: state (start) + minimize/close (end) ───────────────
         let header = adw::HeaderBar::new();
-        // (No .flat — keep the default headerbar background so the top bar is
-        // visually distinct from the body.)
+        // (No .flat — the stylesheet paints the bar and the body as one
+        // seamless surface, with no separator between them.)
         header.set_decoration_layout(Some(":minimize,close"));
         header.set_title_widget(Some(&gtk::Label::new(None))); // clear centre title
 
@@ -432,13 +432,13 @@ impl MiniPanel {
         let page = Self::new_page();
         let body = Self::page_body();
 
-        // Transcript (up to 3 lines, ellipsized) inside a bordered card so the
+        // Transcript (up to 4 lines, ellipsized) inside a bordered card so the
         // result page doesn't look empty.
         let transcript = gtk::Label::new(None);
         transcript.add_css_class("mp-transcript");
         transcript.set_wrap(true);
         transcript.set_wrap_mode(gtk::pango::WrapMode::WordChar);
-        transcript.set_lines(3);
+        transcript.set_lines(4);
         transcript.set_ellipsize(gtk::pango::EllipsizeMode::End);
         transcript.set_xalign(0.0);
         transcript.set_yalign(0.0);

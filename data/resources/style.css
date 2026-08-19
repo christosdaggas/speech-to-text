@@ -60,7 +60,6 @@
 .sidebar-box {
     background-color: @sidebar_bg_color;
     color: @sidebar_fg_color;
-    border-right: 1px solid alpha(@shade_color, 0.18);
     transition: background-color 200ms ease-out;
 }
 
@@ -793,15 +792,21 @@ comborow popover listview row:selected {
     color: @success_fg_color;
 }
 
+/* One seamless surface matching the main window's content area: white in
+   light, elevated grey in dark. Dark @card_bg_color is translucent, so paint
+   it over an opaque @window_bg_color base (image() layer) to reproduce the
+   exact composite the pages get — a toplevel window has nothing behind it to
+   composite against. No separator line splits the bar from the body. */
 .mini-panel {
-    background-color: @sidebar_bg_color;
+    background-color: @window_bg_color;
+    background-image: image(@card_bg_color);
 }
 
 .mini-panel headerbar {
-    background-color: @headerbar_bg_color;
-    background-image: none;
+    background-color: @window_bg_color;
+    background-image: image(@card_bg_color);
     box-shadow: none;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
+    border-bottom: none;
 }
 
 /* ========================================
@@ -2430,9 +2435,8 @@ separator.tool-separator {
 
 .transcript-card .message-bubble.selected {
     margin-bottom: 4px;
-    padding: 8px 14px 8px 11px;
+    padding: 8px 14px;
     border: none;
-    border-left: 3px solid @accent_bg_color;
     border-radius: 10px;
     background: none;
     background-color: alpha(@accent_bg_color, 0.09);
@@ -2489,7 +2493,7 @@ button.hero-record.hero-recording {
     min-height: 72px;
     padding: 0;
     color: white;
-    background-color: #ff3b30;
+    background-color: #34c759;
     background-image: none;
     border: none;
     border-radius: 999px;
@@ -2499,17 +2503,22 @@ button.hero-record.hero-recording {
 }
 
 button.hero-record:hover,
-button.hero-record.suggested-action:hover,
-button.hero-record.hero-recording:hover {
-    background-color: #ff544a;
+button.hero-record.suggested-action:hover {
+    background-color: #40d364;
     background-image: none;
     box-shadow: 0 2px 6px alpha(black, 0.24), inset 0 1px 0 alpha(white, 0.20);
 }
 
+/* Live: the orb stays a circle — only its colour flips to red. */
 button.hero-record.hero-recording {
     background-color: #ff3b30;
-    border-radius: 22px;
     animation: none;
+}
+
+button.hero-record.hero-recording:hover {
+    background-color: #ff544a;
+    background-image: none;
+    box-shadow: 0 2px 6px alpha(black, 0.24), inset 0 1px 0 alpha(white, 0.20);
 }
 
 .hero-state {
@@ -2906,4 +2915,88 @@ button.hero-record.hero-recording {
 .sidebar-collapsed .navigation-sidebar row:not(.sidebar-section-row),
 .sidebar-collapsed .navigation-sidebar row:not(.sidebar-section-row) .nav-row-box {
     min-height: 46px;
+}
+
+/* ========================================
+   Unified page + header surfaces
+   ========================================
+   Every page matches the transcription page's single flat surface — white in
+   light, elevated grey (@card_bg_color composited over the window) in dark. In
+   dark the content header bar melts into that same surface, with no tonal step
+   and no separator, and the model pill sits one step darker than the bar.
+   Cards keep their contrast on their own: dark @card_bg_color is translucent
+   white, so boxed lists composite to a lighter grey on the new page surface. */
+
+.history-page,
+.settings-page,
+.help-page {
+    background-color: @card_bg_color;
+}
+
+.dark-theme headerbar.content-headerbar {
+    background-color: @card_bg_color;
+    border-bottom: none;
+}
+
+.dark-theme .header-model {
+    background-color: alpha(black, 0.2);
+}
+
+/* The bottom status bar joins the same surface as the pages above it: white
+   in light, elevated grey in dark — no dividing line, one seamless surface
+   (overrides the hairline the earlier status-bar passes set). */
+.status-bar {
+    background-color: @card_bg_color;
+    border-top: none;
+}
+
+/* Dark theme: the selected sidebar row keeps its blue tint, but blue-on-dark
+   text reads poorly — its label and icon go white for contrast. Light keeps
+   the coloured foreground. (The red Cancel/Stop chips keep their original
+   soft-red styling in both themes.) */
+.dark-theme .navigation-sidebar row:selected .nav-label,
+.dark-theme .navigation-sidebar row:selected .nav-row-box image {
+    color: #ffffff;
+}
+
+/* One green for every "ready/available" signal — exactly the record button's
+   green (#34c759), in both themes: the header model-status dot, the sidebar
+   GPU "Available" label, and the mini panel's lit level-meter LEDs. (The
+   hero READY chip already uses #34c759.) */
+.status-dot.success {
+    color: #34c759;
+}
+
+.gpu-status-panel label.success {
+    color: #34c759;
+}
+
+.mp-led.on.g {
+    background-color: #34c759;
+}
+
+/* Sidebar GPU panel: slightly tighter vertical spacing, sitting a touch
+   lower, so the nav list above it (Help included) gets a little more room. */
+.gpu-status-panel {
+    margin-top: 0;
+}
+
+/* 8px widget margin + 4px card padding + 12px inner margin = 24px text inset,
+   flush with the nav rows' icons above (8px row margin + 8px row padding +
+   8px box margin). */
+.gpu-status-panel .card,
+.gpu-status-panel .card:hover {
+    padding: 6px 4px;
+}
+
+/* Multi-line input fields (Dictionary vocabulary, LLM prompt): in dark they
+   drew the very dark @view_bg_color; paint their frame like a card instead
+   and let the text view show it through. Light keeps the white field. */
+.dark-theme .field-frame {
+    background-color: @card_bg_color;
+}
+
+.dark-theme .field-frame textview,
+.dark-theme .field-frame textview > text {
+    background-color: transparent;
 }

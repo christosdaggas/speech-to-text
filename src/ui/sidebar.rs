@@ -11,7 +11,7 @@ use gtk4::prelude::*;
 /// Create a section header label for the sidebar.
 #[allow(dead_code)]
 pub fn create_section_header(title: &str) -> gtk::Label {
-    let label = gtk::Label::new(Some(title));
+    let label = gtk::Label::new(Some(&crate::i18n::upper(title)));
     label.set_halign(gtk::Align::Start);
     label.set_margin_start(12);
     label.set_margin_top(12);

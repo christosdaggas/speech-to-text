@@ -48,12 +48,11 @@ mod imp {
     #[derive(Default)]
     pub struct Controls {
         pub record_btn: RefCell<Option<gtk::Button>>,
-        pub pause_btn: RefCell<Option<gtk::Button>>,
         // stop_btn is no longer rendered (the hero doubles as Record ⇢ Stop),
         // but the field is retained so any guarded `if let Some(..)` access in
-        // the parent stays a no-op rather than a compile error.
+        // the parent stays a no-op rather than a compile error. Pause/Cancel
+        // moved to the transcript card's footer.
         pub stop_btn: RefCell<Option<gtk::Button>>,
-        pub cancel_btn: RefCell<Option<gtk::Button>>,
         pub open_file_btn: RefCell<Option<gtk::Button>>,
         pub copy_btn: RefCell<Option<gtk::Button>>,
         pub clear_btn: RefCell<Option<gtk::Button>>,
@@ -66,14 +65,10 @@ mod imp {
         pub hero_subtitle: RefCell<Option<gtk::Label>>,
         pub hero_hint: RefCell<Option<gtk::Label>>,
         pub hero_record_label: RefCell<Option<gtk::Label>>,
-        pub rec_tools: RefCell<Option<gtk::Box>>,
         pub mode_buttons: RefCell<Vec<gtk::ToggleButton>>,
         /// Mirrors the live recording flag so the hero's click handler can
         /// dispatch Record vs Stop without a second source of truth.
         pub recording_state: Cell<bool>,
-        /// Mirrors whether the current recording is paused so the single pause
-        /// button can dispatch Pause and Resume correctly.
-        pub paused_state: Cell<bool>,
         /// Action dispatcher populated by `connect_action`; the hero reads it
         /// lazily on click.
         pub action_cb: RefCell<Option<ActionCallback>>,
@@ -124,11 +119,12 @@ impl Controls {
         hero_zone.set_halign(gtk::Align::Fill);
         hero_zone.set_hexpand(true);
 
-        // Horizontal group: orb on the left, text column on the right, centred
-        // as a unit within the zone.
+        // Horizontal group: orb on the left, text column on the right. Pinned
+        // to the start (not centred): the orb's 72px column is fixed, so no
+        // idle ⇄ recording text swap can ever shift the orb or the text block.
         let hero_row = gtk::Box::new(gtk::Orientation::Horizontal, 24);
         hero_row.add_css_class("hero-row");
-        hero_row.set_halign(gtk::Align::Center);
+        hero_row.set_halign(gtk::Align::Start);
         hero_row.set_valign(gtk::Align::Center);
 
         // Big circular record button. Click dispatch is wired in
@@ -165,7 +161,7 @@ impl Controls {
         hero_state_dot.add_css_class("hero-state-dot");
         hero_state_dot.set_size_request(7, 7);
         hero_state_dot.set_valign(gtk::Align::Center);
-        let hero_state_label = gtk::Label::new(Some(&gettext("Ready")));
+        let hero_state_label = gtk::Label::new(Some(&crate::i18n::upper(&gettext("Ready"))));
         hero_state_label.add_css_class("hero-state-label");
         hero_state.append(&hero_state_dot);
         hero_state.append(&hero_state_label);
@@ -187,6 +183,12 @@ impl Controls {
         hero_subtitle.set_justify(gtk::Justification::Left);
         hero_subtitle.set_halign(gtk::Align::Start);
         hero_subtitle.set_xalign(0.0);
+        // Lock the subtitle's width (min = max) so swapping the idle ⇄
+        // recording copy never resizes the text block and re-centres the hero
+        // row — the orb and text must not move. Both strings wrap to two
+        // lines at this width. (No ellipsize here: an ellipsized label stops
+        // capping its natural width at max-width-chars and un-wraps.)
+        hero_subtitle.set_width_chars(46);
         hero_subtitle.set_max_width_chars(46);
         hero_text.append(&hero_subtitle);
 
@@ -196,43 +198,8 @@ impl Controls {
         hero_hint.set_halign(gtk::Align::Start);
         hero_text.append(&hero_hint);
 
-        // Pause / Cancel — visible only while recording.
-        fn stage_tool(icon: &str, label: &str, tooltip: &str) -> gtk::Button {
-            let btn = gtk::Button::new();
-            let content = adw::ButtonContent::new();
-            content.set_icon_name(icon);
-            content.set_label(label);
-            btn.set_child(Some(&content));
-            btn.add_css_class("rec-tool");
-            btn.set_tooltip_text(Some(tooltip));
-            btn
-        }
-
-        // Kept always-visible (faded out while idle) so the hero zone's height
-        // never changes when recording starts — otherwise the window resizes.
-        let rec_tools = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        rec_tools.add_css_class("rec-tools");
-        rec_tools.set_halign(gtk::Align::Start);
-        rec_tools.set_opacity(0.0);
-        rec_tools.set_can_target(false);
-
-        let pause_btn = stage_tool(
-            "media-playback-pause-symbolic",
-            &gettext("Pause"),
-            &gettext("Pause recording"),
-        );
-        pause_btn.set_sensitive(false);
-        rec_tools.append(&pause_btn);
-
-        let cancel_btn = stage_tool(
-            "process-stop-symbolic",
-            &gettext("Cancel"),
-            &gettext("Cancel recording and discard"),
-        );
-        cancel_btn.add_css_class("destructive-action");
-        cancel_btn.set_sensitive(false);
-        rec_tools.append(&cancel_btn);
-        hero_text.append(&rec_tools);
+        // (No Pause/Cancel row here — while recording those actions live in
+        // the transcript card's footer, next to Stop.)
 
         // Lazy click dispatch: Record when idle, Stop when live.
         let self_weak = self.downgrade();
@@ -375,8 +342,6 @@ impl Controls {
 
         // Store references
         *imp.record_btn.borrow_mut() = Some(hero_btn);
-        *imp.pause_btn.borrow_mut() = Some(pause_btn);
-        *imp.cancel_btn.borrow_mut() = Some(cancel_btn);
         *imp.open_file_btn.borrow_mut() = Some(open_file_btn);
         *imp.copy_btn.borrow_mut() = Some(copy_btn);
         *imp.clear_btn.borrow_mut() = Some(clear_btn);
@@ -388,7 +353,6 @@ impl Controls {
         *imp.hero_title.borrow_mut() = Some(hero_title);
         *imp.hero_subtitle.borrow_mut() = Some(hero_subtitle);
         *imp.hero_hint.borrow_mut() = Some(hero_hint);
-        *imp.rec_tools.borrow_mut() = Some(rec_tools);
         *imp.mode_buttons.borrow_mut() = mode_buttons;
     }
 
@@ -433,27 +397,6 @@ impl Controls {
         let cb: ActionCallback = Rc::new(callback.clone());
         *imp.action_cb.borrow_mut() = Some(cb);
 
-        if let Some(btn) = imp.pause_btn.borrow().as_ref() {
-            let controls = self.downgrade();
-            btn.connect_clicked(move |_| {
-                let Some(controls) = controls.upgrade() else {
-                    return;
-                };
-                let action = if controls.imp().paused_state.get() {
-                    ControlAction::Resume
-                } else {
-                    ControlAction::Pause
-                };
-                let callback = controls.imp().action_cb.borrow().clone();
-                if let Some(cb) = callback {
-                    cb(action);
-                }
-            });
-        }
-        if let Some(btn) = imp.cancel_btn.borrow().as_ref() {
-            let cb = callback.clone();
-            btn.connect_clicked(move |_| cb(ControlAction::Cancel));
-        }
         if let Some(btn) = imp.open_file_btn.borrow().as_ref() {
             let cb = callback.clone();
             btn.connect_clicked(move |_| cb(ControlAction::OpenFile));
@@ -487,12 +430,14 @@ impl Controls {
             state.add_css_class(if recording { "recording" } else { "ready" });
         }
         if let Some(label) = imp.hero_state_label.borrow().as_ref() {
+            // Uppercased here, not only by the stylesheet: Greek all-caps must
+            // drop the tonos (see crate::i18n::upper).
             let text = if recording {
                 gettext("Recording")
             } else {
                 gettext("Ready")
             };
-            label.set_text(&text);
+            label.set_text(&crate::i18n::upper(&text));
         }
         if let Some(label) = imp.hero_title.borrow().as_ref() {
             let text = if recording {
@@ -543,47 +488,16 @@ impl Controls {
             }
         }
 
-        if let Some(btn) = imp.pause_btn.borrow().as_ref() {
-            btn.set_sensitive(recording);
-        }
-        if let Some(btn) = imp.cancel_btn.borrow().as_ref() {
-            btn.set_sensitive(recording);
-        }
-        if let Some(tools) = imp.rec_tools.borrow().as_ref() {
-            // Fade instead of show/hide: the row always occupies layout space,
-            // keeping the window height stable across idle ⇄ recording.
-            tools.set_opacity(if recording { 1.0 } else { 0.0 });
-            tools.set_can_target(recording);
-        }
         if let Some(btn) = imp.open_file_btn.borrow().as_ref() {
             btn.set_sensitive(!recording);
         }
         // Legacy stop_btn is intentionally absent; nothing to toggle.
-    }
-
-    /// Set paused state — toggle the pause/resume icon, label + tooltip.
-    pub fn set_paused_state(&self, paused: bool) {
-        self.imp().paused_state.set(paused);
-        if let Some(btn) = self.imp().pause_btn.borrow().as_ref() {
-            let Some(content) = btn.child().and_downcast::<adw::ButtonContent>() else {
-                return;
-            };
-            if paused {
-                content.set_icon_name("media-playback-start-symbolic");
-                content.set_label(&gettext("Resume"));
-                btn.set_tooltip_text(Some(gettext("Resume recording").as_str()));
-            } else {
-                content.set_icon_name("media-playback-pause-symbolic");
-                content.set_label(&gettext("Pause"));
-                btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
-            }
-        }
+        // (Pause/Cancel live in the transcript card's footer now.)
     }
 
     /// Reset all buttons to initial state.
     pub fn reset(&self) {
         self.set_recording_state(false);
-        self.set_paused_state(false);
     }
 
     /// Get whether the translate toggle is active.

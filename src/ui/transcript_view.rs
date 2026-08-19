@@ -63,6 +63,10 @@ mod imp {
         pub transcript_card: RefCell<Option<gtk::Box>>,
         pub footer_cancel_btn: RefCell<Option<gtk::Button>>,
         pub footer_stop_btn: RefCell<Option<gtk::Button>>,
+        pub footer_pause_btn: RefCell<Option<gtk::Button>>,
+        /// Mirrors whether the current recording is paused so the single
+        /// footer pause button can dispatch Pause and Resume correctly.
+        pub paused_state: Cell<bool>,
         pub copied_badge: RefCell<Option<gtk::Label>>,
         pub action_cb: RefCell<Option<ActionCallback>>,
         pub is_recording: Cell<bool>,
@@ -147,7 +151,8 @@ impl TranscriptView {
         info_bar.set_margin_top(10);
         info_bar.set_margin_bottom(4);
 
-        let transcript_title = gtk::Label::new(Some(&gettext("Current session")));
+        let transcript_title =
+            gtk::Label::new(Some(&crate::i18n::upper(&gettext("Current session"))));
         transcript_title.add_css_class("transcript-section-title");
         info_bar.append(&transcript_title);
 
@@ -430,6 +435,25 @@ impl TranscriptView {
         });
         action_group.append(&save_btn);
 
+        // Pause leads the recording-time actions (Pause · Cancel · Stop) and
+        // toggles to Resume while paused; shown only while recording.
+        let pause_btn = footer_button("media-playback-pause-symbolic", &gettext("Pause"));
+        pause_btn.add_css_class("footer-pause");
+        pause_btn.set_visible(false);
+        pause_btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
+        let view = self.clone();
+        pause_btn.connect_clicked(move |_| {
+            let action = if view.imp().paused_state.get() {
+                ControlAction::Resume
+            } else {
+                ControlAction::Pause
+            };
+            if let Some(cb) = view.imp().action_cb.borrow().as_ref() {
+                cb(action);
+            }
+        });
+        action_group.append(&pause_btn);
+
         // Cancel sits just before Stop and is shown only while recording: it
         // discards the take, whereas Stop finalises and transcribes it.
         let cancel_btn = footer_button("process-stop-symbolic", &gettext("Cancel"));
@@ -497,6 +521,7 @@ impl TranscriptView {
         *imp.transcript_card.borrow_mut() = Some(card);
         *imp.footer_cancel_btn.borrow_mut() = Some(cancel_btn);
         *imp.footer_stop_btn.borrow_mut() = Some(stop_btn);
+        *imp.footer_pause_btn.borrow_mut() = Some(pause_btn);
         *imp.copied_badge.borrow_mut() = Some(copied_badge);
         *imp.waveform_area.borrow_mut() = Some(waveform_area);
         *imp.seg_box.borrow_mut() = Some(seg_box);
@@ -1424,6 +1449,9 @@ impl TranscriptView {
                 icon.add_css_class("dim-label");
             }
         }
+        if let Some(button) = imp.footer_pause_btn.borrow().as_ref() {
+            button.set_visible(recording);
+        }
         if let Some(button) = imp.footer_cancel_btn.borrow().as_ref() {
             button.set_visible(recording);
         }
@@ -1444,6 +1472,25 @@ impl TranscriptView {
             }
         }
         self.sync_card_visibility();
+    }
+
+    /// Set paused state — toggle the footer button between Pause and Resume.
+    pub fn set_paused_state(&self, paused: bool) {
+        self.imp().paused_state.set(paused);
+        if let Some(btn) = self.imp().footer_pause_btn.borrow().as_ref() {
+            let Some(content) = btn.child().and_downcast::<adw::ButtonContent>() else {
+                return;
+            };
+            if paused {
+                content.set_icon_name("media-playback-start-symbolic");
+                content.set_label(&gettext("Resume"));
+                btn.set_tooltip_text(Some(gettext("Resume recording").as_str()));
+            } else {
+                content.set_icon_name("media-playback-pause-symbolic");
+                content.set_label(&gettext("Pause"));
+                btn.set_tooltip_text(Some(gettext("Pause recording").as_str()));
+            }
+        }
     }
 
     /// Dispatch transcript-footer actions through the same MainWindow action

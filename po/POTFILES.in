@@ -8,6 +8,7 @@ src/ui/controls.rs
 src/ui/header.rs
 src/ui/history_page.rs
 src/ui/help_page.rs
+src/ui/result_state.rs
 src/ui/status_bar.rs
 src/ui/transcript_view.rs
 src/ui/welcome_wizard.rs

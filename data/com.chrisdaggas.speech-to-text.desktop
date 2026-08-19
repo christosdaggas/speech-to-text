@@ -1,12 +1,20 @@
 [Desktop Entry]
 Name=Speech to Text
 Comment=Local offline speech-to-text transcription using Whisper
+Comment[de]=Lokale Offline-Transkription von Sprache zu Text mit Whisper
+Comment[el]=Τοπική μεταγραφή ομιλίας σε κείμενο, χωρίς σύνδεση, με Whisper
+Comment[es]=Transcripción local de voz a texto sin conexión con Whisper
+Comment[it]=Trascrizione vocale locale e offline con Whisper
 Exec=speech-to-text
 Icon=com.chrisdaggas.speech-to-text
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Utility;
 Keywords=speech;voice;transcription;whisper;dictation;
+Keywords[de]=Sprache;Stimme;Transkription;Whisper;Diktat;Diktieren;
+Keywords[el]=ομιλία;φωνή;μεταγραφή;whisper;υπαγόρευση;φωνητική;
+Keywords[es]=voz;habla;transcripción;whisper;dictado;
+Keywords[it]=voce;parlato;trascrizione;whisper;dettatura;
 StartupWMClass=com.chrisdaggas.speech-to-text
 StartupNotify=true
 SingleMainWindow=true

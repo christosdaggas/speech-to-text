@@ -365,7 +365,7 @@ impl HelpPage {
         b.set_margin_end(14);
         b.set_margin_top(10);
         b.set_margin_bottom(10);
-        let t = gtk::Label::new(Some(title));
+        let t = gtk::Label::new(Some(&crate::i18n::upper(title)));
         t.add_css_class("caption-heading");
         t.add_css_class(kind);
         t.set_halign(gtk::Align::Start);
@@ -388,11 +388,11 @@ impl HelpPage {
         grid.set_margin_bottom(12);
         grid.set_column_homogeneous(false);
 
-        let th1 = gtk::Label::new(Some(h1));
+        let th1 = gtk::Label::new(Some(&crate::i18n::upper(h1)));
         th1.add_css_class("caption-heading");
         th1.add_css_class("dim-label");
         th1.set_xalign(0.0);
-        let th2 = gtk::Label::new(Some(h2));
+        let th2 = gtk::Label::new(Some(&crate::i18n::upper(h2)));
         th2.add_css_class("caption-heading");
         th2.add_css_class("dim-label");
         th2.set_xalign(0.0);

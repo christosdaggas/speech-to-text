@@ -3,6 +3,60 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Complete Greek, Italian, Spanish and German translations. The catalogues had
+  drifted badly — they covered 136 strings extracted in March while the app had
+  grown to 501 — so every language was roughly a quarter translated. All four
+  are now at full coverage, and the app menu entry and software-centre listing
+  carry localised descriptions and search keywords too.
+- `scripts/update-translations.sh` re-extracts the template, merges it into
+  every catalogue in `po/LINGUAS`, reports per-language coverage, and warns
+  about source files that use `gettext()` without being listed in
+  `po/POTFILES.in` — the silent failure that let the drift happen.
+
+### Fixed
+
+- The Model settings page built its download-status label with `gettext("")`,
+  which returns the catalogue's header metadata rather than an empty string: any
+  translated build showed a block of PO header text under the progress bar.
+- `src/ui/result_state.rs` was missing from `po/POTFILES.in`, so its strings
+  were never offered for translation.
+- Greek all-caps headings ("READY", "CURRENT SESSION") kept their tonos, which
+  is a spelling error in Greek. GTK's `text-transform` has no language-aware
+  casing, so those headings are now uppercased in code instead; every other
+  language renders exactly as before.
+- The record button turned into a rounded square while recording, and swapping
+  the idle/recording copy re-centred the hero row, so the button and text jumped
+  on every take. The button stays a circle — green when idle, red while
+  recording — and the row is pinned with a fixed-width orb column.
+
+### Changed
+
+- Debug builds now read their translation catalogues from `data/locale` in the
+  source tree, so `cargo run` shows the translations currently in `po/` instead
+  of whatever an installed package left in `/usr/share/locale`. Release builds
+  keep the system path unchanged.
+- One flat surface across the window: every page, the content header bar and the
+  status bar now share the transcription page's background — white in light,
+  elevated grey in dark — with the separators between them removed, and the
+  sidebar no longer draws a divider against the content. The mini panel gained
+  the same treatment and shows four lines of transcript instead of three.
+- Dark theme contrast fixes: the model selector sits a step darker than the
+  header bar, the multi-line inputs on the Dictionary and LLM pages use the card
+  grey instead of near-black, the selected sidebar row's label turns white, and
+  every "ready/available" green — record button, READY, model dot, GPU status,
+  mini-panel level meter — is now the same colour.
+- Pause moved out of the hero area into the transcript footer beside Cancel and
+  Stop, so all recording controls sit together; the duplicate Cancel above is
+  gone.
+- The About dialog drops its copy of the release notes (What's New has its own
+  menu entry), describes what the app does, shows the full MIT licence text, and
+  moves the website link to the developer row under Credits. What's New itself
+  presents the current release as one continuous list.
+
 ## [1.6.0] — 2026-08-01
 
 ### Fixed (1.6.0-2)

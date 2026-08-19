@@ -394,7 +394,10 @@ impl ModelPage {
         progress_bar.set_text(Some(gettext("No download in progress").as_str()));
         progress_box.append(&progress_bar);
 
-        let download_status = gtk::Label::new(Some(gettext("").as_str()));
+        // Starts blank; filled with progress text once a download runs. Never
+        // gettext("") — that returns the .mo header metadata, not an empty
+        // string, so a translated build would show the PO header here.
+        let download_status = gtk::Label::new(None);
         download_status.add_css_class("caption");
         download_status.add_css_class("dim-label");
         download_status.set_xalign(0.0);

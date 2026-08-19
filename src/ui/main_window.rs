@@ -229,7 +229,7 @@ impl MainWindow {
     // (incl. the idle empty state) fits below the short side-by-side hero without
     // the transcript body shrinking and clipping. The window stays resizable, so
     // this is only the initial size.
-    const WINDOW_HEIGHT: i32 = 680;
+    const WINDOW_HEIGHT: i32 = 740;
     /// Minimum width of the right column (transcript area). The window is now
     /// resizable, so `set_default_size` drives the initial 1100px width and this
     /// is only the floor below which the right column won't shrink. Kept modest
@@ -460,10 +460,9 @@ impl MainWindow {
 
         sidebar_box.append(&info_box);
 
-        // Separator
-        let separator = gtk::Separator::new(gtk::Orientation::Vertical);
-
         // === CONTENT AREA ===
+        // (No separator between the sidebar and the content — the two
+        // surfaces meet directly.)
         let content_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
         // hexpand=true is what makes the right column absorb all extra width when
         // the window is resized/maximized, while the sidebar (hexpand=false) keeps
@@ -565,7 +564,6 @@ impl MainWindow {
 
         // Assemble main layout
         main_box.append(&sidebar_box);
-        main_box.append(&separator);
         main_box.append(&content_box);
 
         // Toast overlay for notifications
@@ -2183,8 +2181,8 @@ impl MainWindow {
         if let Some(controller) = self.controller() {
             controller.pause();
         }
-        if let Some(controls) = imp.controls.borrow().as_ref() {
-            controls.set_paused_state(true);
+        if let Some(tv) = imp.transcript_view.borrow().as_ref() {
+            tv.set_paused_state(true);
         }
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
             sb.set_recording_status(&gettext("Paused"));
@@ -2196,8 +2194,8 @@ impl MainWindow {
         if let Some(controller) = self.controller() {
             controller.resume();
         }
-        if let Some(controls) = imp.controls.borrow().as_ref() {
-            controls.set_paused_state(false);
+        if let Some(tv) = imp.transcript_view.borrow().as_ref() {
+            tv.set_paused_state(false);
         }
         if let Some(sb) = imp.status_bar.borrow().as_ref() {
             sb.set_recording_status(&gettext("Recording…"));
@@ -2229,10 +2227,10 @@ impl MainWindow {
         // Update UI
         if let Some(controls) = imp.controls.borrow().as_ref() {
             controls.set_recording_state(false);
-            controls.set_paused_state(false);
         }
         if let Some(tv) = imp.transcript_view.borrow().as_ref() {
             tv.set_recording(false);
+            tv.set_paused_state(false);
         }
 
         // Determine backend
@@ -2419,10 +2417,10 @@ impl MainWindow {
         // Reset UI
         if let Some(controls) = imp.controls.borrow().as_ref() {
             controls.set_recording_state(false);
-            controls.set_paused_state(false);
         }
         if let Some(tv) = imp.transcript_view.borrow().as_ref() {
             tv.set_recording(false);
+            tv.set_paused_state(false);
             tv.clear_live_preview();
             tv.stop_transcribing_anim();
         }

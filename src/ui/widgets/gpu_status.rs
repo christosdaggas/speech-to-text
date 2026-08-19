@@ -61,17 +61,19 @@ impl GpuStatusPanel {
         self.add_css_class("gpu-status-panel");
         self.set_margin_start(8);
         self.set_margin_end(8);
-        self.set_margin_bottom(8);
+        self.set_margin_bottom(0);
 
         // Card frame
         let frame = gtk::Frame::new(None);
         frame.add_css_class("card");
 
+        // 8px widget margin + 4px card padding + 12px inner margin = 24px
+        // text inset — flush with the nav rows' icons above (8+8+8).
         let inner = gtk::Box::new(gtk::Orientation::Vertical, 4);
         inner.set_margin_start(12);
         inner.set_margin_end(12);
-        inner.set_margin_top(8);
-        inner.set_margin_bottom(8);
+        inner.set_margin_top(4);
+        inner.set_margin_bottom(4);
 
         // Header row
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);

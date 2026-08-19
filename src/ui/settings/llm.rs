@@ -265,6 +265,7 @@ impl LlmPage {
             .child(&prompt_view)
             .build();
         let frame = gtk::Frame::new(None);
+        frame.add_css_class("field-frame");
         frame.set_child(Some(&scroller));
         prompt_group.add(&frame);
         self.add(&prompt_group);

@@ -78,16 +78,12 @@ impl StatusBar {
 
         self.append(&rec_box);
 
-        // Separator
-        let sep1 = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep1.set_margin_start(12);
-        sep1.set_margin_end(12);
-        self.append(&sep1);
-
         // (Model indicator removed from the status bar.)
 
         // === Language (Auto-detect or the chosen language) ===
+        // Sections flow with plain gaps — no separators between them.
         let lang_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        lang_box.set_margin_start(24);
 
         let lang_icon = gtk::Image::from_icon_name("preferences-desktop-locale-symbolic");
         lang_icon.set_pixel_size(10);
@@ -100,14 +96,9 @@ impl StatusBar {
 
         self.append(&lang_box);
 
-        // Separator
-        let sep_lang = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep_lang.set_margin_start(12);
-        sep_lang.set_margin_end(12);
-        self.append(&sep_lang);
-
         // === Compute mode ===
         let compute_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        compute_box.set_margin_start(24);
 
         let cpu_icon = gtk::Image::from_icon_name("computer-symbolic");
         cpu_icon.set_pixel_size(10);
@@ -124,12 +115,6 @@ impl StatusBar {
         let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         spacer.set_hexpand(true);
         self.append(&spacer);
-
-        // Separator before version info
-        let sep3 = gtk::Separator::new(gtk::Orientation::Vertical);
-        sep3.set_margin_start(12);
-        sep3.set_margin_end(12);
-        self.append(&sep3);
 
         // === Update indicator (hidden by default) ===
         let update_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);

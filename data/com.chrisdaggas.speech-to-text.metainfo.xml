@@ -6,6 +6,10 @@
 
   <name>Speech to Text</name>
   <summary>Local offline speech-to-text transcription using Whisper</summary>
+  <summary xml:lang="de">Lokale Offline-Transkription von Sprache zu Text mit Whisper</summary>
+  <summary xml:lang="el">Τοπική μεταγραφή ομιλίας σε κείμενο, χωρίς σύνδεση, με Whisper</summary>
+  <summary xml:lang="es">Transcripción local de voz a texto sin conexión con Whisper</summary>
+  <summary xml:lang="it">Trascrizione vocale locale e offline con Whisper</summary>
 
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
