@@ -5,6 +5,26 @@ All notable changes to this project are documented here. This project adheres to
 
 ## [1.7.0] — 2026-08-20
 
+### Fixed (1.7.0-2)
+
+- The system tray kept drawing the old icon after the logo was redrawn. The
+  tray sends its icon to the host as raw pixels (name-based theme lookup leaves
+  an empty slot on most hosts), and those pixels came from PNGs exported by
+  hand — a step that was missed when the artwork changed. The symbolic SVG is
+  now embedded and rasterised at startup, so the icon can no longer drift from
+  its source.
+- The desktop's "screen is being shared" indicator sat in the panel from login
+  onwards: the app opened the RemoteDesktop portal session at startup to save
+  ~1 s on the first auto-paste, and the compositor shows that indicator for as
+  long as a session is live. The session is now opened on the first paste that
+  actually needs it.
+- Two unsoundness advisories in dependencies: gettext-rs 0.7.7 →
+  0.8.0 (RUSTSEC-2026-0244; `setlocale` is now `unsafe` and runs before any
+  thread is started) and event-listener 5.4.1 → 5.4.2 (RUSTSEC-2026-0221).
+- CI: jobs now carry explicit timeouts and bounded apt fetches. Two runs had
+  stalled inside `apt-get update` and were cancelled at GitHub's six-hour job
+  limit.
+
 ### Performance
 
 - Whisper decoding is about 4× faster on Vulkan GPUs. whisper-rs was upgraded

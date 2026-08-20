@@ -11,14 +11,22 @@ on:
 env:
   WHISPER_DONT_GENERATE_BINDINGS: "1"
   CARGO_TERM_COLOR: always
+  # Bound every apt fetch. A mirror that accepts the connection and then stalls
+  # has no timeout of its own — that is how two runs sat in `apt-get update`
+  # until GitHub cancelled them at the 6-hour job limit.
+  APT_OPTS: >-
+    -o Acquire::Retries=3
+    -o Acquire::http::Timeout=30
+    -o Acquire::https::Timeout=30
 
 jobs:
   # ── Formatting (fast, no system deps needed) ──────────────────────────────
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -28,16 +36,26 @@ jobs:
   build:
     name: clippy / test / build
     runs-on: ubuntu-latest
+    # The job normally finishes in ~4 minutes; anything near this cap is a hang,
+    # and failing fast beats burning the 6-hour default.
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          updated=""
+          for attempt in 1 2 3; do
+            if sudo apt-get update $APT_OPTS; then updated=1; break; fi
+            echo "::warning::apt-get update failed (attempt $attempt of 3)"
+            sleep 5
+          done
+          [ -n "$updated" ] || echo "::warning::continuing with the cached package lists"
+          sudo apt-get install -y --no-install-recommends $APT_OPTS \
             libgtk-4-dev libadwaita-1-dev libasound2-dev \
             cmake clang gettext desktop-file-utils
       - name: Clippy (deny warnings)
@@ -51,13 +69,14 @@ jobs:
   audit:
     name: cargo-audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # audit-check reports findings by creating a check run, which the default
     # read-only token cannot do ("Resource not accessible by integration").
     permissions:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: rustsec/audit-check@v2
         with:
@@ -66,8 +85,9 @@ jobs:
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check

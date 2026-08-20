@@ -1,6 +1,6 @@
 Name:           speech-to-text
 Version:        1.7.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Native Linux desktop application for offline speech-to-text transcription using Whisper
 License:        MIT
 URL:            https://github.com/christosdaggas/speech-to-text
@@ -32,6 +32,10 @@ BuildArch:      x86_64
 Requires:       gtk4
 Requires:       libadwaita
 Requires:       alsa-lib
+# The tray rasterises the symbolic SVG through gdk-pixbuf's SVG loader (built
+# in since 2.44; older builds get it from librsvg2). Pulled in by gtk4 anyway,
+# listed because the tray icon depends on it directly.
+Requires:       gdk-pixbuf2
 # The binary is built with whisper.cpp's Vulkan GPU backend and links
 # libvulkan.so.1 at runtime (used when "Use GPU" is enabled in Settings).
 Requires:       vulkan-loader
@@ -96,6 +100,16 @@ done
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
+* Thu Aug 20 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.7.0-2
+- Fixed: the tray kept showing the previous artwork after the icon was redrawn.
+  The tray now rasterises the symbolic SVG at startup instead of shipping
+  hand-exported PNGs, so the icon can no longer drift from the source SVG
+- Fixed: the desktop's "screen is being shared" indicator sat in the panel from
+  login onwards. The RemoteDesktop portal session behind auto-paste is opened on
+  the first paste that needs it instead of at startup
+- Security: gettext-rs 0.8 (RUSTSEC-2026-0244) and event-listener 5.4.2
+  (RUSTSEC-2026-0221), both unsoundness advisories
+
 * Thu Aug 20 2026 Christos A. Daggas <info@chrisdaggas.com> - 1.7.0-1
 - Performance: transcription is up to 4x faster on Vulkan GPUs — upgraded
   whisper.cpp engine (1.8.3) uses the GPU's cooperative-matrix cores, plus

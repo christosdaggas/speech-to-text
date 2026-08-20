@@ -17,6 +17,12 @@ on:
 env:
   WHISPER_DONT_GENERATE_BINDINGS: "1"
   CARGO_TERM_COLOR: always
+  # Bound every apt fetch: a mirror that stalls mid-transfer would otherwise
+  # hold the job until GitHub's 6-hour limit (see .github/workflows/ci.yml).
+  APT_OPTS: >-
+    -o Acquire::Retries=3
+    -o Acquire::http::Timeout=30
+    -o Acquire::https::Timeout=30
 
 permissions:
   contents: write # needed to create/update the GitHub Release
@@ -24,15 +30,23 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          updated=""
+          for attempt in 1 2 3; do
+            if sudo apt-get update $APT_OPTS; then updated=1; break; fi
+            echo "::warning::apt-get update failed (attempt $attempt of 3)"
+            sleep 5
+          done
+          [ -n "$updated" ] || echo "::warning::continuing with the cached package lists"
+          sudo apt-get install -y --no-install-recommends $APT_OPTS \
             libgtk-4-dev libadwaita-1-dev libasound2-dev \
             libvulkan-dev glslc cmake clang gettext desktop-file-utils
 

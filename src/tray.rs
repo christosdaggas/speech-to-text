@@ -14,8 +14,9 @@
 //! channel sender and the pre-decoded icon; menu clicks are forwarded to the
 //! glib main loop.
 //!
-//! The icon is shipped as `IconPixmap` (raw ARGB32 decoded from PNGs embedded
-//! in the binary) rather than left to an `IconName` + `IconThemePath` lookup.
+//! The icon is shipped as `IconPixmap` (raw ARGB32 rasterised from the symbolic
+//! SVG embedded in the binary) rather than left to an `IconName` +
+//! `IconThemePath` lookup.
 //! Name-based lookup is unreliable: every host implements the search differently
 //! and most only probe `<theme>/<size>/{apps,status,panel}/`, so a symbolic icon
 //! living in `<theme>/symbolic/apps/` is never found and the tray shows an empty
@@ -29,17 +30,18 @@ use ksni::{Tray, TrayMethods};
 
 use crate::i18n::gettext;
 
-/// Monochrome tray artwork, pre-rendered from
-/// `data/icons/hicolor/symbolic/apps/…-symbolic.svg`. Several sizes so the host
-/// can pick the one matching its panel instead of rescaling a single bitmap.
-const TRAY_PNGS: &[&[u8]] = &[
-    include_bytes!("../data/icons/tray/tray-16.png"),
-    include_bytes!("../data/icons/tray/tray-22.png"),
-    include_bytes!("../data/icons/tray/tray-24.png"),
-    include_bytes!("../data/icons/tray/tray-32.png"),
-    include_bytes!("../data/icons/tray/tray-48.png"),
-    include_bytes!("../data/icons/tray/tray-64.png"),
-];
+/// Monochrome tray artwork: the symbolic application icon itself, embedded and
+/// rasterised at startup. The SVG is the single source of truth — editing it
+/// changes what the tray draws, with no export step to forget. (Pre-rendered
+/// PNGs used to sit here and silently kept showing the previous artwork after
+/// the icon was redrawn.)
+const TRAY_SVG: &[u8] = include_bytes!(
+    "../data/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg"
+);
+
+/// Sizes offered to the host so it can pick the one matching its panel instead
+/// of rescaling a single bitmap.
+const TRAY_SIZES: [i32; 6] = [16, 22, 24, 32, 48, 64];
 
 /// Actions the tray can request from the application (handled on the glib loop).
 #[derive(Debug, Clone, Copy)]
@@ -56,8 +58,8 @@ pub enum TrayAction {
 
 struct SttTray {
     tx: async_channel::Sender<TrayAction>,
-    /// Decoded once at startup; `ksni::Icon` is plain data, so it moves to the
-    /// tray's thread with the struct.
+    /// Rasterised once at startup; `ksni::Icon` is plain data, so it moves to
+    /// the tray's thread with the struct.
     icons: Vec<ksni::Icon>,
 }
 
@@ -68,14 +70,21 @@ impl SttTray {
     }
 }
 
-/// Decode a PNG into the `IconPixmap` wire format: ARGB32, network byte order,
-/// rows packed tightly (no rowstride padding, which gdk-pixbuf may add).
-fn decode_png(bytes: &[u8]) -> Option<ksni::Icon> {
+/// Rasterise the symbolic icon at `size`×`size` into the `IconPixmap` wire
+/// format: ARGB32, network byte order, rows packed tightly (no rowstride
+/// padding, which gdk-pixbuf may add).
+///
+/// Rendering goes through gdk-pixbuf's SVG loader (librsvg). Without it the
+/// icon list comes back empty and hosts fall back to `icon_name`.
+fn render_icon(svg: &[u8], size: i32) -> Option<ksni::Icon> {
     use gtk4::gdk_pixbuf::PixbufLoader;
     use gtk4::prelude::PixbufLoaderExt;
 
-    let loader = PixbufLoader::new();
-    loader.write(bytes).ok()?;
+    let loader = PixbufLoader::with_type("svg").ok()?;
+    // Must be set before the data is written: it scales the SVG while parsing
+    // instead of resampling a bitmap afterwards, so every size stays crisp.
+    loader.set_size(size, size);
+    loader.write(svg).ok()?;
     loader.close().ok()?;
 
     let pixbuf = loader.pixbuf()?;
@@ -145,13 +154,13 @@ impl Tray for SttTray {
     }
 
     fn icon_name(&self) -> String {
-        // Symbolic (monochrome) variant so the tray shows a small black-and-white
-        // microphone that matches other status-area icons, not the large color icon.
+        // Symbolic (monochrome) variant so the tray shows the small black-and-white
+        // glyph that matches other status-area icons, not the large color icon.
         format!("{}-symbolic", crate::APP_ID)
     }
 
     /// The authoritative icon: raw pixels, so no host-side theme lookup is
-    /// involved. Empty only if PNG decoding somehow fails, in which case hosts
+    /// involved. Empty only if rasterising the SVG fails, in which case hosts
     /// fall back to `icon_name`.
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
         self.icons.clone()
@@ -196,14 +205,20 @@ impl Tray for SttTray {
 /// Spawn the tray on the Tokio runtime and return a receiver of tray actions to
 /// be consumed on the glib main loop. The tray lives for the app's lifetime.
 ///
-/// Must be called from the main thread: the icons are decoded here, before the
-/// tray struct is moved onto the Tokio runtime.
+/// Must be called from the main thread: the icons are rasterised here, before
+/// the tray struct is moved onto the Tokio runtime.
 pub fn spawn_tray() -> async_channel::Receiver<TrayAction> {
     let (tx, rx) = async_channel::unbounded::<TrayAction>();
 
-    let icons: Vec<ksni::Icon> = TRAY_PNGS.iter().filter_map(|png| decode_png(png)).collect();
+    let icons: Vec<ksni::Icon> = TRAY_SIZES
+        .iter()
+        .filter_map(|&size| render_icon(TRAY_SVG, size))
+        .collect();
     if icons.is_empty() {
-        tracing::warn!("Tray icons could not be decoded; falling back to icon-name lookup");
+        tracing::warn!(
+            "Tray icon could not be rasterised (no gdk-pixbuf SVG loader?); \
+             falling back to icon-name lookup"
+        );
     }
 
     crate::application::tokio_runtime().spawn(async move {

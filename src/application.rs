@@ -235,24 +235,22 @@ mod imp {
                 } else {
                     None
                 };
-                let auto_paste = config.auto_paste;
                 crate::application::tokio_runtime().spawn(async move {
                     // The portal Registry must see this connection BEFORE any
                     // other portal call: once another proxy (the RemoteDesktop
-                    // warm-up) speaks first, the shared connection is tagged
-                    // app-id-less for good — every later Register is refused
-                    // as "already associated" and GlobalShortcuts keeps
+                    // paste session) speaks first, the shared connection is
+                    // tagged app-id-less for good — every later Register is
+                    // refused as "already associated" and GlobalShortcuts keeps
                     // rejecting with "An app id is required". Registering
-                    // first, then starting the warm-up and the shortcut
-                    // listener, removes that startup race.
+                    // first, before the shortcut listener starts, removes that
+                    // startup race.
+                    //
+                    // Nothing opens a RemoteDesktop session here: while one is
+                    // live the compositor shows its "screen is being shared"
+                    // indicator, and starting it at login would leave that
+                    // indicator up for the whole session. The session is opened
+                    // on the first paste that needs it instead.
                     crate::portal::ensure_host_app_registered().await;
-
-                    // Pre-warm the persistent RemoteDesktop session (grant
-                    // already held → never prompts) so the first auto-paste
-                    // of the run doesn't pay the portal handshake.
-                    if auto_paste {
-                        crate::portal::paste::warm_up();
-                    }
 
                     crate::portal::shortcuts::run_global_shortcuts(trigger, transform_trigger, tx)
                         .await;

@@ -6,11 +6,16 @@
 //! `org.freedesktop.portal.Clipboard` portals, with `ydotool` as a fallback.
 //!
 //! All portal work runs on a single long-lived actor task that owns ONE
-//! persistent RemoteDesktop session for the app's lifetime:
+//! RemoteDesktop session, opened on the first paste that needs it and kept
+//! until the app quits:
 //!
-//! * Creating a session costs several D-Bus round-trips (and flashes the
-//!   compositor's "remote control" indicator), so paying it once instead of on
-//!   every paste removes ~1s of dead time from the dictate→paste loop.
+//! * Creating a session costs several D-Bus round-trips, so paying it once
+//!   instead of on every paste removes ~1s of dead time from the dictate→paste
+//!   loop.
+//! * It is NOT opened at startup: for as long as a session lives the
+//!   compositor shows its "screen is being shared" indicator, and opening one
+//!   at login would park that indicator in the panel for the whole session
+//!   even if the user never dictates.
 //! * The portal-owned clipboard selection stays serviceable after a delivery
 //!   returns — the actor keeps answering `SelectionTransfer` requests with the
 //!   latest transcript, so the text genuinely remains "on the clipboard".
@@ -136,9 +141,6 @@ enum Cmd {
     },
     /// Interactively acquire the RemoteDesktop grant (from Settings).
     AcquireGrant { reply: async_channel::Sender<bool> },
-    /// Open the session ahead of time (startup, grant already held) so the
-    /// first paste doesn't pay the portal handshake. Never prompts.
-    WarmUp,
     /// Close the live session (after the user revokes the permission).
     CloseSession,
 }
@@ -340,11 +342,6 @@ async fn handle_cmd(cmd: Cmd, live: &mut Option<LiveSession>, current: &mut Vec<
                 }
             };
             let _ = reply.send(ok).await;
-        }
-        Cmd::WarmUp => {
-            if let Err(e) = ensure_live(live, false).await {
-                warn!("RemoteDesktop warm-up failed: {e}");
-            }
         }
         Cmd::CloseSession => {
             close_live(live).await;
@@ -604,14 +601,6 @@ pub async fn try_autopaste() -> bool {
     }
     info!("Auto-paste unavailable — text remains on the clipboard");
     false
-}
-
-/// Open the portal session ahead of time when the grant is already held, so
-/// the first paste of the run skips the session handshake. Never prompts.
-pub fn warm_up() {
-    if has_portal_grant() {
-        let _ = sender().try_send(Cmd::WarmUp);
-    }
 }
 
 /// Interactively request the RemoteDesktop grant (shows the consent dialog if

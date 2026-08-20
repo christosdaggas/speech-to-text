@@ -36,6 +36,19 @@ pub const APP_NAME: &str = "Speech to Text";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> glib::ExitCode {
+    // Translations first, while the process is still single-threaded.
+    // `setlocale` mutates process-global locale state and the environment with
+    // no synchronisation (RUSTSEC-2026-0244), so it has to run before the Tokio
+    // runtime below starts worker threads and before GTK is initialised.
+    let locale_dir = option_env!("LOCALE_DIR").unwrap_or("/usr/share/locale");
+    // SAFETY: this is the first statement of `main` — no other thread exists
+    // yet, so nothing can read the locale or the environment concurrently.
+    unsafe {
+        gettextrs::setlocale(gettextrs::LocaleCategory::LcAll, "");
+    }
+    gettextrs::bindtextdomain("speech-to-text", locale_dir).ok();
+    gettextrs::textdomain("speech-to-text").ok();
+
     // Initialize the global Tokio runtime for async tasks
     let runtime = application::tokio_runtime();
     let _guard = runtime.enter();
@@ -52,12 +65,6 @@ fn main() -> glib::ExitCode {
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,speech_to_text=info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
     tracing::info!("Starting {} v{}", APP_NAME, VERSION);
-
-    // Initialize translations
-    let locale_dir = option_env!("LOCALE_DIR").unwrap_or("/usr/share/locale");
-    gettextrs::setlocale(gettextrs::LocaleCategory::LcAll, "");
-    gettextrs::bindtextdomain("speech-to-text", locale_dir).ok();
-    gettextrs::textdomain("speech-to-text").ok();
 
     // The autostart-only `--hidden` flag must NOT reach GApplication (FLAGS_NONE
     // would reject the unknown option), so detect it here and hand `run` an argv

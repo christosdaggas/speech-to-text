@@ -54,7 +54,7 @@ Version: ${VERSION}
 Architecture: amd64
 Maintainer: Christos A. Daggas <info@chrisdaggas.com>
 Installed-Size: ${INSTALLED_SIZE}
-Depends: libgtk-4-1, libadwaita-1-0 (>= 1.5), libasound2 | libasound2t64, libvulkan1
+Depends: libgtk-4-1, libadwaita-1-0 (>= 1.5), libasound2 | libasound2t64, libvulkan1, librsvg2-common
 Section: sound
 Priority: optional
 Homepage: https://github.com/christosdaggas/speech-to-text
