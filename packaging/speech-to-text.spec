@@ -66,6 +66,11 @@ install -Dm0644 data/icons/hicolor/scalable/apps/%{appid}.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg
 install -Dm0644 data/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg \
     %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg
+# Also under scalable/apps: many StatusNotifier hosts only probe the sized and
+# scalable app directories, never symbolic/apps, so a tray icon installed only
+# in the canonical place is simply never found.
+install -Dm0644 data/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg \
+    %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{appid}-symbolic.svg
 install -Dm0644 data/icons/hicolor/scalable/apps/%{appid}-ai.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{appid}-ai.svg
 install -Dm0644 data/%{appid}.metainfo.xml \
@@ -92,6 +97,7 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg
 %{_datadir}/icons/hicolor/scalable/apps/%{appid}-ai.svg
 %{_datadir}/icons/hicolor/symbolic/apps/%{appid}-symbolic.svg
+%{_datadir}/icons/hicolor/scalable/apps/%{appid}-symbolic.svg
 %{_metainfodir}/%{appid}.metainfo.xml
 %{_datadir}/locale/*/LC_MESSAGES/%{name}.mo
 

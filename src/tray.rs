@@ -130,24 +130,26 @@ impl Tray for SttTray {
     /// below is what actually gets drawn. Returns the first theme root that
     /// really holds our icon so we never advertise a stale or dev-only path.
     fn icon_theme_path(&self) -> String {
-        let roots = [
-            "/usr/share/icons/hicolor".to_string(),
-            "/usr/local/share/icons/hicolor".to_string(),
-            format!(
-                "{}/icons/hicolor",
-                gtk4::glib::user_data_dir().to_string_lossy()
-            ),
-            format!("{}/data/icons/hicolor", env!("CARGO_MANIFEST_DIR")),
+        // A *base* directory — the one that contains `hicolor/`, not `hicolor`
+        // itself. `Gtk.IconTheme.append_search_path` and Qt's
+        // `themeSearchPaths` both expect a base; given a theme directory they
+        // read `symbolic/`, `scalable/` and `48x48/` as if those were theme
+        // names, and the lookup silently finds nothing.
+        let bases = [
+            "/usr/share/icons".to_string(),
+            "/usr/local/share/icons".to_string(),
+            format!("{}/icons", gtk4::glib::user_data_dir().to_string_lossy()),
+            format!("{}/data/icons", env!("CARGO_MANIFEST_DIR")),
         ];
 
         let icon = format!("{}-symbolic.svg", crate::APP_ID);
-        roots
+        bases
             .iter()
-            .find(|root| {
+            .find(|base| {
                 // The layouts hosts actually probe, plus the canonical symbolic one.
-                ["symbolic/apps", "scalable/apps"]
+                ["hicolor/symbolic/apps", "hicolor/scalable/apps"]
                     .iter()
-                    .any(|dir| std::path::Path::new(root).join(dir).join(&icon).is_file())
+                    .any(|dir| std::path::Path::new(base).join(dir).join(&icon).is_file())
             })
             .cloned()
             .unwrap_or_default()

@@ -56,6 +56,10 @@ install -Dm644 "%{SOURCE1}" "%{buildroot}%{_datadir}/applications/com.chrisdagga
 # Icons
 install -Dm644 "%{SOURCE2}" "%{buildroot}%{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text.svg"
 install -Dm644 "%{SOURCE3}" "%{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg"
+# Also under scalable/apps: many StatusNotifier hosts only probe the sized and
+# scalable app directories, never symbolic/apps, so a tray icon installed only
+# in the canonical place is simply never found.
+install -Dm644 "%{SOURCE3}" "%{buildroot}%{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-symbolic.svg"
 
 # AI / LLM indicator icon
 install -Dm644 "%{SOURCE5}" "%{buildroot}%{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-ai.svg"
@@ -80,6 +84,7 @@ done
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text.svg
 %{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-ai.svg
 %{_datadir}/icons/hicolor/symbolic/apps/com.chrisdaggas.speech-to-text-symbolic.svg
+%{_datadir}/icons/hicolor/scalable/apps/com.chrisdaggas.speech-to-text-symbolic.svg
 %dir %{_datadir}/speech-to-text
 %{_datadir}/speech-to-text/ggml-silero-v5.1.2.bin
 %{_datadir}/locale/de/LC_MESSAGES/speech-to-text.mo
